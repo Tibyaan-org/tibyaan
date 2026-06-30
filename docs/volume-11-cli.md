@@ -50,6 +50,12 @@ Validation: FAILED
 Exit code 2
 ```
 
+### 3.1 The generated manifest is what the runtime hosts
+
+`tibyan generate --backend mcp` writes the generated tool files and a capabilities manifest, `tibyan/capabilities.json`, into the chosen `--out` directory, for example `./generated/<module>-mcp/`. That generated manifest is the artifact the runtime hosts. Point the Spring runtime at it with `-Dtibyan.capabilities=file:./generated/<module>-mcp/tibyan/capabilities.json`, a relative path, never a hardcoded absolute or machine-specific path. Launching the app this way reproduces the end-to-end MCP path with no hand-copied file.
+
+The manifest that ships under `tibyan-backend-mcp/src/test/resources/...` is only a golden fixture for the backend's tests. It is not a runtime artifact. Nothing should point the runtime at it, or at any fixed location such as a hand-placed file in a system directory; the only manifest the runtime should host is the one a `generate` run produces into its output directory.
+
 ## 4. Exit codes
 
 | Code | Meaning |

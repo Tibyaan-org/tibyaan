@@ -24,12 +24,22 @@ Read Volume 8 (Technical Spike) and Volume 16 (Technology Stack) before starting
 
 ---
 
+## Current status (as of MVP)
+
+Phases -1 (Spike), P0 (Core and IR), P1 (Spring provider), and P2 (MCP backend and runtime) are complete. The MVP works end to end and is verified two ways: the automated `mvn verify` runs the end-to-end test that drives the genuine MCP protocol (initialize, tools/list, tools/call) against the real example app, and a real MCP client call against the running app returns the real product from the real data store.
+
+The spike-first directive above and the one-phase-per-session rule remain in force for the work that is left. P3 (the CLI) is next. P3 definition of done: a developer can reproduce scan, validate, and generate from the terminal, and launching the app with the generated manifest, via `-Dtibyan.capabilities` pointing at the generated file rather than a hand-copied one, reproduces the end-to-end MCP path with no hand-copied file.
+
+Known gaps and deferred runtime work are recorded in Volume 7, section 8.
+
+---
+
 ## Hard rules (never violate these)
 
 1. `tibyan-core` has zero external dependencies. Not Spring, not JavaParser, not an MCP library, not a template engine. If core needs one of those, a concept has leaked; move it out.
 2. A Backend never knows the source and never calls a framework directly. It reads only the IR and invokes logic through `ExecutionAdapter`.
 3. A Provider only produces IR. It never generates output and never depends on a backend or a runtime.
-4. The Runtime hosts and binds. It contains no IR and no generation logic. It owns the `ExecutionAdapter` for its host.
+4. The Runtime hosts and binds. It contains no IR and no generation logic. It owns the `ExecutionAdapter` for its host. Known MVP runtime gaps and deferred work are listed in Volume 7, section 8.
 5. Keep the IR tiny. MVP IR is entities plus read-only capabilities only. Do NOT add workflows, events, policies, permissions, dependencies, or domain knowledge. Those are future (Volume 4, section 7); they are off limits for the MVP.
 6. One plugin per module. A provider, a backend, or a runtime is its own module that depends only on `tibyan-plugin-api` and `tibyan-core`. Never bundle two plugins in one module. Never let one plugin depend on another.
 7. Dependencies point inward, toward the core, never sideways between plugins. See Volume 12, section 5 for the allowed and forbidden edges.
@@ -74,7 +84,7 @@ Do these in order. Do not start a phase until the previous phase meets its defin
 | P0 Core + IR | The IR stands alone | A hand-built IR validates and round-trips to JSON; `tibyan-core` has zero forbidden deps |
 | P1 Spring provider | Build IR from real source | Scanning the example app yields a valid IR with `Product` and `getProduct` |
 | P2 MCP backend + runtime | Execute against the real system | The MVP acceptance criteria in Volume 2, section 5 pass against a real, unmodified Spring app |
-| P3 CLI | Make the flow usable | A developer can modernize a system using only `tibyan scan` and `tibyan generate` |
+| P3 CLI | Make the flow usable | A developer reproduces scan, validate, and generate from the terminal, and launching the app with the generated manifest reproduces the end-to-end MCP path with no hand-copied file |
 
 ---
 

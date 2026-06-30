@@ -87,3 +87,15 @@ A new runtime is a peer that hosts the same generated layer. Backends do not cha
 1. The runtime hosts and binds; it contains no IR and no generation logic.
 2. The runtime owns the ExecutionAdapter implementation for its host.
 3. The runtime is the only place that knows how a capability's opaque binding maps to a real call.
+
+## 8. Known gaps and deferred work (as of MVP)
+
+These are conscious gaps left at the end of P2, recorded so they are not mistaken for oversights and so a later phase can close them deliberately. None of them block the MVP, which is verified end to end (Volume 2, section 5).
+
+1. App configuration beyond the one dependency. The acceptance goal is that modernizing an app costs exactly one added dependency. Today the example app also needs two things the starter does not yet supply: a launch property, `-Dtibyan.capabilities=...`, that points the runtime at the generated manifest, and a small `spring.ai.mcp.server` block in its `application.yml` (pre-existing from the spike) that names the MCP server. Target: the starter's auto-configuration should eventually supply the MCP server configuration itself and discover the manifest without a launch property, so a truly untouched app needs only the one dependency. This is deferred to runtime hardening, not MVP scope.
+
+2. Two materializations of one tool contract. The runtime registers tools at run time from the generated capabilities manifest, as dynamic tool callbacks. The backend also generates a tool class per capability, which is the materialization for a standalone generated project that is compiled and hosted on its own. Both forms honor exactly one contract: `tool(args) -> ExecutionAdapter.invoke(new CapabilityRef(name), args)`. This is the intended design, not a workaround: the manifest is the in-context hosting path, the generated class is the standalone path, and neither calls a service or framework directly.
+
+3. Argument coercion across the MCP boundary. Arguments arrive from an MCP client as JSON, so a numeric id arrives as an Integer while the bound method expects a Long. The `SpringExecutionAdapter` coerces a small, fixed set of primitive cases (for example Integer to Long, text to BigDecimal) and no more. This is intentionally minimal for the MVP and will need a real, complete coercion strategy later, covering all primitive types, nullability, and clear failures on mismatch.
+
+4. Health, observability, and lifecycle hardening. Sections 3 and 4 list discovery, tool registration, bean access, and running the MCP server as the responsibilities exercised in the MVP. Health checks, observability (logs, metrics, and traces for tool calls), and lifecycle hardening (clean startup and shutdown ordering) are named in section 3 but not yet implemented. They remain later work, cross-referenced here so this gap list is complete.
