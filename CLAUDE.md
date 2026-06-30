@@ -36,6 +36,7 @@ Read Volume 8 (Technical Spike) and Volume 16 (Technology Stack) before starting
 8. Package root is `com.tibyaan`.
 9. No em dashes anywhere: code comments, docs, commit messages, output. Use commas or colons.
 10. Generation is deterministic and covered by golden-file tests. Same IR in, same files out.
+11. Branching: trunk-based. All phase work commits to the main branch. No per-phase branches.
 
 ---
 
