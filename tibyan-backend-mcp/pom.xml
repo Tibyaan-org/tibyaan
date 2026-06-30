@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.tibyaan</groupId>
+        <artifactId>tibyaan</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>tibyan-backend-mcp</artifactId>
+    <name>Tibyaan Backend MCP</name>
+    <description>Turns the Capability IR into MCP tools. Reads only the IR, never a framework or a service.</description>
+
+    <!--
+      Volume 6 rule 2 and Volume 12 section 5: a backend depends on tibyan-plugin-api and
+      tibyan-core only. It never depends on a provider, never on a runtime, and never calls a
+      framework. It generates framework-neutral output through templates. No Jackson is needed:
+      the manifest is written by a small deterministic writer so golden-file tests are exact.
+    -->
+    <dependencies>
+        <dependency>
+            <groupId>com.tibyaan</groupId>
+            <artifactId>tibyan-plugin-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.tibyaan</groupId>
+            <artifactId>tibyan-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>
