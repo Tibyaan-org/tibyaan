@@ -10,6 +10,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 
 import java.util.List;
@@ -19,11 +20,17 @@ import java.util.List;
  * the one dependency activates this auto-configuration, which:
  *
  * <ol>
- *   <li>loads the generated capabilities manifest,</li>
+ *   <li>finds and loads the generated capabilities manifest,</li>
  *   <li>provides the {@link SpringExecutionAdapter} that binds capabilities to real beans,</li>
  *   <li>registers one MCP tool per capability through a {@link ToolCallbackProvider}, which the
  *       Spring AI MCP server exposes inside this application's own context.</li>
  * </ol>
+ *
+ * <p>An app needs only this one dependency. The manifest is found by {@link ManifestResolver}
+ * without a launch property: ship it on the classpath at {@code tibyan/capabilities.json} and it
+ * is picked up. The Spring AI MCP server's name and version are defaulted by
+ * {@link TibyanDefaultPropertiesEnvironmentPostProcessor}, so no {@code spring.ai.mcp.server} block
+ * is required either; the app may still override both through normal Spring properties.
  *
  * <p>This graduates the spike: the single hard-coded getProduct tool is gone, replaced by tools
  * derived from the IR. Health, observability, and lifecycle hardening are deliberately out of
@@ -32,9 +39,6 @@ import java.util.List;
 @AutoConfiguration
 public class TibyanAutoConfiguration {
 
-    /** The manifest location, overridable so a host can point at a generated file without edits. */
-    static final String DEFAULT_MANIFEST_LOCATION = "classpath:/tibyan/capabilities.json";
-
     private static final Logger log = LoggerFactory.getLogger(TibyanAutoConfiguration.class);
 
     @Bean
@@ -42,10 +46,11 @@ public class TibyanAutoConfiguration {
     public CapabilitiesManifest tibyanCapabilitiesManifest(
             ResourceLoader resourceLoader,
             ObjectMapper objectMapper,
-            @Value("${tibyan.capabilities:" + DEFAULT_MANIFEST_LOCATION + "}") String location) {
-        CapabilitiesManifest manifest =
-                new CapabilitiesLoader(objectMapper).load(resourceLoader.getResource(location));
-        log.info("Tibyaan: loaded {} capability(ies) from {}", manifest.tools().size(), location);
+            @Value("${tibyan.capabilities:}") String explicitLocation) {
+        Resource resource = new ManifestResolver(resourceLoader).resolve(explicitLocation);
+        CapabilitiesManifest manifest = new CapabilitiesLoader(objectMapper).load(resource);
+        log.info("Tibyaan: loaded {} capability(ies) from {}",
+                manifest.tools().size(), resource.getDescription());
         return manifest;
     }
 
