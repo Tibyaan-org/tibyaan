@@ -1,11 +1,6 @@
 package com.tibyaan.it;
 
-import com.tibyaan.backend.mcp.McpBackend;
-import com.tibyaan.core.ir.CapabilityModel;
-import com.tibyaan.core.semantic.SemanticValidator;
-import com.tibyaan.plugin.GenerationContext;
-import com.tibyaan.plugin.ProviderInput;
-import com.tibyaan.provider.spring.SpringCapabilityProvider;
+import com.tibyaan.cli.TibyanCli;
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport;
@@ -26,6 +21,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
+import picocli.CommandLine;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -34,8 +30,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * unmodified example app:
  *
  * <ol>
- *   <li>the Spring provider scans the example app source into IR,</li>
- *   <li>the MCP backend generates the getProduct tool and capabilities manifest,</li>
+ *   <li>the tibyan CLI scans the example app source into a validated IR (tibyan scan),</li>
+ *   <li>the tibyan CLI generates the getProduct tool and capabilities manifest (tibyan generate),</li>
  *   <li>the unmodified example app is started as a process, adding only the generated manifest
  *       through a launch property (no file of the app is edited),</li>
  *   <li>a genuine MCP client runs initialize, tools/list, and tools/call getProduct(5),</li>
@@ -52,16 +48,20 @@ class EndToEndMcpIT {
     @BeforeAll
     static void scanGenerateAndStartTheExampleApp() throws Exception {
         Path exampleApp = Path.of("..", "examples", "legacy-spring-app");
-
-        // 1. scan the unmodified source into IR, and validate it
-        CapabilityModel ir = new SpringCapabilityProvider().provide(new ProviderInput(exampleApp));
-        new SemanticValidator().validateOrThrow(ir);
-
-        // 2. generate the MCP tools and manifest from the IR
         Path generated = Files.createTempDirectory("tibyan-it-generated");
-        new McpBackend().generate(ir, new GenerationContext(generated));
+        Path irFile = generated.resolve("legacy.ir.json");
+
+        // 1. scan the unmodified source into a validated IR, through the CLI
+        int scanCode = new CommandLine(new TibyanCli())
+                .execute("scan", exampleApp.toString(), "--out", irFile.toString());
+        assertThat(scanCode).as("tibyan scan exit code").isEqualTo(0);
+
+        // 2. generate the MCP tools and manifest from the IR, through the CLI
+        int generateCode = new CommandLine(new TibyanCli())
+                .execute("generate", "--backend", "mcp", "--ir", irFile.toString(), "--out", generated.toString());
+        assertThat(generateCode).as("tibyan generate exit code").isEqualTo(0);
         Path manifest = generated.resolve("tibyan/capabilities.json");
-        assertThat(Files.exists(manifest)).as("backend must generate the capabilities manifest").isTrue();
+        assertThat(Files.exists(manifest)).as("generate must write the capabilities manifest").isTrue();
 
         // 3. start the unmodified example app, passing only the generated manifest at launch
         port = freePort();

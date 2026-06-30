@@ -31,6 +31,7 @@
         <module>tibyan-provider-spring</module>
         <module>tibyan-backend-mcp</module>
         <module>tibyan-pipeline</module>
+        <module>tibyan-cli</module>
         <module>tibyan-runtime-spring</module>
         <module>examples/legacy-spring-app</module>
         <module>tibyan-it</module>
