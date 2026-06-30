@@ -27,6 +27,7 @@
 
     <modules>
         <module>tibyan-core</module>
+        <module>tibyan-plugin-api</module>
         <module>tibyan-runtime-spring</module>
         <module>examples/legacy-spring-app</module>
     </modules>
