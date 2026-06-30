@@ -5,7 +5,6 @@ import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport;
 import io.modelcontextprotocol.spec.McpSchema;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -18,6 +17,8 @@ import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
@@ -26,30 +27,35 @@ import picocli.CommandLine;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The MVP acceptance test (Volume 2 section 5). It exercises the whole path against the real,
- * unmodified example app:
+ * The MVP acceptance test (Volume 2 section 5), now also proving Direction B step two: a truly
+ * untouched app needs only the one dependency. It exercises the whole path against the real
+ * example app:
  *
  * <ol>
  *   <li>the tibyan CLI scans the example app source into a validated IR (tibyan scan),</li>
  *   <li>the tibyan CLI generates the getProduct tool and capabilities manifest (tibyan generate),</li>
- *   <li>the unmodified example app is started as a process, adding only the generated manifest
- *       through a launch property (no file of the app is edited),</li>
+ *   <li>the unmodified example app is started as a process,</li>
  *   <li>a genuine MCP client runs initialize, tools/list, and tools/call getProduct(5),</li>
  *   <li>the real ProductService.findById returns the real product from the real H2 store.</li>
  * </ol>
+ *
+ * <p>Two start modes are proven. The default mode passes NO {@code -Dtibyan.capabilities} property
+ * and NO {@code spring.ai.mcp.server} config: the app ships the generated manifest on its classpath
+ * at {@code tibyan/capabilities.json}, and the starter auto-configures the MCP server. The explicit
+ * mode still supports pointing the runtime at a manifest with {@code -Dtibyan.capabilities}.
  */
 class EndToEndMcpIT {
 
-    private static int port;
-    private static String baseUrl;
-    private static Process appProcess;
-    private static Path appLog;
+    private static Path generatedManifest;
+    private static Path bootJar;
+    private static String javaBin;
+    private static Path workDir;
 
     @BeforeAll
-    static void scanGenerateAndStartTheExampleApp() throws Exception {
+    static void scanAndGenerateThroughTheCli() throws Exception {
         Path exampleApp = Path.of("..", "examples", "legacy-spring-app");
-        Path generated = Files.createTempDirectory("tibyan-it-generated");
-        Path irFile = generated.resolve("legacy.ir.json");
+        workDir = Files.createTempDirectory("tibyan-it-generated");
+        Path irFile = workDir.resolve("legacy.ir.json");
 
         // 1. scan the unmodified source into a validated IR, through the CLI
         int scanCode = new CommandLine(new TibyanCli())
@@ -58,42 +64,41 @@ class EndToEndMcpIT {
 
         // 2. generate the MCP tools and manifest from the IR, through the CLI
         int generateCode = new CommandLine(new TibyanCli())
-                .execute("generate", "--backend", "mcp", "--ir", irFile.toString(), "--out", generated.toString());
+                .execute("generate", "--backend", "mcp", "--ir", irFile.toString(), "--out", workDir.toString());
         assertThat(generateCode).as("tibyan generate exit code").isEqualTo(0);
-        Path manifest = generated.resolve("tibyan/capabilities.json");
-        assertThat(Files.exists(manifest)).as("generate must write the capabilities manifest").isTrue();
+        generatedManifest = workDir.resolve("tibyan/capabilities.json");
+        assertThat(Files.exists(generatedManifest)).as("generate must write the capabilities manifest").isTrue();
 
-        // 3. start the unmodified example app, passing only the generated manifest at launch
-        port = freePort();
-        baseUrl = "http://localhost:" + port;
-        appLog = generated.resolve("example-app.log");
-        Path bootJar = locateBootJar(exampleApp.resolve("target"));
-        String javaBin = Path.of(System.getProperty("java.home"), "bin", "java").toString();
-
-        appProcess = new ProcessBuilder(
-                javaBin,
-                "-Dtibyan.capabilities=" + manifest.toUri(),
-                "-jar", bootJar.toString(),
-                "--server.port=" + port)
-                .redirectErrorStream(true)
-                .redirectOutput(appLog.toFile())
-                .start();
-
-        waitUntilReady(Duration.ofSeconds(90));
+        bootJar = locateBootJar(exampleApp.resolve("target"));
+        javaBin = Path.of(System.getProperty("java.home"), "bin", "java").toString();
     }
 
-    @AfterAll
-    static void stopTheExampleApp() throws Exception {
-        if (appProcess != null && appProcess.isAlive()) {
-            appProcess.destroy();
-            if (!appProcess.waitFor(15, TimeUnit.SECONDS)) {
-                appProcess.destroyForcibly();
-            }
+    @Test
+    void getProductOverGenuineMcpUsingOnlyTheDependencyAndClasspathManifest() throws Exception {
+        // The defining test for "one dependency, nothing else": no -Dtibyan.capabilities, no MCP
+        // config. The app finds tibyan/capabilities.json on its own classpath and the starter
+        // auto-configures the MCP server.
+        AppProcess app = startApp(null);
+        try {
+            assertGetProductReturnsTheRealProduct(app.baseUrl);
+        } finally {
+            stopApp(app);
         }
     }
 
     @Test
-    void getProductOverGenuineMcpProtocolReturnsTheRealProduct() {
+    void getProductStillWorksWhenTheCapabilitiesPropertyIsGivenExplicitly() throws Exception {
+        // The explicit property is still honored when a host chooses to point the runtime at a
+        // specific generated manifest. Here it is the one tibyan generate just produced.
+        AppProcess app = startApp(generatedManifest.toUri().toString());
+        try {
+            assertGetProductReturnsTheRealProduct(app.baseUrl);
+        } finally {
+            stopApp(app);
+        }
+    }
+
+    private void assertGetProductReturnsTheRealProduct(String baseUrl) {
         HttpClientSseClientTransport transport = HttpClientSseClientTransport.builder(baseUrl).build();
         McpSyncClient client = McpClient.sync(transport)
                 .requestTimeout(Duration.ofSeconds(30))
@@ -123,6 +128,41 @@ class EndToEndMcpIT {
         }
     }
 
+    // Starts the packaged example app on a free port. When explicitManifestUri is null, no
+    // -Dtibyan.capabilities is passed, so the default classpath discovery path is exercised.
+    private static AppProcess startApp(String explicitManifestUri) throws Exception {
+        int port = freePort();
+        String baseUrl = "http://localhost:" + port;
+        Path log = Files.createTempFile(workDir, "example-app-", ".log");
+
+        List<String> command = new ArrayList<>();
+        command.add(javaBin);
+        if (explicitManifestUri != null) {
+            command.add("-Dtibyan.capabilities=" + explicitManifestUri);
+        }
+        command.add("-jar");
+        command.add(bootJar.toString());
+        command.add("--server.port=" + port);
+
+        Process process = new ProcessBuilder(command)
+                .redirectErrorStream(true)
+                .redirectOutput(log.toFile())
+                .start();
+
+        AppProcess app = new AppProcess(process, baseUrl, log);
+        waitUntilReady(app, Duration.ofSeconds(90));
+        return app;
+    }
+
+    private static void stopApp(AppProcess app) throws Exception {
+        if (app.process.isAlive()) {
+            app.process.destroy();
+            if (!app.process.waitFor(15, TimeUnit.SECONDS)) {
+                app.process.destroyForcibly();
+            }
+        }
+    }
+
     private static int freePort() throws IOException {
         try (ServerSocket socket = new ServerSocket(0)) {
             return socket.getLocalPort();
@@ -146,16 +186,16 @@ class EndToEndMcpIT {
         }
     }
 
-    private static void waitUntilReady(Duration timeout) throws Exception {
+    private static void waitUntilReady(AppProcess app, Duration timeout) throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        HttpRequest probe = HttpRequest.newBuilder(URI.create(baseUrl + "/api/products/5"))
+        HttpRequest probe = HttpRequest.newBuilder(URI.create(app.baseUrl + "/api/products/5"))
                 .timeout(Duration.ofSeconds(2))
                 .GET()
                 .build();
         long deadline = System.nanoTime() + timeout.toNanos();
         while (System.nanoTime() < deadline) {
-            if (!appProcess.isAlive()) {
-                throw new IllegalStateException("example app exited early; see " + appLog.toAbsolutePath());
+            if (!app.process.isAlive()) {
+                throw new IllegalStateException("example app exited early; see " + app.log.toAbsolutePath());
             }
             try {
                 HttpResponse<String> response = http.send(probe, HttpResponse.BodyHandlers.ofString());
@@ -168,6 +208,18 @@ class EndToEndMcpIT {
             Thread.sleep(500);
         }
         throw new IllegalStateException("example app did not become ready within " + timeout
-                + "; see " + appLog.toAbsolutePath());
+                + "; see " + app.log.toAbsolutePath());
+    }
+
+    private static final class AppProcess {
+        final Process process;
+        final String baseUrl;
+        final Path log;
+
+        AppProcess(Process process, String baseUrl, Path log) {
+            this.process = process;
+            this.baseUrl = baseUrl;
+            this.log = log;
+        }
     }
 }
