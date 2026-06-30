@@ -1,8 +1,11 @@
 # Tibyaan status and resume point
 
-Status: MVP complete, plus the first hardening step. Work paused here. Last updated 2026-07-01.
+Status: MVP complete, plus the first two hardening steps. Work paused here. Last updated 2026-07-01.
 
-Latest change: the capability binding is now discovered from the real `@Service` method, not assumed by the `get<Entity>` to `<Entity>Service#findById` convention (Direction B, step one, below). The matching rule and what is still assumed are in Volume 5, section 4.1. For the example app the discovered binding is still `ProductService#findById`, so nothing downstream changed; the difference is that it is now read from the source, so a second app with a differently named service or finder is discovered correctly instead of silently mis-bound.
+Recent changes (most recent first):
+
+- Direction B step two: a truly untouched app needs only the `tibyan-runtime-spring` dependency. The starter now supplies the MCP server name and version as overridable defaults (an `EnvironmentPostProcessor`), and the runtime discovers the manifest by a fixed order (explicit `tibyan.capabilities`, then `classpath:/tibyan/capabilities.json`, then `file:tibyan/capabilities.json`), failing loudly if none is found. The example app proves it: no `spring.ai.mcp.server` block in its `application.yml`, the manifest shipped as a classpath resource at `tibyan/capabilities.json`, no `-Dtibyan.capabilities`, and getProduct still returns the real product over genuine MCP. Details in Volume 7, sections 4 and 8 (gap 2, now closed).
+- Direction B step one: the capability binding is discovered from the real `@Service` method, not assumed by the `get<Entity>` to `<Entity>Service#findById` convention. The matching rule and what is still assumed are in Volume 5, section 4.1. For the example app the discovered binding is still `ProductService#findById`; the difference is that it is now read from the source, so a second app with a differently named service or finder is discovered correctly instead of silently mis-bound.
 
 To resume: read this file, then CLAUDE.md and Volume 7 section 8 (Known gaps and deferred work), then pick a next step from "Next directions" below.
 
@@ -32,19 +35,23 @@ All paths are relative to the repository root. Build once so the CLI jar and the
 mvn -q -DskipTests package
 ```
 
-Then run the two CLI commands and launch the app (each command is a single line):
+The CLI flow that produces the manifest (each command is a single line):
 
 ```
 java -jar tibyan-cli/target/tibyan-cli-0.1.0-SNAPSHOT-jar-with-dependencies.jar scan examples/legacy-spring-app --out ./generated/legacy.ir.json
 
 java -jar tibyan-cli/target/tibyan-cli-0.1.0-SNAPSHOT-jar-with-dependencies.jar generate --backend mcp --ir ./generated/legacy.ir.json --out ./generated/legacy-mcp
-
-java -Dtibyan.capabilities=file:generated/legacy-mcp/tibyan/capabilities.json -jar examples/legacy-spring-app/target/legacy-spring-app-0.1.0-SNAPSHOT.jar
 ```
 
-The launch uses a relative `file:` path to the manifest the generate step produced; it resolves from the repository root (verified: the runtime logs `loaded 1 capability(ies)` then `registered 1 MCP tool(s): [getProduct]`). On Windows PowerShell, quote the property: `java "-Dtibyan.capabilities=file:generated/legacy-mcp/tibyan/capabilities.json" -jar ...`.
+The example app already ships that generated manifest on its classpath at `examples/legacy-spring-app/src/main/resources/tibyan/capabilities.json`, so launching needs no manifest property and the app's `application.yml` has no MCP block:
 
-The app starts on port 8080 with the MCP server at `http://localhost:8080/sse`. An MCP client (for example Claude Desktop) that calls getProduct with id 5 gets the real product, `{"id":5,"name":"Wireless Mouse","price":29.99}`, read from the real H2 store through ProductService.findById.
+```
+java -jar examples/legacy-spring-app/target/legacy-spring-app-0.1.0-SNAPSHOT.jar
+```
+
+The runtime finds the manifest on the classpath (verified: it logs `loaded 1 capability(ies) from class path resource [tibyan/capabilities.json]` then `registered 1 MCP tool(s): [getProduct]`, and Spring AI logs `Registered tools: 1`). The app starts on port 8080 with the MCP server at `http://localhost:8080/sse`. An MCP client (for example Claude Desktop) that calls getProduct with id 5 gets the real product, `{"id":5,"name":"Wireless Mouse","price":29.99}`, read from the real H2 store through ProductService.findById.
+
+To point the runtime at a manifest without shipping it as a resource (an ad hoc override), pass `-Dtibyan.capabilities` instead; on Windows PowerShell quote it: `java "-Dtibyan.capabilities=file:generated/legacy-mcp/tibyan/capabilities.json" -jar examples/legacy-spring-app/target/legacy-spring-app-0.1.0-SNAPSHOT.jar`.
 
 ---
 
@@ -57,4 +64,4 @@ Known gaps and deferred work are recorded in `docs/volume-07-runtime.md` section
 ## Next directions (decide when work resumes, not yet acted on)
 
 - Direction A: point the existing tool at a second, real Spring app and observe what breaks. With the binding now discovered, the next likely breaks are shape gaps, not the binding convention: an entity whose finder takes more than the id, a read that returns a list, a service split across classes, or a non-`@Id` identifier. This is still the highest information value for the least code, and it tells us what to build next from evidence rather than guesswork.
-- Direction B: harden what exists, in order. Step one, done: the ServiceExtractor is enabled and the binding is discovered from the real service method instead of assumed (Volume 5, section 4.1). Step two, next: fold the capabilities configuration into the starter auto-configuration so a truly untouched app needs only the one dependency (Volume 7, section 8, gap 2).
+- Direction B: harden what exists, in order. Step one, done: the ServiceExtractor is enabled and the binding is discovered from the real service method instead of assumed (Volume 5, section 4.1). Step two, done: a truly untouched app needs only the one dependency; the starter auto-configures the MCP server and discovers the manifest from the classpath, no `application.yml` block and no launch property (Volume 7, sections 4 and 8 gap 2). Candidate step three: remove the remaining manual step by auto-generating or refreshing the classpath manifest at build time (today `tibyan generate` is run separately and the manifest is placed by hand as a resource). Beyond that, health, observability, and lifecycle hardening (Volume 7, section 8, gap 7).
