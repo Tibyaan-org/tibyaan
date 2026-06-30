@@ -46,6 +46,8 @@ flowchart TD
 
 `tibyan-runtime-spring` is distributed as a Spring Boot starter (ADR-0007). Adding one dependency activates auto-configuration, which discovers the target bean, registers the generated tools, provides the `SpringExecutionAdapter`, and starts the MCP server inside the application's own context. For the MVP, the responsibilities exercised are discovery, tool registration, bean access, and running the MCP server. Health, observability, and lifecycle hardening come later, but the structure is in place from the start.
 
+For the MVP, the binding the `SpringExecutionAdapter` resolves follows the convention recorded in Volume 5, section 4.1 (`<Entity>Service#findById`). The adapter resolves that convention to a real bean and method at run time; it does not treat the convention as permanent, because the ServiceExtractor will later supply the real method in the IR. This keeps rule 3 below honest: the runtime is the only place that maps the opaque binding to a real call, and it maps a convention today, a read fact tomorrow, with no change to backends or the IR.
+
 ```java
 @AutoConfiguration
 public class TibyanAutoConfiguration {

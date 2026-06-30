@@ -51,6 +51,12 @@ A provider takes an input that identifies a source and returns a Capability IR. 
 
 The extractor pattern keeps the provider correct from day one and lets coverage grow without reshaping the module. Each extractor contributes part of the IR; the provider assembles and returns the whole.
 
+### 4.1 The binding convention (MVP decision)
+
+For the MVP, a capability's binding (for example `ProductService#findById`) is a documented convention, not a fact read from the service. The Entity extractor synthesizes it from the entity name, as `<Entity>Service#findById`, because the provider does not read services yet. The binding stays opaque in the IR (Volume 4, section 3.4): it names what to invoke, never how. The runtime resolves the convention to a real bean and method (Volume 7, section 4 and rule 3).
+
+Making the binding real, by reading the actual service method rather than assuming the convention, is the ServiceExtractor's job in a later phase, not P2. P2 must resolve the convention to a real call; it must not harden the convention into a permanent assumption anywhere downstream.
+
 ## 5. Future providers
 
 | Provider | Source | Why it matters |

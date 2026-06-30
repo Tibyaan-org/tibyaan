@@ -53,6 +53,8 @@ flowchart TD
 | nullable | boolean | Whether the field may be absent |
 | annotations | Annotation[] | Generic extension hooks |
 
+> Nullable default (provider rule, recorded here so every provider agrees): a field is non-nullable by default, and nullable only when the source marks it so, for example with `@Column(nullable = true)` or `@Nullable`. The Spring provider already follows this rule (Volume 5), and future providers must adopt the same default so IR output stays consistent regardless of which provider produced it.
+
 ### 3.4 Capability
 | Field | Type | Meaning |
 |---|---|---|
