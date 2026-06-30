@@ -32,6 +32,7 @@
         <module>tibyan-backend-mcp</module>
         <module>tibyan-runtime-spring</module>
         <module>examples/legacy-spring-app</module>
+        <module>tibyan-it</module>
     </modules>
 
     <dependencyManagement>
