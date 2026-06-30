@@ -30,7 +30,7 @@ final class ScanCommand implements Callable<Integer> {
         System.out.println("Scanning " + path);
         try {
             CapabilityModel ir = compiler.scan(new SpringCapabilityProvider(), new ProviderInput(path));
-            System.out.println("Provider: spring (entity extractor)");
+            System.out.println("Provider: spring (entity and service extractors)");
             System.out.println("Found " + CliOutput.summary(ir));
             System.out.println("Validation: ok");
             if (out != null) {

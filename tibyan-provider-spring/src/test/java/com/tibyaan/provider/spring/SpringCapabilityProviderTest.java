@@ -24,6 +24,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * The P1 definition of done: scanning the real example app produces a valid IR holding exactly
  * the Product entity and a getProduct read only capability.
+ *
+ * <p>The {@code ProductService#findById} binding is now discovered from the real service method,
+ * not synthesized by convention (Volume 5 section 4.1). For this app the discovered value happens
+ * to equal what the old convention produced; {@link BindingDiscoveryTest} proves the discovery is
+ * genuine by binding a service and method that the convention could never have named.
  */
 class SpringCapabilityProviderTest {
 

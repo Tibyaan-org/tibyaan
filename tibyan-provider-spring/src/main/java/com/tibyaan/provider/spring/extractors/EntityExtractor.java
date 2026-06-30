@@ -8,8 +8,6 @@ import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.expr.AnnotationExpr;
 import com.github.javaparser.ast.expr.MemberValuePair;
 import com.github.javaparser.ast.nodeTypes.NodeWithAnnotations;
-import com.tibyaan.core.ir.BindingRef;
-import com.tibyaan.core.ir.Capability;
 import com.tibyaan.core.ir.Entity;
 import com.tibyaan.core.ir.Field;
 import com.tibyaan.core.ir.Metadata;
@@ -18,20 +16,20 @@ import com.tibyaan.provider.spring.JavaTypeMapper;
 import com.tibyaan.provider.spring.ProviderException;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
 /**
- * The only extractor enabled in the MVP (Volume 5 section 4, ADR-0011). It finds entity classes,
- * reads their persistent fields into the closed type set, and emits one {@link Entity} plus a
- * basic read only {@link Capability} (for example {@code getProduct}) per entity.
+ * Reads entity classes (Volume 5 section 4.1). It finds {@code @Entity} types, reads their
+ * persistent fields into the closed type set, and emits one {@link Entity} per type plus, for
+ * each entity that has an identifier, a {@link ReadIntent} for a {@code get<Entity>} read.
  *
- * <p>The capability's binding is a documented convention, {@code <Entity>Service#findById}. The
- * provider does not read services yet, so it names the conventional finder the runtime will
- * resolve. The binding is opaque in the IR by design (Volume 4 section 3.4).
+ * <p>It deliberately does not produce the capability's binding. The binding is the real service
+ * method, discovered by joining the read intent against the service-method catalog in the
+ * provider (Volume 5 section 4.1). Keeping the entity side binding-free is what lets this
+ * extractor stay independent of {@link ServiceExtractor}.
  */
-public final class EntityExtractor implements Extractor {
+public final class EntityExtractor {
 
     private static final String ENTITY_ANNOTATION = "Entity";
     private static final String ID_ANNOTATION = "Id";
@@ -41,10 +39,9 @@ public final class EntityExtractor implements Extractor {
 
     private final JavaTypeMapper typeMapper = new JavaTypeMapper();
 
-    @Override
-    public ExtractorContribution extract(List<CompilationUnit> units) {
+    public EntityExtraction extract(List<CompilationUnit> units) {
         List<Entity> entities = new ArrayList<>();
-        List<Capability> capabilities = new ArrayList<>();
+        List<ReadIntent> readIntents = new ArrayList<>();
 
         for (CompilationUnit unit : units) {
             for (ClassOrInterfaceDeclaration type : unit.findAll(ClassOrInterfaceDeclaration.class)) {
@@ -52,10 +49,10 @@ public final class EntityExtractor implements Extractor {
                     continue;
                 }
                 entities.add(extractEntity(type));
-                extractReadCapability(type).ifPresent(capabilities::add);
+                readIntent(type).ifPresent(readIntents::add);
             }
         }
-        return new ExtractorContribution(entities, capabilities, List.of());
+        return new EntityExtraction(entities, readIntents);
     }
 
     private Entity extractEntity(ClassOrInterfaceDeclaration type) {
@@ -83,8 +80,10 @@ public final class EntityExtractor implements Extractor {
         return new Field(fieldName, type, nullable, List.of());
     }
 
-    // The MVP read capability getX(id) needs the entity's identifier, the field marked @Id.
-    private java.util.Optional<Capability> extractReadCapability(ClassOrInterfaceDeclaration type) {
+    // The MVP read getX(id) needs the entity's identifier, the field marked @Id. We emit the
+    // intent (what to read and the id's type), not the binding: the backing method is discovered
+    // later by the provider's join against the service catalog (Volume 5 section 4.1).
+    private Optional<ReadIntent> readIntent(ClassOrInterfaceDeclaration type) {
         String entityName = type.getNameAsString();
         for (FieldDeclaration declaration : type.getFields()) {
             if (isSkipped(declaration) || !hasAnnotation(declaration, ID_ANNOTATION)) {
@@ -93,17 +92,11 @@ public final class EntityExtractor implements Extractor {
             VariableDeclarator id = declaration.getVariable(0);
             Type idType = typeMapper.map(id.getTypeAsString()).orElseThrow(() -> new ProviderException(
                     "unmapped identifier type on entity '" + entityName + "'"));
-            Map<String, Type> inputs = new LinkedHashMap<>();
-            inputs.put(id.getNameAsString(), idType);
-            Capability capability = Capability.read(
-                    "get" + entityName,
-                    inputs,
-                    Type.entityRef(entityName),
-                    new BindingRef(entityName + "Service#findById"));
-            return java.util.Optional.of(capability);
+            return Optional.of(new ReadIntent(
+                    entityName, "get" + entityName, id.getNameAsString(), idType));
         }
-        // No identifier: emit the entity but no getX capability. Documented, not an error.
-        return java.util.Optional.empty();
+        // No identifier: emit the entity but no read intent. Documented, not an error.
+        return Optional.empty();
     }
 
     private static boolean isSkipped(FieldDeclaration declaration) {
