@@ -14,12 +14,13 @@ import java.util.Map;
 /**
  * The Spring {@link ExecutionAdapter} (Volume 7). It is the only place that maps a capability's
  * opaque binding to a real call. Given a {@link CapabilityRef} and arguments, it looks up the
- * capability in the manifest, resolves the binding convention {@code <Bean>#<method>} to a real
- * bean and method through the {@link ApplicationContext}, and invokes it reflectively.
+ * capability in the manifest, resolves the binding's {@code <Bean>#<method>} form to a real bean
+ * and method through the {@link ApplicationContext}, and invokes it reflectively.
  *
- * <p>The binding is a convention today (Volume 5 section 4.1); the adapter resolves it, it does
- * not depend on the convention being permanent. When the ServiceExtractor later supplies a real
- * method binding, this adapter resolves that instead, with no change here.
+ * <p>The binding is the real service method, discovered by the provider (Volume 5 section 4.1).
+ * The adapter never depended on how the binding was produced: it resolves the same opaque
+ * {@code <Bean>#<method>} string whether that string was once a convention or, as now, a
+ * discovered fact, with no change here.
  */
 public final class SpringExecutionAdapter implements ExecutionAdapter {
 

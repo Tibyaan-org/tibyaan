@@ -11,9 +11,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Unit test for the adapter's binding resolution: given the convention {@code ProductService#findById}
+ * Unit test for the adapter's binding resolution: given the binding {@code ProductService#findById}
  * and an argument, it resolves the real bean and invokes the real method reflectively. This is the
- * spike's binding mechanism, now driven by the manifest rather than hard-coded.
+ * spike's binding mechanism, now driven by the manifest rather than hard-coded. The adapter treats
+ * the binding as an opaque {@code <Bean>#<method>} string, so it is indifferent to whether the
+ * provider discovered it or synthesized it (Volume 5 section 4.1).
  */
 class SpringExecutionAdapterTest {
 

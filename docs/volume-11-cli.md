@@ -22,7 +22,7 @@ The CLI binary is `tibyan`. It exposes a small set of commands that map directly
 ```text
 $ tibyan scan ./legacy-spring-app --out inventory.ir.json
 Scanning ./legacy-spring-app
-Provider: spring (entity extractor)
+Provider: spring (entity and service extractors)
 Found 1 entity (Product), 1 capability (getProduct)
 Validation: ok
 Wrote IR to inventory.ir.json

@@ -1,6 +1,8 @@
 # Tibyaan status and resume point
 
-Status: MVP complete. Work paused here. Last updated 2026-06-30.
+Status: MVP complete, plus the first hardening step. Work paused here. Last updated 2026-07-01.
+
+Latest change: the capability binding is now discovered from the real `@Service` method, not assumed by the `get<Entity>` to `<Entity>Service#findById` convention (Direction B, step one, below). The matching rule and what is still assumed are in Volume 5, section 4.1. For the example app the discovered binding is still `ProductService#findById`, so nothing downstream changed; the difference is that it is now read from the source, so a second app with a differently named service or finder is discovered correctly instead of silently mis-bound.
 
 To resume: read this file, then CLAUDE.md and Volume 7 section 8 (Known gaps and deferred work), then pick a next step from "Next directions" below.
 
@@ -48,11 +50,11 @@ The app starts on port 8080 with the MCP server at `http://localhost:8080/sse`. 
 
 ## Open notes
 
-Known gaps and deferred work are recorded in `docs/volume-07-runtime.md` section 8. Plugin discovery status (not real SPI yet) is in `docs/volume-10-plugin-system.md` section 2. The highest-value next item is making the binding real (the ServiceExtractor), because the binding convention is the first thing that breaks on a second, different Spring app.
+Known gaps and deferred work are recorded in `docs/volume-07-runtime.md` section 8. Plugin discovery status (not real SPI yet) is in `docs/volume-10-plugin-system.md` section 2. The binding is no longer assumed: it is discovered from the real service method (Volume 5, section 4.1), so the convention is no longer the first thing that breaks on a second app. What is still assumed there: only single-id-parameter reads are modeled, the capability name is still the `get<Entity>` convention, and the identifier is the first `@Id` field.
 
 ---
 
 ## Next directions (decide when work resumes, not yet acted on)
 
-- Direction A: point the existing tool at a second, real Spring app and observe what breaks. The expected break is the binding convention (get<Entity> assumes <Entity>Service#findById). This is the highest information value for the least code, and it tells us what to build next from evidence rather than guesswork.
-- Direction B: harden what exists, in order. First enable the ServiceExtractor so the binding is discovered from the real service method instead of assumed. Then fold the capabilities configuration into the starter auto-configuration so a truly untouched app needs only the one dependency.
+- Direction A: point the existing tool at a second, real Spring app and observe what breaks. With the binding now discovered, the next likely breaks are shape gaps, not the binding convention: an entity whose finder takes more than the id, a read that returns a list, a service split across classes, or a non-`@Id` identifier. This is still the highest information value for the least code, and it tells us what to build next from evidence rather than guesswork.
+- Direction B: harden what exists, in order. Step one, done: the ServiceExtractor is enabled and the binding is discovered from the real service method instead of assumed (Volume 5, section 4.1). Step two, next: fold the capabilities configuration into the starter auto-configuration so a truly untouched app needs only the one dependency (Volume 7, section 8, gap 2).
