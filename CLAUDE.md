@@ -24,13 +24,13 @@ Read Volume 8 (Technical Spike) and Volume 16 (Technology Stack) before starting
 
 ---
 
-## Current status (as of MVP)
+## Current status (MVP complete)
 
-Phases -1 (Spike), P0 (Core and IR), P1 (Spring provider), and P2 (MCP backend and runtime) are complete. The MVP works end to end and is verified two ways: the automated `mvn verify` runs the end-to-end test that drives the genuine MCP protocol (initialize, tools/list, tools/call) against the real example app, and a real MCP client call against the running app returns the real product from the real data store.
+All MVP phases are complete on the main branch: -1 (Spike), P0 (Core and IR), P1 (Spring provider), P2 (MCP backend and runtime), and P3 (CLI and pipeline). The MVP works end to end: `mvn clean verify` is green, and the terminal flow (tibyan scan, tibyan generate, launch with `-Dtibyan.capabilities` at the generated manifest, live MCP getProduct) is verified.
 
-The spike-first directive above and the one-phase-per-session rule remain in force for the work that is left. P3 (the CLI) is next. P3 definition of done: a developer can reproduce scan, validate, and generate from the terminal, and launching the app with the generated manifest, via `-Dtibyan.capabilities` pointing at the generated file rather than a hand-copied one, reproduces the end-to-end MCP path with no hand-copied file.
+The full resume point, with the exact commands that reproduce the MVP, is in `docs/STATUS.md`. Known gaps and deferred work are in Volume 7, section 8; plugin discovery status is in Volume 10, section 2.
 
-Known gaps and deferred runtime work are recorded in Volume 7, section 8.
+The spike-first directive above and the one-phase-per-session rule remain in force for any future phase.
 
 ---
 
