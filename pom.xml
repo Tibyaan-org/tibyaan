@@ -33,6 +33,7 @@
         <module>tibyan-pipeline</module>
         <module>tibyan-cli</module>
         <module>tibyan-runtime-spring</module>
+        <module>tibyan-maven-plugin</module>
         <module>examples/legacy-spring-app</module>
         <module>tibyan-it</module>
     </modules>
