@@ -1,113 +1,133 @@
 # Volume 13: Development Roadmap
 
-Status: Stable. This roadmap is brownfield-first and spike-first. Each phase has milestones, deliverables, and exit criteria. A phase is not started until the previous phase meets its exit criteria.
+Status: Living. Rewritten on 2026-07-02, after the MVP was completed, hardened, and pointed at a second real application. This volume is now the single plan from the spike to production readiness, in three tiers: what was actually built (Tier 1, a record), what the evidence says to build next (Tier 2, detailed), and where the project is heading (Tier 3, direction only). The original roadmap's hypothetical sequence, P4 OpenAPI, P5 SDK, P6 database provider, P7 .NET, is superseded as a schedule: those ambitions survive in Tier 3, explicitly conditional on the semantic core proving itself on real applications first.
 
 ---
 
-## 1. Sequencing principle
+## 1. Sequencing principles
 
-Two rules order everything:
+Three rules order everything:
 
-1. Prove the hardest assumption first. The runtime binding is the largest unknown, so a Technical Spike comes before any other work (Volume 8).
+1. Prove the hardest assumption first. The runtime binding was the largest unknown, so the Technical Spike came before any other work (Volume 8). This rule is now satisfied and stands as precedent: when a new unknown of that size appears, spike it before building on it.
 2. Build in thin vertical slices. Each phase keeps something that runs end to end and grows it, rather than building a layer in isolation.
+3. Evidence before elaboration. After the MVP, phases are chosen by what a real application actually blocked, measured by the standing benchmark (section 5), not by the architecture's symmetry or by what would be elegant to build. A capability gap earns a phase by blocking real capabilities in a real app.
 
-```mermaid
-flowchart LR
-    S[Phase -1<br/>Technical Spike] --> P0[P0<br/>Core + IR]
-    P0 --> P1[P1<br/>Spring Provider]
-    P1 --> P2[P2<br/>MCP Backend]
-    P2 --> P3[P3<br/>CLI]
-    P3 --> P4[P4<br/>OpenAPI Backend]
-    P4 --> P5[P5<br/>SDK Backend]
-    P5 --> P6[P6<br/>Database Provider]
-    P6 --> P7[P7<br/>.NET Provider]
-```
+The disciplines that accompany these rules do not relax as the plan grows: one phase per session; a phase is not started until the previous phase meets its exit criterion; the tool fails loudly and never guesses; the IR stays tiny and grows only through deliberate, designed steps (Volume 4, section 7). Nothing in this roadmap is license to build ahead of evidence.
 
-## 2. Phases
+## 2. Tier 1: completed (this is a record, not a plan)
 
-### Phase -1: Technical Spike
+The real sequence, as built and verified on the main branch. Each line states what the step proved.
+
+| Step | What it proved |
+|---|---|
+| Phase -1, Technical Spike | An MCP server can run inside a real Spring app's own context and call a real bean, activated by one dependency; the stack was pinned (Spring Boot 3.4.1, Spring AI 1.0.9, SSE transport; Volume 16, section 3) |
+| P0, Core and IR | The IR stands alone: zero-dependency records that validate and round-trip to JSON (Volume 4) |
+| P1, Spring provider | A provider can build a valid IR from real source with JavaParser (EntityExtractor; Volume 5) |
+| P2, MCP backend and runtime | A backend plus the ExecutionAdapter execute against the real, unmodified app: the MVP acceptance criteria (Volume 2, section 5) passed with a genuine MCP call returning the real product |
+| P3, Pipeline and CLI | The whole flow is reproducible from the terminal: scan, validate, generate (Volumes 9 and 11) |
+| Hardening 1, binding discovery | The binding is read from the real `@Service` method by shape, not assumed by convention; absence or ambiguity fails loudly instead of mis-binding (Volume 5, section 4.1) |
+| Hardening 2, one dependency | A truly untouched app needs only the starter: MCP server defaults and manifest discovery are auto-configured, no `application.yml` block, no launch property (Volume 7, section 4) |
+| Hardening 3, build-time generation | The manifest is generated onto the classpath during the app's own build by `tibyan-maven-plugin`, running the same pipeline as the CLI, byte-identical output, nothing copied by hand (Volume 11, section 3.1) |
+| Second-app trial (evidence gathering, not a build) | Against a large real app (pms-backend, 43 entities) the unchanged tool discovered 0 capabilities, mis-bound 0, and failed loudly on all 43, each failure located and explained; the gaps were ranked by how many real capabilities each one blocked (docs/experiments/second-app-trial.md) |
+
+The trial is the pivot of this roadmap: it converted "what should we build next" from guesswork into a ranked, counted list. The single most important fact in it is the zero in the mis-bound column. The tool's one forbidden failure mode, a plausible but wrong binding, did not occur even once against a messy real system.
+
+## 3. Tier 2: evidence-based next phases
+
+These phases are detailed because the pms-backend trial justifies detail: each one is traceable to a ranked gap with counted evidence. Each phase states its goal, its exit criterion, and the evidence that earns it a place. No dates, no estimates. The order is the trial's ranking: each phase unblocks the measurement of the ones after it.
+
+After every phase in this tier, the benchmark is re-run and the experiment doc gains a dated entry (section 5). That re-run is part of the phase, not an optional follow-up.
+
+### Phase E1: Parse resilience and scan scope
+
 | Field | Detail |
 |---|---|
-| Goal | Prove a generated MCP layer can run inside a real Spring app and call a real bean |
-| Deliverables | A runnable spike package and a runbook (Volume 8) |
-| Milestone | An AI agent calls getProduct(5) and gets a real result |
-| Exit criteria | All Volume 8 success criteria met, or a documented decision to change the runtime model |
+| Goal | A scan survives a large, messy, real codebase and reports per-file problems instead of dying on the first one. Three parts: raise the JavaParser language level to the app's Java version (Java 17); collect-and-continue per file, meaning an unparseable file is recorded and skipped and the scan continues, with every skipped file named in the output along with why; scope the walk to relevant source (entities and services), excluding private libraries, infrastructure code, and unrenderable generated files |
+| Evidence | Trial gap 1, the widest margin: the parse gate blocked 38 of 43 entities across 12 of 14 entity-bearing modules before extraction began, and the whole-app scan died inside `library/mq-adapter`, code that is not even part of the domain. Two triggers share the gate: legitimate Java 17 syntax rejected by a parser configured below Java 14 (f1), and files that are genuinely invalid as text (f2) |
+| Exit criterion | The pms-backend whole-app scan completes end to end: it reaches every module, reports each unparseable file with its reason instead of aborting, and the benchmark entry records per-entity outcomes rather than a module-level abort |
 
-### P0: Core and IR
+A discipline note, because this phase is the one most easily misread as a license to soften: collect-and-continue does not weaken fail-loud. It relocates the loudness from "abort everything on the first bad file" to "name every bad file and keep going". A silent skip is still forbidden. The scan's result must state exactly which files were not read and why, so an empty or partial result can never masquerade as a complete one.
+
+### Phase E2: DTO-aware read discovery (design first, then build)
+
 | Field | Detail |
 |---|---|
-| Goal | Build the real Capability IR and its semantic validation, with zero framework dependencies |
-| Deliverables | `tibyan-core` with IR types and validators; `tibyan-plugin-api` with the three contracts |
-| Milestone | A hand-built IR validates and round-trips to and from JSON |
-| Exit criteria | IR documented (Volume 4); a sample IR validates; core has zero forbidden dependencies |
+| Goal | Extend the discovery rule of Volume 5, section 4.1 so a service method that returns a DTO or VTO can back a read of an entity, when that relationship is establishable from the source. The rule must be designed and written into Volume 5 before it is coded, exactly as the binding rule was (the rule was committed to Volume 5 first, the code followed). Until the written rule exists, no matching code is written |
+| Evidence | Trial gap 2, the widest latent reach: essentially all 40 single-key entities are blocked by shape rule 3 (return type simple name must equal the entity name) because this app's service boundary returns view types: `findById` returns `TenantVTO`, `getVendorById` returns `VendorVTO`. The audit module proved the current rule behaves correctly by refusing: it searched, found no entity-returning method, and failed with a located explanation rather than guessing |
+| Exit criterion | Discovered capabilities greater than zero on pms-backend with zero mis-bindings. Every discovered capability names the real method it is bound to; any case the written rule does not decide unambiguously still fails loudly |
 
-### P1: Spring Provider
+### Phase E3: Associations (entity-typed fields)
+
 | Field | Detail |
 |---|---|
-| Goal | Read a real Spring project from source and produce IR |
-| Deliverables | `tibyan-provider-spring` using JavaParser; the Entity extractor enabled, others as placeholders |
-| Milestone | Scanning a real project yields a correct IR for at least one entity and one capability |
-| Exit criteria | A real Spring module produces a valid IR; provider has no backend or runtime dependency |
+| Goal | A deliberate modeling decision for entity fields whose type is another entity, then its implementation. The IR already defines `ENTITY_REF` and `Relation` (Volume 4, sections 3.5 and 4), so this is primarily a provider mapping decision: represent the association as a reference, or skip the field explicitly, never coerce it into a primitive. The decision is recorded (in Volume 5, and as an ADR if it constrains future providers) before the extractor changes |
+| Evidence | Trial gap 3: all 4 property-module entities failed loudly at the first association field (`Building.property` of type `Property`). Real domain entities have relationships; the extractor currently has no answer for them except a correct, loud refusal |
+| Exit criterion | The property module's entities extract on pms-backend, with association fields either mapped or explicitly skipped per the recorded decision, and zero mis-bindings |
 
-### P2: MCP Backend
+### Phase E4: List, filter, and multi-argument reads
+
 | Field | Detail |
 |---|---|
-| Goal | Generate an MCP server from the IR, executing through the Execution Adapter |
-| Deliverables | `tibyan-backend-mcp`; `tibyan-runtime-spring` graduated from the spike; `SpringExecutionAdapter` |
-| Milestone | One definition flows scan to IR to MCP to a real bean call, end to end |
-| Exit criteria | The MVP acceptance criteria in Volume 2 are met against a real, unmodified Spring system |
+| Goal | Model the read shapes that dominate real service APIs: collection returns, filtered queries, and paged multi-argument finders. This requires deliberate IR growth, at minimum a collection output shape, and that growth follows Volume 4, section 7 discipline explicitly: it enters through its own design step with validators and golden tests, never as a silent extension of the existing model. Flagged plainly: this is the first Tier 2 phase that changes the IR, not only the provider |
+| Evidence | Trial gap 4: these shapes are the bulk of pms-backend's actual read API (`getAllByFilter` returning `TenantResultSet`, `List` returns, `getMyVendors(id, page, size)`). They rank after E1 to E3 only because parsing and DTO matching block the run before they are even reached; by volume of real capabilities they are large |
+| Exit criterion | At least one list or filter read discovered on pms-backend in each module where the source offers one, with zero mis-bindings, and the IR growth recorded in Volume 4 with its validators and golden-file tests |
 
-### P3: CLI
-| Field | Detail |
+### Deliberately not scheduled (from the trial's remaining causes)
+
+- Cause d, read with no backing service method (1 entity, audit): the current behavior, a loud refusal naming what was sought, may be the permanently correct answer. A write-heavy module yielding no read capability is honest, not a gap. Revisit only if evidence shows real reads being missed.
+- Cause c, composite `@EmbeddedId` identifiers (3 join entities): arguably out of scope for read-by-single-id. Smallest count in the trial. Stays out until evidence mounts.
+
+## 4. Tier 3: direction only (production readiness and beyond)
+
+This tier is deliberately coarse: one short paragraph per item, no designs, no phase plans, no acceptance criteria. Everything here is conditional on Tier 2 proving the semantic core on real applications, meaning the benchmark discovers a meaningful share of a real app's reads with zero mis-bindings. Writing detailed plans for this tier before that proof would repeat the original roadmap's mistake.
+
+"Production ready" for this project means the following capabilities exist, as a checklist, not a schedule:
+
+| Capability | What it means here |
 |---|---|
-| Goal | Make the pipeline usable from the command line |
-| Deliverables | `tibyan-cli` with scan and generate commands; `tibyan-pipeline` orchestration |
-| Milestone | `tibyan scan` and `tibyan generate` run the full flow |
-| Exit criteria | A developer can modernize a system using only the CLI |
+| Works on a real app not designed for it | The standing benchmark discovers a meaningful share of the app's real reads, and that share is stated honestly in the experiment doc, including what remains undiscovered and why |
+| Write and action capabilities gated behind policy | WRITE and ACTION capabilities are never silently enabled. The IR already distinguishes them from reads (Volume 2, NFR-S2); before any ships, an explicit policy gate controls exposure, off by default |
+| Runtime hardening | Health checks, observability (logs, metrics, traces for tool calls), and lifecycle (clean startup and shutdown ordering), the items already named in Volume 7, sections 3 and 8 gap 7 |
+| Security posture | Exposing tools from a legacy app respects the app's existing authentication and authorization (Volume 2, NFR-S1), with a stated stance on transport security and on which capabilities are exposed at all |
+| Versioning and release | The starter and the Maven plugin are published to a public repository with a versioning discipline; the plugin API is the compatibility boundary (Volume 10, section 6) |
+| Adoptable documentation | An outsider can adopt Tibyan from the docs alone: add the dependency and the build plugin, build, connect an agent |
+| Deferred architecture closed | Real SPI plugin discovery replaces direct injection (Volume 10, section 2); a second backend proves the IR feeds more than one output; a second provider proves source neutrality |
 
-### P4: OpenAPI Backend
-| Field | Detail |
+The former P4 to P7 ambitions, now direction, each conditional on the semantic core proving itself first:
+
+- OpenAPI backend (was P4). Proves one IR feeds a second output with no provider changes. Cheap relative to its proof value once the IR is demonstrably rich enough to be worth re-targeting; pointless before then.
+- SDK backend (was P5). Typed client libraries from the same IR. Same conditionality as OpenAPI, and behind it in line: it proves the same architectural claim.
+- Database provider (was P6). Proves the IR accepts a non-code source. Also the fallback path for systems whose source is unreadable. Its open question, how much business meaning a schema alone can recover, is exactly the kind of question the benchmark discipline should answer before a build.
+- .NET provider (was P7). Proves the platform crosses ecosystems. The largest and most conditional item: it multiplies every provider-side lesson from Tier 2 into a second language, so it comes last and only after the Java provider has stopped teaching new lessons.
+
+## 5. The standing measure: the pms-backend benchmark
+
+The trial target becomes the project's standing benchmark:
+
+- The target is the local, read-only copy at `examples/pms-backend`: 43 entities across 14 domain modules. It is outside the Maven reactor and is not committed to this repository; docs/experiments/second-app-trial.md records its structure so results are interpretable without the source.
+- After each Tier 2 phase, the tool is re-run against it, and the experiment doc gains a dated entry with the new totals: discovered, failed loudly by cause, and mis-bound.
+- The health metric is one line: discovered rising while mis-bound stays zero.
+- Stated plainly: mis-bound greater than zero at any point becomes the top priority over everything. A silent wrong binding is the one failure the tool exists to never produce; if the benchmark ever shows one, all phase work stops until the cause is found and closed.
+
+Baseline, 2026-07-02, tool unchanged since the MVP plus hardening: discovered 0, mis-bound 0, failed loudly 43 (by cause: f2 placeholder tokens 31, f1 language level 7, f3 association field 4, d no backing method 1).
+
+## 6. What each step proves about the architecture
+
+| Step | Architectural claim it validates |
 |---|---|
-| Goal | Prove the IR feeds more than one backend |
-| Deliverables | `tibyan-backend-openapi` |
-| Milestone | The same IR produces both MCP and OpenAPI |
-| Exit criteria | OpenAPI output is generated with no provider changes |
+| Spike (done) | The runtime can bind to a real legacy system in-context |
+| P0 (done) | The IR can stand alone, framework-free |
+| P1 (done) | A provider can feed the IR from real source |
+| P2 (done) | A backend plus an adapter can execute against the real system |
+| P3 (done) | The flow is reproducible without hand steps |
+| Hardening 1 to 3 (done) | Adoption cost is one dependency plus one build-plugin entry, with the binding discovered, not assumed |
+| E1 | The provider survives reality: scale, mess, and modern syntax |
+| E2 | Discovery generalizes past the toy shape without guessing |
+| E3, E4 | The IR grows deliberately, and only where real apps demand it |
+| Tier 3, second backend and provider | One IR feeds many backends; one IR accepts many sources |
 
-### P5: SDK Backend
-| Field | Detail |
-|---|---|
-| Goal | Generate typed client SDKs from the IR |
-| Deliverables | `tibyan-backend-sdk` |
-| Milestone | A typed client is generated and calls a generated server |
-| Exit criteria | SDK output is generated with no provider or runtime changes |
+## 7. Guardrail
 
-### P6: Database Provider
-| Field | Detail |
-|---|---|
-| Goal | Prove the IR accepts more than one source |
-| Deliverables | A database schema provider that produces IR |
-| Milestone | The same backends work on an IR built from a database |
-| Exit criteria | A second provider feeds the same IR with no backend changes |
+Workflows, permissions, events, policies, and the rest of the Semantic Business Capability Model (Volume 1, section 9.1; Volume 4, section 7) remain intentionally absent from Tier 2. They are real parts of the long-term IR, but they are not on the critical path to proving that the semantic core works on real applications. The one exception is narrow: Tier 3's policy gate for write capabilities will eventually pull the policy thread, and when it does, it enters through an RFC (Volume 15), not through this roadmap.
 
-### P7: .NET Provider
-| Field | Detail |
-|---|---|
-| Goal | Prove the platform crosses ecosystems |
-| Deliverables | A .NET source provider that produces IR |
-| Milestone | A .NET system is modernized through the same backends |
-| Exit criteria | A non-Java system produces a valid IR; the modernization layer works unchanged |
-
-## 3. What each phase proves about the architecture
-
-| Phase | Architectural claim it validates |
-|---|---|
-| Spike | The runtime can bind to a real legacy system |
-| P0 | The IR can stand alone, framework-free |
-| P1 | A provider can feed the IR from real source |
-| P2 | A backend plus an adapter can execute against the real system |
-| P4, P5 | One IR feeds many backends |
-| P6, P7 | One IR accepts many providers and crosses ecosystems |
-
-## 4. Guardrail
-
-Workflows, permissions, and events are intentionally absent from the early phases. They are real parts of the long-term IR (Volume 4), but they are not on the critical path to proving modernization. They are scheduled only after the brownfield loop is proven end to end.
+The standing disciplines, restated once more because this is the document most likely to be read as permission: one phase per session; exit criteria before the next phase; fail loudly, never guess; the IR stays tiny until evidence forces growth; and the benchmark, not ambition, decides what is next.

@@ -1,6 +1,12 @@
 # Experiment: second real app trial (pms-backend)
 
-Status: complete. Date: 2026-07-02. This is an evidence-gathering experiment, not a build. No
+Status: complete, and adopted as the standing benchmark (Volume 13, section 5). After each Tier 2
+phase, the tool is re-run against this app and section 8 below gains a dated entry with the new
+totals: discovered, failed loudly by cause, and mis-bound. Discovered rising while mis-bound stays
+zero is the project's health metric; mis-bound greater than zero becomes the top priority over
+everything.
+
+Date of the baseline run: 2026-07-02. This is an evidence-gathering experiment, not a build. No
 tool code was changed. The target app was read only, never compiled, never built, and never
 added to the reactor. The only outcome that would have forced a hard stop, a mis-bound
 capability (a silent wrong result), did not occur: see the MIS-BOUND section.
@@ -228,3 +234,14 @@ searched for a real method of the right shape, did not find one, and refused rat
 back to a convention. The evidence for the alarm case is that it stayed empty. The tool did not
 over-fit, did not coerce, and did not guess. The failure mode this experiment guards against, a
 silent wrong result, did not occur.
+
+---
+
+## 8. Benchmark log (dated entries, one per re-run)
+
+| Date | Tool state | Discovered | Mis-bound | Failed loudly (by cause) | Notes |
+|---|---|---|---|---|---|
+| 2026-07-02 | MVP plus three hardening steps, unchanged | 0 | 0 | 43 (f2: 31, f1: 7, f3: 4, d: 1) | Baseline. Whole-app scan aborted at the first unparseable file; per-entity outcomes above are by the wall each module hit first |
+
+Each Tier 2 phase (Volume 13, section 3) appends one row after its re-run. A row's totals must
+come from an actual run of the tool as built at that date, never from a projection.
