@@ -26,7 +26,7 @@ Read Volume 8 (Technical Spike) and Volume 16 (Technology Stack) before starting
 
 ## Current status (MVP complete)
 
-All MVP phases are complete on the main branch: -1 (Spike), P0 (Core and IR), P1 (Spring provider), P2 (MCP backend and runtime), and P3 (CLI and pipeline), plus two hardening steps: the binding is discovered from the real service method (Volume 5, section 4.1), and a truly untouched app needs only the one dependency, with the manifest shipped on the classpath and the MCP server auto-configured (Volume 7, sections 4 and 8). The MVP works end to end: `mvn clean verify` is green, and the terminal flow (tibyan scan, tibyan generate, launch the app carrying the classpath manifest with no launch property, live MCP getProduct) is verified.
+All MVP phases are complete on the main branch: -1 (Spike), P0 (Core and IR), P1 (Spring provider), P2 (MCP backend and runtime), and P3 (CLI and pipeline), plus three hardening steps: the binding is discovered from the real service method (Volume 5, section 4.1); a truly untouched app needs only the one dependency, with the MCP server auto-configured and the manifest discovered from the classpath (Volume 7, sections 4 and 8); and the manifest is generated at build time by the `tibyan-maven-plugin`, which runs the same pipeline as the CLI, so nothing is copied by hand (Volume 11). The MVP works end to end: `mvn clean verify` is green, and the flow (build generates the manifest onto the classpath, launch the app with no launch property, live MCP getProduct) is verified.
 
 The full resume point, with the exact commands that reproduce the MVP, is in `docs/STATUS.md`. Known gaps and deferred work are in Volume 7, section 8; plugin discovery status is in Volume 10, section 2.
 

@@ -25,6 +25,7 @@ tibyan/
 │                                 #   later: discovery · health · observability · lifecycle
 ├── tibyan-pipeline/              # provide -> IR -> generate
 ├── tibyan-cli/                   # tibyan scan / tibyan generate
+├── tibyan-maven-plugin/          # Maven wiring only: runs the pipeline at build time onto the classpath
 ├── tibyan-it/                    # end-to-end: a real product comes back from ProductService
 └── generated/                    # gitignored
 ```
