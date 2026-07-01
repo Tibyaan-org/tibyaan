@@ -1,0 +1,230 @@
+# Experiment: second real app trial (pms-backend)
+
+Status: complete. Date: 2026-07-02. This is an evidence-gathering experiment, not a build. No
+tool code was changed. The target app was read only, never compiled, never built, and never
+added to the reactor. The only outcome that would have forced a hard stop, a mis-bound
+capability (a silent wrong result), did not occur: see the MIS-BOUND section.
+
+Tool used: the existing CLI jar `tibyan-cli-0.1.0-SNAPSHOT-jar-with-dependencies.jar`, unchanged.
+Commands: `scan <path> --out ...` against the whole app and, to probe beneath the first failure,
+against each domain module in isolation. The provider reads source as text with JavaParser
+(Volume 5). No `generate` was run: no scan reached a valid IR to generate from.
+
+Reactor note: `examples/pms-backend` was already outside the parent pom `<modules>` list, so it
+was never wired into the build. No detach was needed and no pom change was made this session.
+Nothing about the tibyaan build changed, so `mvn clean verify` is unaffected.
+
+---
+
+## 1. The app at a high level
+
+A multi-module Maven property-management backend, one Spring Boot application composed of about
+fourteen domain modules (property, lease, billing, maintenance, inspection, community, chat,
+notification, file, staff, user, vendor, admin, audit) plus a reporting module and a set of the
+author's private foundation libraries under `library/`. Only structure is described below; no
+business logic is reproduced.
+
+- Entity classes: 43 (annotated `@Entity`).
+- Identifier styles:
+  - 40 entities: a single primitive-mapped id. Mostly `Long id`; five use `Integer id`
+    (Domain, Event, EventParameter, Role, UserStatus); one names it `Long userId` (UserSettings).
+    These map cleanly to the closed primitive set.
+  - 3 entities: a composite key via `@EmbeddedId` (EventAttendee, GroupMember, UserRole). These
+    are join tables with multi-column keys, not a single `@Id` field. Cause code (c).
+- Read-method shapes on the `@Service` layer (sampled, read only). The dominant shape is that
+  services return DTO/VTO or result-set types, not the JPA entity:
+  - by-id reads return a view type, not the entity: `findById(Long)` returns `TenantVTO`,
+    `getVendorById(Long)` returns `VendorVTO`.
+  - list, filter, and multi-argument reads are common: `getAllByFilter(...)` returns
+    `TenantResultSet`; `getMyVendors(Long, Integer, Integer)` and `getVendorsByBuilding(...)`
+    return `VendorResultSet`; `getVendorsByBuildingId(Long)` returns `List<VendorVTO>`.
+
+The tool models exactly one read shape (Volume 5, section 4.1): a single-id-parameter method,
+declared on an `@Service`, whose return type simple name equals the entity name. Almost nothing
+in this app has that shape, because the service boundary speaks DTOs and result sets.
+
+---
+
+## 2. Inventory (the denominator)
+
+Entities grouped by module, with identifier. Candidate reads are the `@Service` methods that
+return an entity or a collection of it; in this app they overwhelmingly return VTO or result-set
+types instead, which is itself the finding (see section 5, gaps 2 and 4).
+
+| Module | Entities | Id style |
+|---|---|---|
+| property | Property, Building, Unit, Tenant | single Long |
+| lease | Lease, LeaseDocument, LeaseSignatureRequest, LeaseTimeEntry | single Long |
+| billing | Invoice, Cost, RentalPayment | single Long |
+| maintenance | Ticket, TicketComment, TicketAttachment | single Long |
+| inspection | Inspection, InspectionItem | single Long |
+| community | Group, CommunityEvent, GroupMember, EventAttendee | single Long; GroupMember and EventAttendee composite @EmbeddedId |
+| chat | ChatRoom, ChatMessage | single Long |
+| notification | Notification, Event, EventParameter, Domain | Long; Event, EventParameter, Domain are Integer |
+| file | PPFile, FileVersion, DailyCounter | single Long |
+| staff | Staff, StaffInvoice, TimeEntry | single Long |
+| user | User, Role, OTP, UserSettings, UserStatus, UserRole | Long; Role and UserStatus Integer; UserSettings Long userId; UserRole composite @EmbeddedId |
+| vendor | Vendor | single Long |
+| admin | Admin, SystemSetting, FileTypePolicy | single Long |
+| audit | AuditLog | single Long |
+| reporting | (none) | n/a |
+
+Total: 43 entities across 14 entity-bearing modules, plus reporting with no entities. Candidate
+read-by-id capabilities in the tool's sense (one per entity): 43.
+
+---
+
+## 3. Outcome table (entity / candidate capability to outcome to cause to message)
+
+Every scan failed to emit a single capability. The provider aborts a scan on the first
+unparseable file, so most modules never reached entity extraction; the outcome for those
+entities is decided by that abort, not by an individual verdict on the entity. Messages repeat
+within a module, so one representative message is quoted per module.
+
+Cause codes: (a) multi-parameter finder, (b) list/query/search read, (c) composite or non-@Id
+id, (d) no single backing @Service method, (e) ambiguous match, (f) other/new. This app is
+dominated by (f) causes, named explicitly below:
+- (f1) unparseable source, language level: JavaParser is configured below Java 14, so switch
+  expressions (Java 12+) and `instanceof` type patterns (Java 14+) fail. The app is Java 17.
+- (f2) unparseable source, placeholder tokens: files contain literal `$IMPORT`, `$IMPORT_LINE`,
+  and a corrupted `nimport` token; they are not valid Java as text.
+- (f3) unmapped entity field type: an entity field whose type is another entity (an association)
+  is not in the closed primitive set, so the entity extractor fails loudly.
+
+| Module (entities) | Outcome | Cause | Exact message (representative) |
+|---|---|---|---|
+| WHOLE APP scan | FAILED LOUDLY, exit 3 | f1 | `Provider error: failed to parse ...\library\mq-adapter\...\ActiveMQListenerInterceptor.java: [(line 23,col 13) Use of patterns with instanceof is not supported ... supported starting from 'JAVA_14' language level ...]` |
+| vendor (Vendor) | FAILED LOUDLY, exit 3 | f2 | `Provider error: failed to parse ...\VendorServiceImpl.java: [(line 1,col 36) Parse error. Found  "nimport" <IDENTIFIER> ...]` |
+| user (User, Role, OTP, UserSettings, UserStatus, UserRole) | FAILED LOUDLY, exit 3 | f2 (UserRole also c, latent) | `Provider error: failed to parse ...\ActivationServiceImpl.java: [(line 4,col 64) Parse error. Found  "$IMPORT" <IDENTIFIER> ...]` |
+| staff (Staff, StaffInvoice, TimeEntry) | FAILED LOUDLY, exit 3 | f2 | `Provider error: failed to parse ...\InvoiceServiceImpl.java: [(line 7,col 64) Parse error. Found  "$IMPORT" <IDENTIFIER> ...]` |
+| notification (Notification, Event, EventParameter, Domain) | FAILED LOUDLY, exit 3 | f2 | `Provider error: failed to parse ...\NotificationServiceImpl.java: [(line 1,col 42) Parse error. Found  "nimport" <IDENTIFIER> ...]` |
+| maintenance (Ticket, TicketComment, TicketAttachment) | FAILED LOUDLY, exit 3 | f2 | `Provider error: failed to parse ...\TicketServiceImpl.java: [(line 1,col 41) Parse error. Found  "nimport" <IDENTIFIER> ...]` |
+| inspection (Inspection, InspectionItem) | FAILED LOUDLY, exit 3 | f2 | `Provider error: failed to parse ...\InspectionServiceImpl.java: [(line 13,col 64) Parse error. Found  "$IMPORT" <IDENTIFIER> ...]` |
+| file (PPFile, FileVersion, DailyCounter) | FAILED LOUDLY, exit 3 | f2 | `Provider error: failed to parse ...\FileStorageServiceImpl.java: [(line 5,col 64) Parse error. Found  "$IMPORT" <IDENTIFIER> ...]` |
+| community (Group, CommunityEvent, GroupMember, EventAttendee) | FAILED LOUDLY, exit 3 | f2 (GroupMember, EventAttendee also c, latent) | `Provider error: failed to parse ...\EventServiceImpl.java: [(line 14,col 64) Parse error. Found  "$IMPORT" <IDENTIFIER> ...]` |
+| chat (ChatRoom, ChatMessage) | FAILED LOUDLY, exit 3 | f2 | `Provider error: failed to parse ...\WebSocketChatController.java: [(line 1,col 32) Parse error. Found  "nimport" <IDENTIFIER> ...]` |
+| admin (Admin, SystemSetting, FileTypePolicy) | FAILED LOUDLY, exit 3 | f2 | `Provider error: failed to parse ...\AdminServiceImpl.java: [(line 1,col 35) Parse error. Found  "nimport" <IDENTIFIER> ...]` |
+| billing (Invoice, Cost, RentalPayment) | FAILED LOUDLY, exit 3 | f1 | `Provider error: failed to parse ...\BillingScheduler.java: [(line 138,col 16) Switch expressions are not supported ... supported starting from 'JAVA_12' language level ...]` |
+| lease (Lease, LeaseDocument, LeaseSignatureRequest, LeaseTimeEntry) | FAILED LOUDLY, exit 3 | f1 | `Provider error: failed to parse ...\LeaseControllerImpl.java: [(line 180,col 17) Use of patterns with instanceof is not supported ... 'JAVA_14' language level ...]` |
+| property (Property, Building, Unit, Tenant) | FAILED LOUDLY, exit 3 | f3 | `Provider error: unmapped Java type 'Property' on field 'Building.property'. The closed primitive type set (Volume 4 section 4) has no equivalent. Extend the type mapping or exclude the field; do not coerce it.` |
+| audit (AuditLog) | FAILED LOUDLY, exit 3 | d | `Provider error: no service method backs read capability 'getAuditLog' for entity 'AuditLog'. Looked for a public method on an @Service class whose return type is 'AuditLog' and whose single parameter maps to LONG; no @Service methods were found. The binding is discovered, not assumed ...` |
+| reporting (none) | NO CAPABILITY, exit 0 | n/a | Valid empty IR: `"entities": [], "capabilities": []`. Correct: the module has no `@Entity`. |
+
+Notes on the two modules that reached entity extraction (proof the loud failure is real, not an
+early bail):
+- property parsed all files, entered the entity extractor, and failed on the first association
+  field it met (`Building.property` of type `Property`). It did not coerce or skip; it named the
+  field and stopped.
+- audit parsed cleanly, entered extraction, formed the intent `getAuditLog`, searched the
+  `@Service` layer for a method returning `AuditLog` taking a `Long`, found none (audit services
+  return DTOs and write events), and failed with a located, explanatory error. This is exactly
+  the discovered-not-assumed contract of Volume 5, section 4.1 behaving correctly.
+
+---
+
+## 4. Totals
+
+- Entities in scope: 43. Candidate read-by-id capabilities: 43.
+- DISCOVERED: 0.
+- MIS-BOUND / WRONG: 0.
+- FAILED LOUDLY: 43 (every entity; no capability was ever emitted). Plus the whole-app scan
+  itself failed loudly at exit 3 before any domain module was reached.
+- NO CAPABILITY, correct empty result: reporting (0 entities), exit 0.
+
+FAILED LOUDLY by proximate cause (entities blocked, by the wall each module hit first):
+- f2 unparseable source, placeholder tokens (`$IMPORT` / `nimport`): 31 entities across 10
+  modules (vendor, user, staff, notification, maintenance, inspection, file, community, chat, admin).
+- f1 unparseable source, language level below Java 17 (switch expressions, instanceof patterns):
+  7 entities across 2 domain modules (billing, lease), and the whole-app scan aborted here too,
+  inside the `library/mq-adapter` infrastructure code.
+- f3 unmapped association field type: 4 entities (property module).
+- d no backing read-by-id `@Service` method: 1 entity (audit).
+
+Latent causes, proven by source inspection but never reached because parsing failed first:
+- c composite `@EmbeddedId` id: 3 entities (EventAttendee, GroupMember, UserRole).
+- f3-b (a distinct new cause) service returns DTO/VTO, not the entity: pervasive. Every sampled
+  by-id finder returns a view type (`findById` to `TenantVTO`, `getVendorById` to `VendorVTO`),
+  so shape rule 3 (return simple name equals entity name) would fail for essentially all 40
+  single-key entities even if every file parsed.
+- b list/filter/multi-argument reads: pervasive (`getAllByFilter`, `ResultSet` returns,
+  `List<...>` returns, `getMyVendors(id, page, size)`). These are the bulk of the real read API.
+- a multi-parameter finder: seen (`getMyVendors`, `getVendorsByBuilding`).
+- e ambiguous match: not observed.
+
+---
+
+## 5. MIS-BOUND section (the alarm case)
+
+None. Zero mis-bound or wrong capabilities were produced, because zero capabilities were produced
+at all. Every scan either failed loudly with a located `ProviderException` naming the file and
+the reason, or (reporting) produced a correct empty IR for a module that genuinely has no
+entities. The empty reporting IR is not a silent wrong result: it is an honest, accurate empty
+answer for a module with no `@Entity` classes.
+
+This is the good result. The one thing the tool is designed never to do, hand back a plausible
+but wrong binding, did not happen even once against a large, messy, real app.
+
+---
+
+## 6. Ranked gaps to build next (by capabilities blocked in THIS app)
+
+Ordered by how many real capabilities each gap actually blocked here, evidence first.
+
+1. **Per-file parse resilience, and lift the JavaParser language level to the app's Java version.**
+   Highest impact by a wide margin: this gate stopped 12 of 14 entity-bearing modules (38 of 43
+   entities) and the whole-app scan itself, before entity extraction even began. The provider
+   aborts the entire scan on the first file it cannot parse. Two distinct triggers share this
+   gate: (f1) the parser is configured below Java 14 while the app is Java 17, so legitimate
+   modern syntax (switch expressions, `instanceof` patterns) is rejected; and (f2) some files are
+   genuinely invalid as text (`$IMPORT` placeholders, a corrupted `nimport`). Raising the language
+   level is a clear correctness fix. Collect-and-continue per file (skip and record an unparseable
+   file, keep scanning) is the structural fix that turns one bad file among hundreds from a total
+   failure into a logged skip, and it is what would let the run reach the deeper gaps below and
+   report them as real per-entity evidence rather than being masked. Scoping the walk to relevant
+   source (entities and services) rather than every file, including private libraries and
+   infrastructure, would further shrink the failure surface: the whole-app scan died in
+   `library/mq-adapter`, code that is not even part of the domain.
+
+2. **Match service reads that return a DTO/VTO, not only reads that return the entity itself.**
+   Second highest by latent reach: this would otherwise block essentially all 40 single-key
+   entities. Shape rule 3 requires the return type simple name to equal the entity name, but this
+   app's service boundary returns view types (`findById` to `TenantVTO`, `getVendorById` to
+   `VendorVTO`). Real layered systems return DTOs from services and entities only from
+   repositories. Until the matcher can relate a view type back to its entity, discovery finds
+   nothing here even with perfect parsing. Proven by source, reached in code only in audit (which
+   failed with "no @Service methods were found" of the entity-returning shape).
+
+3. **Handle entity fields that reference other entities (associations).** Blocked all 4 property
+   entities at the first association (`Building.property`). Real domain entities have
+   relationships; the closed primitive set has no place for them and the extractor fails loudly.
+   A modeling decision is needed: represent an association as a reference to another entity's id,
+   or skip association fields, rather than treating them as unmapped primitives.
+
+4. **Model list, filter, and multi-argument reads (causes a and b).** These are the majority of
+   the actual read API in this app (`getAllByFilter`, `ResultSet` and `List` returns, paged
+   finders). None are expressible today. Lower rank only because parsing and DTO matching block
+   the run before these are reached, but by volume of real capabilities this is large.
+
+5. **Read-by-id with no backing service method (cause d).** Write-heavy modules such as audit
+   have no entity-returning finder. The current behavior (fail loud, name what was sought) is
+   correct; the gap is only that such entities yield no capability, which may be the right answer.
+
+6. **Composite `@EmbeddedId` identifiers (cause c).** Three join entities (EventAttendee,
+   GroupMember, UserRole). Smallest count, and arguably out of scope for read-by-single-id.
+
+---
+
+## 7. Honesty verdict
+
+Yes. The tool behaved correctly: it failed loud and it never mis-bound. Against a large, real,
+and notably messy application (43 entities, modern Java 17 syntax, service methods that return
+DTOs, entity associations, composite keys, and even source files containing unrendered generator
+placeholders), the tool produced exactly zero capabilities and zero wrong bindings. Every failure
+was a located `ProviderException` that named the offending file or field and explained what it
+looked for, the whole-app scan exited non-zero (3) rather than pretending success, and the one
+module that produced an IR (reporting) produced a correct empty one because it truly has no
+entities. The discovered-not-assumed binding rule was observed working in the audit module: it
+searched for a real method of the right shape, did not find one, and refused rather than falling
+back to a convention. The evidence for the alarm case is that it stayed empty. The tool did not
+over-fit, did not coerce, and did not guess. The failure mode this experiment guards against, a
+silent wrong result, did not occur.
