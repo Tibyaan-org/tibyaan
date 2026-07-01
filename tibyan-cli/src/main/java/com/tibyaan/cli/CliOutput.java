@@ -3,14 +3,82 @@ package com.tibyaan.cli;
 import com.tibyaan.core.ir.Capability;
 import com.tibyaan.core.ir.CapabilityModel;
 import com.tibyaan.core.ir.Entity;
+import com.tibyaan.provider.spring.EntityOutcome;
+import com.tibyaan.provider.spring.EntityOutcome.Cause;
+import com.tibyaan.provider.spring.ParseSkip;
+import com.tibyaan.provider.spring.ScanReport;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /** Small shared formatting for the CLI commands. */
 final class CliOutput {
 
     private CliOutput() {
+    }
+
+    /**
+     * Prints a resilient scan's survey (Volume 5 section 4, phase E1): the provider, the parse
+     * tally, a per-entity outcome for everything parsed, every file skipped, and the totals. The
+     * mis-bound count is stated and is always zero by construction: a capability is emitted only on
+     * an exact single-shape match (Volume 5 section 4.1), so a wrong binding cannot be produced.
+     */
+    static void printScanReport(ScanReport report) {
+        System.out.println("Provider: spring (entity and service extractors)");
+
+        long parsed = report.entityOutcomes().size();
+        System.out.println("Entities found (in parseable files): " + parsed);
+
+        List<EntityOutcome> discovered = report.entityOutcomes().stream()
+                .filter(EntityOutcome::isDiscovered)
+                .collect(Collectors.toList());
+        List<EntityOutcome> failed = report.entityOutcomes().stream()
+                .filter(o -> o.status() == EntityOutcome.Status.FAILED)
+                .collect(Collectors.toList());
+
+        if (!discovered.isEmpty()) {
+            System.out.println("Discovered (" + discovered.size() + "):");
+            for (EntityOutcome outcome : discovered) {
+                System.out.println("  + " + outcome.entityName() + ": " + outcome.detail());
+            }
+        }
+        if (!failed.isEmpty()) {
+            System.out.println("Failed (" + failed.size() + "):");
+            for (EntityOutcome outcome : failed) {
+                System.out.println("  - " + outcome.entityName() + " [" + outcome.cause() + "]: "
+                        + firstSentence(outcome.detail()));
+            }
+        }
+        if (!report.parseSkips().isEmpty()) {
+            System.out.println("Skipped, unparseable (" + report.parseSkips().size() + "):");
+            for (ParseSkip skip : report.parseSkips()) {
+                System.out.println("  ~ " + skip.describe());
+            }
+        }
+
+        System.out.println("Totals: discovered " + report.discoveredCount()
+                + ", failed " + report.failedCount() + byCause(report.failuresByCause())
+                + ", skipped-by-parse " + report.skippedByParseCount()
+                + ", mis-bound 0");
+    }
+
+    private static String byCause(Map<Cause, Long> failuresByCause) {
+        if (failuresByCause.isEmpty()) {
+            return "";
+        }
+        String causes = failuresByCause.entrySet().stream()
+                .map(e -> e.getKey() + " " + e.getValue())
+                .collect(Collectors.joining(", "));
+        return " (by cause: " + causes + ")";
+    }
+
+    // The located reason can be long (a no-backing message lists the service methods it looked at);
+    // the survey shows only the first sentence, which is the concise, located summary. The full
+    // detail is what the strict provide path raises.
+    private static String firstSentence(String detail) {
+        int end = detail.indexOf(". ");
+        return end < 0 ? detail : detail.substring(0, end + 1);
     }
 
     /** A one-line count of what an IR holds, for example "1 entity (Product), 1 capability (getProduct), 0 relations". */
