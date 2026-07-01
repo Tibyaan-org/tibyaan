@@ -153,3 +153,11 @@ These are the north star from Volume 1, section 9.1. They are specified here onl
 | Domain knowledge | Meaning and context beyond structure | RFC, later phase |
 
 > Discipline note: adding any of these to the core model is a deliberate, validated step with its own validators and tests. Until a phase needs an element, it stays out, so the MVP IR remains small and provable.
+
+### 7.1 Evidence-backed growth pressure (from the second-app trial)
+
+The pms-backend trial (docs/experiments/second-app-trial.md) produced the first concrete, counted pressure on this model, recorded here so growth stays deliberate:
+
+- Collection outputs. List, filter, and paged reads dominate that app's real read API, and the type system has no collection shape for a capability's output. Modeling them is Volume 13, Tier 2, phase E4, and it enters through this section's discipline: a designed change with validators and golden tests, not a silent extension.
+- Associations. Entity-typed fields blocked four entities in the trial, but the IR already has the vocabulary for them: `ENTITY_REF` (section 4) and `Relation` (section 3.5). The open decision is the provider's mapping rule, not new IR (Volume 13, Tier 2, phase E3).
+- Multi-argument reads. The `inputs` map (section 3.4) already holds multiple named inputs, so these likely need a discovery rule, not an IR change; that is decided in phase E4's design step.

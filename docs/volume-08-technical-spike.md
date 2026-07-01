@@ -1,6 +1,6 @@
 # Volume 8: Technical Spike
 
-Status: Active decision. This is the first thing that will be built. It comes before P0 and before the MVP.
+Status: Complete. The spike ran on 2026-06-30 and succeeded: all success criteria in section 4 were met, including a live MCP client receiving the real product from the real bean. The answers it existed to produce (library, versions, transport, whether the starter alone suffices) are recorded in Volume 16, sections 3.1 and 3.2. The rest of this volume is preserved as written, as the record of what the spike was designed to prove and why it came first.
 
 > Note: A spike is a throwaway experiment. Its only purpose is to remove a technical unknown. Its code is not expected to ship. Lessons from it feed the real architecture.
 

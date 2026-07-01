@@ -1,6 +1,6 @@
 # Volume 2: Software Requirements Specification (SRS)
 
-Status: Stable for the MVP scope. Written in an IEEE 830 style. Requirements that belong to later phases are marked with their phase.
+Status: Stable for the MVP scope; the MVP acceptance criteria in section 5 have been met and verified against the real example app (see docs/STATUS.md). Written in an IEEE 830 style. Requirements that belong to later phases are marked with their phase; phase tags P0 to P3 refer to the completed build (Volume 13, Tier 1), and the former P4 and P5 tags now live as direction in Volume 13, Tier 3.
 
 ---
 
@@ -72,16 +72,16 @@ Tibyan is a plugin-based platform built around a central Capability IR. It is no
 | FR5 | Read a Spring Boot and Java project from source and produce IR | P1 |
 | FR6 | Extract entities and their fields from the source (Entity extractor) | P1 |
 | FR7 | Organize provider logic as independent extractors that can be enabled separately | P1 |
-| FR8 | Extract repositories, services, and controllers to enrich capabilities | P2 |
-| FR9 | Support additional providers (OpenAPI, database, bytecode, other languages) without changing the core | P4 and later |
+| FR8 | Extract repositories, services, and controllers to enrich capabilities | Partially delivered: the Service extractor was enabled after the MVP to discover the real binding (Volume 5, section 4.1); repository and controller extractors remain placeholders (Volume 13, Tier 2) |
+| FR9 | Support additional providers (OpenAPI, database, bytecode, other languages) without changing the core | Direction (Volume 13, Tier 3) |
 
 ### 3.3 Backends
 | ID | Requirement | Phase |
 |---|---|---|
 | FR10 | Generate an MCP server that exposes one tool per capability | P2 |
 | FR11 | Generate tools that invoke logic only through an Execution Adapter, never a framework directly | P2 |
-| FR12 | Generate an OpenAPI description from the IR | P4 |
-| FR13 | Generate typed client SDKs from the IR | P5 |
+| FR12 | Generate an OpenAPI description from the IR | Direction (Volume 13, Tier 3) |
+| FR13 | Generate typed client SDKs from the IR | Direction (Volume 13, Tier 3) |
 | FR14 | Never read or depend on the provider or the source technology | P2 |
 
 ### 3.4 Runtime and execution

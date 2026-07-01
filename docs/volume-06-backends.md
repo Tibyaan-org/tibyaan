@@ -46,8 +46,8 @@ public Object call(Map<String,Object> args) {
 
 | Backend | Output | Note |
 |---|---|---|
-| OpenAPI | An OpenAPI document | Proves the IR feeds more than one backend (Volume 13, P4) |
-| SDK | Typed client libraries | Generated clients for the same capabilities (P5) |
+| OpenAPI | An OpenAPI document | Proves the IR feeds more than one backend (Volume 13, Tier 3) |
+| SDK | Typed client libraries | Generated clients for the same capabilities (Volume 13, Tier 3) |
 | Documentation | Human-readable API docs | A side output from the same model |
 | GraphQL | A GraphQL schema and resolvers | Has no controllers, which is why the IR must stay neutral (ADR-0013) |
 | REST | A conventional REST surface | For systems that want a fresh, generated API |

@@ -78,18 +78,25 @@ Outcomes:
 
 Binding string format: unchanged. Discovery emits `<ServiceClassSimpleName>#<methodName>`, exactly the shape the runtime's `SpringExecutionAdapter` already parses (`<Bean>#<method>`, Volume 7, section 4). For the example app the discovered binding is `ProductService#findById`, identical to what the earlier convention produced; only its source changed, from assumed to read, so the adapter and the generated output are unchanged.
 
-What is still assumed or unsupported, recorded so it is closed deliberately later:
+What is still assumed or unsupported, recorded so it is closed deliberately later. The second-app trial (docs/experiments/second-app-trial.md) measured these against a large real app and ranked them by capabilities blocked; the resulting phases are Volume 13, Tier 2:
 
-- Only single-id-parameter reads are discovered. Lists, filtered queries, multi-argument finders, writes, and actions are not modeled; write and action capabilities are future IR (Volume 4, section 7).
+- Parse behavior: the provider aborts the whole scan on the first unparseable file, the JavaParser language level is configured below the Java version of real apps (the trial app is Java 17), and the source walk covers every file rather than only relevant source. The trial's top-ranked gap: it blocked 38 of 43 entities before extraction began (phase E1).
+- The matcher relates a service method to an entity only when the method returns the entity itself. Real layered systems return DTO and VTO types from services; the trial found this blocks essentially every single-key entity there (phase E2, section 4.2 below).
+- Entity fields whose type is another entity (associations) have no mapping and fail loudly as unmapped types. Blocked four entities in the trial (phase E3).
+- Only single-id-parameter reads are discovered. Lists, filtered queries, multi-argument finders, writes, and actions are not modeled; list and filter reads are the bulk of the trial app's real read API (phase E4), and write and action capabilities are future IR (Volume 4, section 7).
 - The capability name is still the `get<Entity>` convention. Only the binding is discovered, not the business name of the capability.
-- The entity's identifier is the first field annotated `@Id`. Composite or non-`@Id` identifiers are out of scope.
+- The entity's identifier is the first field annotated `@Id`. Composite or non-`@Id` identifiers are out of scope (three join entities in the trial; deliberately unscheduled).
 - Type matching uses the closed primitive set; an id whose type is not in that set (Volume 4, section 4) cannot be matched and is surfaced as an unmapped type.
+
+### 4.2 DTO-aware read discovery (to be designed here before it is coded)
+
+This section is a reserved slot, on purpose. The trial's second-ranked gap is that real service boundaries return view types, so a rule is needed for when a DTO- or VTO-returning service method backs a read of an entity. That rule will be designed and written into this section first, and coded only after it is written, exactly as the binding rule in section 4.1 was: the rule went into this volume in one commit, the code followed in the next. Until the written rule exists here, no matching code may be written. The exit measure for the rule, once built, is discovered capabilities on the benchmark app with zero mis-bindings (Volume 13, Tier 2, phase E2).
 
 ## 5. Future providers
 
 | Provider | Source | Why it matters |
 |---|---|---|
-| Database provider | A database schema | Proves the IR accepts a non-code source (Volume 13, P6) |
+| Database provider | A database schema | Proves the IR accepts a non-code source (Volume 13, Tier 3) |
 | OpenAPI provider | An OpenAPI document | Imports systems that already publish a contract |
 | Manual builder | A human-authored definition | A fallback when no readable source exists |
 | AI-assisted provider | Mixed or unclear sources, with model assistance | Helps where structure is implicit, with human review |

@@ -18,7 +18,7 @@ Format: each record uses Status, Context, Decision, Consequences, Alternatives, 
 | 0008 | A Technical Spike runs before the MVP | Accepted |
 | 0009 | Java and Spring as the first target stack | Accepted |
 | 0010 | Source analysis via AST (JavaParser) for the MVP | Accepted |
-| 0011 | Modular extractors in the Spring provider | Accepted |
+| 0011 | Modular extractors in the Spring provider | Accepted, refined post-MVP (Service extractor enabled) |
 | 0012 | Plugin based, per-module providers, backends, and runtimes | Accepted |
 | 0013 | Keep the IR free of framework concepts (drop Endpoint and Service) | Accepted |
 | 0014 | Thin vertical slice for the MVP scope | Accepted |
@@ -206,7 +206,7 @@ flowchart LR
 
 ## ADR-0011: Modular extractors in the Spring provider
 
-**Status:** Accepted
+**Status:** Accepted; refined after the MVP. The decision to structure the provider as independent extractors stands unchanged. The detail "enable only the Entity extractor" was deliberately refined in the first post-MVP hardening step: the Service extractor is now also enabled, so the capability binding is discovered from the real service method instead of assumed by convention. The rule and the join between the two extractors are specified in Volume 5, section 4.1. Repository, controller, and annotation extractors remain placeholders.
 
 **Context.** A full Spring provider must eventually read entities, repositories, services, controllers, and annotations. Implementing all of these before the first result would delay any working output for a long time.
 

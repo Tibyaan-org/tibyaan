@@ -22,8 +22,8 @@ So roughly two thirds of the MVP's value sits where Java is the natural fit and 
 | Build | Maven multi-module (Gradle equivalent) | Native to the Spring and Java world; matches generated projects |
 | Source analysis | JavaParser (AST) | Reads `.java` files without compiling or running them; understands Java natively (ADR-0010) |
 | IR representation | Plain Java records, serialized to JSON | Zero framework dependency in core; JSON for inspection and golden-file tests |
-| Code generation | A template engine such as Freemarker or Handlebars | Templates per backend, easy to diff in golden-file tests |
-| MCP server library | Official MCP Java SDK, or Spring AI MCP server support | One of these; the spike decides which (see section 4) |
+| Code generation | Plain-text template files substituted in plain Java (no template engine dependency) | As built, the MCP backend ships one `tool.java.template` resource and fills it with simple string substitution, keeping the backend's dependencies at plugin-api and core only. A real engine (Freemarker, Handlebars) is adopted only if a backend's templates outgrow substitution. Golden-file tests cover the output either way |
+| MCP server library | Spring AI MCP server support (decided by the spike; see sections 3 and 4) | The official MCP Java SDK sits underneath; Spring AI's auto-configuration does the wiring |
 | CLI | picocli | Small, idiomatic Java CLI framework |
 | Runtime distribution | Spring Boot starter with auto-configuration | One dependency activates the in-context runtime (ADR-0007) |
 | Testing | JUnit 5, AssertJ, golden-file tests, one end-to-end test | Determinism and real-binding verification |
@@ -32,7 +32,7 @@ So roughly two thirds of the MVP's value sits where Java is the natural fit and 
 
 Java and Spring Boot versions should track current LTS and stable releases. The exact MCP library coordinates change often enough that this document does not hard-code them. Instead:
 
-> Rule: the Technical Spike (Volume 8) pins the precise versions of the JVM, Spring Boot, and the chosen MCP library, and records them here as a versions table once proven. Until the spike runs, treat versions as "current LTS and current stable," not as fixed numbers.
+> Rule: the Technical Spike (Volume 8) pins the precise versions of the JVM, Spring Boot, and the chosen MCP library, and records them here as a versions table once proven. The spike has run; the pinned versions are in section 3.1 below, and they are the versions the built modules use.
 
 ### 3.1 Versions pinned by the Technical Spike (Phase -1)
 
@@ -51,7 +51,7 @@ The spike ran on 2026-06-30 and pinned these versions:
 | Question | Answer |
 |---|---|
 | Which MCP library? | Spring AI MCP server support (`spring-ai-starter-mcp-server-webmvc`), via the Spring AI 1.0.9 BOM. The official MCP Java SDK is used underneath, but Spring AI's auto-configuration handles all wiring. |
-| Was the starter alone enough? | Yes. Adding `tibyan-runtime-spring` as a single dependency to the legacy app activated auto-configuration, discovered the `ProductService` bean, registered the tool, and started the MCP server. No other changes to the legacy app were needed beyond minimal `application.yml` config for the MCP server name. |
+| Was the starter alone enough? | Yes. Adding `tibyan-runtime-spring` as a single dependency to the legacy app activated auto-configuration, discovered the `ProductService` bean, registered the tool, and started the MCP server. At spike time the app also carried a minimal `application.yml` block naming the MCP server; that residue was removed in a post-MVP hardening step, and the starter now supplies the name and version as overridable defaults, so a truly untouched app needs the dependency and nothing else (Volume 7, section 4). |
 | Was bean discovery clean? | Yes. `ApplicationContext.getBean("productService")` found the real bean. Reflection via `getClass().getMethod("findById", Long.class)` located the method. No classloader issues, no context conflicts. |
 | Was tool registration clean? | Yes. Spring AI's `MethodToolCallbackProvider` scanned for `@Tool`-annotated methods and registered them. The MCP server auto-configuration logged `Registered tools: 1`. |
 | Transport? | SSE (Server-Sent Events) over HTTP. The MCP server serves at `/sse` on the same port as the web application (8080). Messages are exchanged via `/mcp/message?sessionId=...`. Claude Desktop connects using the SSE URL `http://localhost:8080/sse`. |
@@ -59,9 +59,9 @@ The spike ran on 2026-06-30 and pinned these versions:
 | Is reflection enough, or is ByteBuddy needed? | Reflection is enough. `Method.invoke` on the discovered bean works cleanly. No bytecode manipulation needed. |
 | Is auto-configuration enough to activate everything? | Yes. The `@AutoConfiguration` class registered via `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` was picked up automatically by Spring Boot's auto-configuration mechanism. |
 
-## 4. The one open library question
+## 4. The library question, as it stood before the spike (resolved)
 
-There are two credible ways to run an MCP server on the JVM:
+Resolved: the spike chose the Spring AI MCP server support, as recommended below; the exact coordinates are pinned in section 3.1 and the full answers in section 3.2. The analysis is preserved as the record of why. There were two credible ways to run an MCP server on the JVM:
 
 | Option | Nature | Trade-off |
 |---|---|---|
@@ -83,7 +83,7 @@ To be fair to the alternatives, here is the comparison, which is also why they a
 
 The honest summary: the parts where Rust or Go would shine (a single-binary CLI, a high-performance standalone core, out-of-process analyzers for non-JVM stacks, embedded targets) are all later, out-of-process, or not on the critical path. The parts that carry the MVP (reading Java source and binding to live Spring beans) are JVM problems Rust and Go cannot solve cleanly. Do not split the MVP across two languages; a foreign-function-interface seam on the riskiest piece would cost more than it saves.
 
-Where the comparison flips, later: a `.NET` or PHP provider that runs out of process, a single-binary CLI for distribution, or a WebAssembly or embedded target. Those are P4 and beyond, and Rust or Go become reasonable, sometimes better, choices there. None of them change the core, because the core is framework and language neutral by design.
+Where the comparison flips, later: a `.NET` or PHP provider that runs out of process, a single-binary CLI for distribution, or a WebAssembly or embedded target. Those are Tier 3 direction (Volume 13), and Rust or Go become reasonable, sometimes better, choices there. None of them change the core, because the core is framework and language neutral by design.
 
 ## 6. Dependencies that must never reach the core
 
