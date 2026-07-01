@@ -29,6 +29,7 @@ The real sequence, as built and verified on the main branch. Each line states wh
 | Hardening 2, one dependency | A truly untouched app needs only the starter: MCP server defaults and manifest discovery are auto-configured, no `application.yml` block, no launch property (Volume 7, section 4) |
 | Hardening 3, build-time generation | The manifest is generated onto the classpath during the app's own build by `tibyan-maven-plugin`, running the same pipeline as the CLI, byte-identical output, nothing copied by hand (Volume 11, section 3.1) |
 | Second-app trial (evidence gathering, not a build) | Against a large real app (pms-backend, 43 entities) the unchanged tool discovered 0 capabilities, mis-bound 0, and failed loudly on all 43, each failure located and explained; the gaps were ranked by how many real capabilities each one blocked (docs/experiments/second-app-trial.md) |
+| Phase E1, parse resilience and scan scope | The scan survives a large messy app: `tibyan scan` on pms-backend completes end to end at exit 0, classifies all 43 entities with located per-entity outcomes, and names every unparseable file, instead of aborting on the first. Discovered stayed 0 (E1 adds no discovery power) and mis-bound stayed 0 (Volume 5, section 4.3; the phase spec, now with its outcome, is in section 3 below) |
 
 The trial is the pivot of this roadmap: it converted "what should we build next" from guesswork into a ranked, counted list. The single most important fact in it is the zero in the mis-bound column. The tool's one forbidden failure mode, a plausible but wrong binding, did not occur even once against a messy real system.
 
@@ -38,15 +39,16 @@ These phases are detailed because the pms-backend trial justifies detail: each o
 
 After every phase in this tier, the benchmark is re-run and the experiment doc gains a dated entry (section 5). That re-run is part of the phase, not an optional follow-up.
 
-### Phase E1: Parse resilience and scan scope
+### Phase E1: Parse resilience and scan scope (complete, 2026-07-02)
 
 | Field | Detail |
 |---|---|
-| Goal | A scan survives a large, messy, real codebase and reports per-file problems instead of dying on the first one. Three parts: raise the JavaParser language level to the app's Java version (Java 17); collect-and-continue per file, meaning an unparseable file is recorded and skipped and the scan continues, with every skipped file named in the output along with why; scope the walk to relevant source (entities and services), excluding private libraries, infrastructure code, and unrenderable generated files |
+| Goal | A scan survives a large, messy, real codebase and reports per-file problems instead of dying on the first one. Three parts: raise the JavaParser language level to the app's Java version (Java 17); collect-and-continue per file, meaning an unparseable file is recorded and skipped and the scan continues, with every skipped file named in the output along with why; scope the walk to relevant source, excluding build output and tool-metadata directories |
 | Evidence | Trial gap 1, the widest margin: the parse gate blocked 38 of 43 entities across 12 of 14 entity-bearing modules before extraction began, and the whole-app scan died inside `library/mq-adapter`, code that is not even part of the domain. Two triggers share the gate: legitimate Java 17 syntax rejected by a parser configured below Java 14 (f1), and files that are genuinely invalid as text (f2) |
 | Exit criterion | The pms-backend whole-app scan completes end to end: it reaches every module, reports each unparseable file with its reason instead of aborting, and the benchmark entry records per-entity outcomes rather than a module-level abort |
+| Outcome | Met. `tibyan scan examples/pms-backend` now exits 0 and classifies all 43 entities with a located per-entity outcome (discovered 0, failed 43: UNMAPPED_FIELD_TYPE 24, NO_BACKING_METHOD 19), and names all 27 unparseable files with their parse location; mis-bound stayed 0. The f1 language-level failures are eliminated. Delivered in `tibyan-provider-spring` as a resilient `scan` alongside the strict `provide` (Volume 5, section 4.3), with `mvn clean verify` green. Full run: docs/experiments/second-app-trial.md, section 8.1 |
 
-A discipline note, because this phase is the one most easily misread as a license to soften: collect-and-continue does not weaken fail-loud. It relocates the loudness from "abort everything on the first bad file" to "name every bad file and keep going". A silent skip is still forbidden. The scan's result must state exactly which files were not read and why, so an empty or partial result can never masquerade as a complete one.
+A discipline note, because this phase is the one most easily misread as a license to soften: collect-and-continue does not weaken fail-loud. It relocates the loudness from "abort everything on the first bad file" to "name every bad file and keep going". A silent skip is still forbidden. The scan's result must state exactly which files were not read and why, so an empty or partial result can never masquerade as a complete one. Two evidence notes for later phases surfaced only because E1 now reaches every entity: enum-typed and `Double`-typed fields are unmapped alongside true associations (weigh in E3 or a type-mapping step), and the composite-key join entities fail earlier on an unmapped embedded-id type, so cause c stays latent behind UNMAPPED_FIELD_TYPE.
 
 ### Phase E2: DTO-aware read discovery (design first, then build)
 
@@ -109,7 +111,9 @@ The trial target becomes the project's standing benchmark:
 - The health metric is one line: discovered rising while mis-bound stays zero.
 - Stated plainly: mis-bound greater than zero at any point becomes the top priority over everything. A silent wrong binding is the one failure the tool exists to never produce; if the benchmark ever shows one, all phase work stops until the cause is found and closed.
 
-Baseline, 2026-07-02, tool unchanged since the MVP plus hardening: discovered 0, mis-bound 0, failed loudly 43 (by cause: f2 placeholder tokens 31, f1 language level 7, f3 association field 4, d no backing method 1).
+Baseline, 2026-07-02, tool unchanged since the MVP plus hardening: discovered 0, mis-bound 0, failed loudly 43 (by cause: f2 placeholder tokens 31, f1 language level 7, f3 association field 4, d no backing method 1). The scan aborted at exit 3 on the first unparseable file, so these are proximate module walls, not a per-entity classification.
+
+After E1, 2026-07-02: discovered 0, mis-bound 0, failed 43 per entity (UNMAPPED_FIELD_TYPE 24, NO_BACKING_METHOD 19), skipped-by-parse 27, scan exit 0. Discovered held at 0 as expected (E1 adds no discovery power) and mis-bound held at 0; the gain is that the scan now completes and classifies every entity instead of aborting. The full log is docs/experiments/second-app-trial.md, section 8.
 
 ## 6. What each step proves about the architecture
 

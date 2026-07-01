@@ -29,3 +29,4 @@ Thumbs.db
 *.db
 *.mv.db
 *.trace.db
+/examples/pms-backend

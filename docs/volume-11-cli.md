@@ -12,7 +12,7 @@ The CLI binary is `tibyan`. It exposes a small set of commands that map directly
 
 | Command | Purpose | Key options |
 |---|---|---|
-| tibyan scan | Read a system and produce IR | path (positional), --out (IR JSON file) |
+| tibyan scan | Survey a system into IR, resiliently (Volume 5 section 4.3) | path (positional), --out (write the discovered IR JSON) |
 | tibyan generate | Generate a backend from IR | --backend (for example mcp), --ir (IR file) or path, --out (output dir) |
 | tibyan validate | Validate an IR without generating | --ir (IR file) |
 | tibyan version | Print the tool and IR schema versions | none |
@@ -23,9 +23,28 @@ The CLI binary is `tibyan`. It exposes a small set of commands that map directly
 $ tibyan scan ./legacy-spring-app --out inventory.ir.json
 Scanning ./legacy-spring-app
 Provider: spring (entity and service extractors)
-Found 1 entity (Product), 1 capability (getProduct)
-Validation: ok
+Entities found (in parseable files): 1
+Discovered (1):
+  + Product: getProduct -> ProductService#findById
+Totals: discovered 1, failed 0, skipped-by-parse 0, mis-bound 0
 Wrote IR to inventory.ir.json
+```
+
+On a large, messy app the survey does not abort; it classifies every entity it can parse and names every file it cannot (Volume 5 section 4.3):
+
+```text
+$ tibyan scan ./pms-backend
+Scanning ./pms-backend
+Provider: spring (entity and service extractors)
+Entities found (in parseable files): 43
+Failed (43):
+  - Building [UNMAPPED_FIELD_TYPE]: unmapped Java type 'Property' on field 'Building.property'.
+  - Admin [NO_BACKING_METHOD]: no service method backs read capability 'getAdmin' for entity 'Admin'.
+  ...
+Skipped, unparseable (27):
+  ~ .../VendorServiceImpl.java: (line 1,col 36) Parse error. Found  "nimport" <IDENTIFIER>, ...
+  ...
+Totals: discovered 0, failed 43 (by cause: UNMAPPED_FIELD_TYPE 24, NO_BACKING_METHOD 19), skipped-by-parse 27, mis-bound 0
 ```
 
 ```text
@@ -42,11 +61,14 @@ $ tibyan validate --ir inventory.ir.json
 Validation: ok (1 entity, 1 capability, 0 relations)
 ```
 
+Writing an artifact is where strictness returns. With `--out`, the survey prints as above and then the discovered IR is validated before it is written; if it does not validate, nothing is written and the command exits 2, with the survey already shown:
+
 ```text
-$ tibyan scan ./broken-app --out out.ir.json
-Scanning ./broken-app
+$ tibyan scan ./some-app --out out.ir.json
+Scanning ./some-app
+... survey ...
 Validation: FAILED
-  - capability 'getOrder' returns ENTITY_REF(Order) but no entity 'Order' is defined
+  - <located validation error on the discovered IR>
 Exit code 2
 ```
 
@@ -81,6 +103,16 @@ The manifest that ships under `tibyan-backend-mcp/src/test/resources/...` is onl
 | 1 | Usage error (bad arguments) |
 | 2 | Validation failure |
 | 3 | Provider or backend error |
+
+### 4.1 What each code means for `tibyan scan` (Volume 5 section 4.3)
+
+`scan` is a resilient survey, so its exit codes distinguish "the scan could not run" from "the scan ran and found problems in the source":
+
+- 0: the survey completed. This is the code whatever it discovered, including the honest "discovered 0, many failed" case: per-entity failures and unparseable files are reported, not fatal. If `--out` was given, the discovered IR validated and was written.
+- 2: only when `--out` was given and the discovered IR did not validate, so no file was written. The survey still printed in full.
+- 3: the scan could not run at all: the source root is missing, is not a directory, or cannot be walked.
+
+Surveying is not the same as producing an artifact. `tibyan generate` (and the build plugin) stay strict: they run the provider's strict path, which refuses a scan with any unparseable file or hard failure and exits 3, so a manifest is never produced from a partial read. A per-entity failure being exit 0 under `scan` is a survey result; the same source under `generate` is a loud refusal.
 
 ## 5. Future commands
 

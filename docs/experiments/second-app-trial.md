@@ -239,9 +239,49 @@ silent wrong result, did not occur.
 
 ## 8. Benchmark log (dated entries, one per re-run)
 
-| Date | Tool state | Discovered | Mis-bound | Failed loudly (by cause) | Notes |
-|---|---|---|---|---|---|
-| 2026-07-02 | MVP plus three hardening steps, unchanged | 0 | 0 | 43 (f2: 31, f1: 7, f3: 4, d: 1) | Baseline. Whole-app scan aborted at the first unparseable file; per-entity outcomes above are by the wall each module hit first |
+| Date | Tool state | Discovered | Mis-bound | Failed loudly (by cause) | Skipped by parse | Notes |
+|---|---|---|---|---|---|---|
+| 2026-07-02 | MVP plus three hardening steps, unchanged | 0 | 0 | 43 (f2: 31, f1: 7, f3: 4, d: 1) | (n/a, scan aborted) | Baseline. Whole-app scan aborted at the first unparseable file (exit 3); per-entity outcomes are by the wall each module hit first, not a real per-entity classification |
+| 2026-07-02 | E1: Java 17 language level, collect-and-continue, scoped walk | 0 | 0 | 43 per entity (UNMAPPED_FIELD_TYPE 24, NO_BACKING_METHOD 19) | 27 files | Scan completes end to end (exit 0). Every one of the 43 entities gets a located per-entity outcome, and every unparseable file is named with its parse location, instead of a single abort. See the interpretation below |
 
 Each Tier 2 phase (Volume 13, section 3) appends one row after its re-run. A row's totals must
 come from an actual run of the tool as built at that date, never from a projection.
+
+### 8.1 Interpretation of the E1 run (2026-07-02)
+
+The E1 run is the first that survived this app end to end. It is run with the built CLI:
+`tibyan scan examples/pms-backend` (no `--out`), which now exits 0 and prints a per-entity outcome
+report plus a named, located skip for every file it could not parse.
+
+What changed from the baseline, and what it means:
+
+- The scan no longer aborts. The baseline died at exit 3 on the first unparseable file, so 38 of 43
+  entities were never classified. E1 walks the whole app, parses collect-and-continue, and returns a
+  real per-entity outcome for all 43. This is the exit criterion for E1 (Volume 13, phase E1) met.
+- The f1 language-level failures are gone. Raising the parser to Java 17 means switch expressions and
+  `instanceof` patterns now parse; none of the seven f1 entities fail on syntax anymore. The 27
+  remaining skips are all f2, the genuinely invalid `$IMPORT` and `nimport` placeholder files, which
+  are not valid Java as text and should stay unparseable.
+- Discovery is still 0, as expected. E1 adds no discovery power; DTO-aware matching is E2. Mis-bound
+  is still 0: the discovery rule emits a capability only on an exact single-shape match, so a wrong
+  binding cannot be produced. Discovered 0 with mis-bound 0 is the honest, healthy state for this
+  phase.
+- The failure causes are now real per-entity verdicts, not proximate module walls. Of the 43:
+  UNMAPPED_FIELD_TYPE 24 and NO_BACKING_METHOD 19.
+
+New sub-findings, surfaced only because E1 now reaches every entity (recorded for later phases, not
+fixed here, E1 is parse resilience only):
+
+- Of the 24 UNMAPPED_FIELD_TYPE failures: 13 are true entity associations (for example
+  `Building.property` of type `Property`), which is the E3 case; 8 are enum-typed fields (for example
+  `Property.type` of type `PropertyType`); and 3 are `Double` fields (for example
+  `LeaseTimeEntry.hoursWorked`), which the type mapper deliberately leaves unmapped because the closed
+  set has no floating-point primitive. Enums and `Double` are new, distinct type-mapping decisions
+  that E3 (or a dedicated type-mapping step) should weigh, separate from associations.
+- The 19 NO_BACKING_METHOD failures are entities that extracted cleanly but whose service either did
+  not parse (its file is among the 27 skips) or returns a DTO or view type rather than the entity.
+  Both are the E2 case: once the placeholder files are set aside and DTO-returning reads are matched,
+  these are where discovery should first rise.
+- No entity reached NO_IDENTIFIER or AMBIGUOUS_BINDING here: the composite-key join entities
+  (EventAttendee, GroupMember, UserRole) fail earlier on an unmapped embedded-id or association type,
+  so cause c is latent behind UNMAPPED_FIELD_TYPE, not yet reached as its own verdict.

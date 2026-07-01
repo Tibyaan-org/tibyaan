@@ -78,11 +78,11 @@ The author's own Spring systems are still useful here, just on the other side of
 
 The build order lives in Volume 13, the roadmap, in three tiers. Do not re-derive it from this file.
 
-- Tier 1 is complete and is a record, not a plan: the spike, P0 to P3, the three hardening steps, and the second-app trial.
-- Tier 2 is the active plan: evidence-based phases E1 (parse resilience and scan scope), E2 (DTO-aware read discovery, design in Volume 5 first, then build), E3 (associations), E4 (list, filter, and multi-argument reads, the first phase that grows the IR). Each has a goal, evidence, and an exit criterion in Volume 13, section 3. Do them in order; re-run the pms-backend benchmark after each and append the dated entry to docs/experiments/second-app-trial.md.
+- Tier 1 is complete and is a record, not a plan: the spike, P0 to P3, the three hardening steps, the second-app trial, and phase E1 (parse resilience).
+- Tier 2 is the active plan: evidence-based phases E1 (parse resilience and scan scope, done), E2 (DTO-aware read discovery, design in Volume 5 first, then build), E3 (associations), E4 (list, filter, and multi-argument reads, the first phase that grows the IR). Each has a goal, evidence, and an exit criterion in Volume 13, section 3. Do them in order; re-run the pms-backend benchmark after each and append the dated entry to docs/experiments/second-app-trial.md.
 - Tier 3 is direction only. Do not build Tier 3 items, and do not write detailed plans for them; they are conditional on Tier 2 proving the semantic core on real apps.
 
-The next phase is E1. One phase per session; a phase is not started until the previous phase meets its exit criterion.
+The next phase is E2, and its rule must be designed into Volume 5, section 4.2 before any code is written, exactly as the binding rule was. One phase per session; a phase is not started until the previous phase meets its exit criterion.
 
 Two disciplines from the spike era survive verbatim into every phase:
 
