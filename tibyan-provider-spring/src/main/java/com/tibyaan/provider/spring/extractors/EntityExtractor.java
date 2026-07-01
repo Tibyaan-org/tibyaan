@@ -21,13 +21,18 @@ import java.util.Optional;
 
 /**
  * Reads entity classes (Volume 5 section 4.1). It finds {@code @Entity} types, reads their
- * persistent fields into the closed type set, and emits one {@link Entity} per type plus, for
- * each entity that has an identifier, a {@link ReadIntent} for a {@code get<Entity>} read.
+ * persistent fields into the closed type set, and, for each entity that has an identifier, derives
+ * a {@link ReadIntent} for a {@code get<Entity>} read.
  *
  * <p>It deliberately does not produce the capability's binding. The binding is the real service
  * method, discovered by joining the read intent against the service-method catalog in the
  * provider (Volume 5 section 4.1). Keeping the entity side binding-free is what lets this
  * extractor stay independent of {@link ServiceExtractor}.
+ *
+ * <p>Extraction is exposed per type ({@link #entityTypes}, {@link #extractEntity},
+ * {@link #readIntent}) so the provider can drive the loop and collect-and-continue past a single
+ * bad entity (Volume 5 section 4, phase E1). Each of these still fails loudly for the one entity it
+ * cannot map; the choice to record that and continue, or to abort, belongs to the provider.
  */
 public final class EntityExtractor {
 
@@ -39,23 +44,24 @@ public final class EntityExtractor {
 
     private final JavaTypeMapper typeMapper = new JavaTypeMapper();
 
-    public EntityExtraction extract(List<CompilationUnit> units) {
-        List<Entity> entities = new ArrayList<>();
-        List<ReadIntent> readIntents = new ArrayList<>();
-
+    /** Every {@code @Entity} class declared across the parsed units, in walk order. */
+    public List<ClassOrInterfaceDeclaration> entityTypes(List<CompilationUnit> units) {
+        List<ClassOrInterfaceDeclaration> types = new ArrayList<>();
         for (CompilationUnit unit : units) {
             for (ClassOrInterfaceDeclaration type : unit.findAll(ClassOrInterfaceDeclaration.class)) {
-                if (type.isInterface() || !hasAnnotation(type, ENTITY_ANNOTATION)) {
-                    continue;
+                if (!type.isInterface() && hasAnnotation(type, ENTITY_ANNOTATION)) {
+                    types.add(type);
                 }
-                entities.add(extractEntity(type));
-                readIntent(type).ifPresent(readIntents::add);
             }
         }
-        return new EntityExtraction(entities, readIntents);
+        return types;
     }
 
-    private Entity extractEntity(ClassOrInterfaceDeclaration type) {
+    /**
+     * Reads one entity into IR, or fails loudly if a field's type has no equivalent in the closed
+     * primitive set. The provider decides whether that failure aborts the scan or is recorded.
+     */
+    public Entity extractEntity(ClassOrInterfaceDeclaration type) {
         String entityName = type.getNameAsString();
         List<Field> fields = new ArrayList<>();
         for (FieldDeclaration declaration : type.getFields()) {
@@ -82,8 +88,9 @@ public final class EntityExtractor {
 
     // The MVP read getX(id) needs the entity's identifier, the field marked @Id. We emit the
     // intent (what to read and the id's type), not the binding: the backing method is discovered
-    // later by the provider's join against the service catalog (Volume 5 section 4.1).
-    private Optional<ReadIntent> readIntent(ClassOrInterfaceDeclaration type) {
+    // later by the provider's join against the service catalog (Volume 5 section 4.1). Empty means
+    // the entity has no single @Id, a documented out-of-scope shape, not an error here.
+    public Optional<ReadIntent> readIntent(ClassOrInterfaceDeclaration type) {
         String entityName = type.getNameAsString();
         for (FieldDeclaration declaration : type.getFields()) {
             if (isSkipped(declaration) || !hasAnnotation(declaration, ID_ANNOTATION)) {
