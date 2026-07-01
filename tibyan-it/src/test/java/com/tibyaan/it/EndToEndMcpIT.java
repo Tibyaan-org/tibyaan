@@ -40,11 +40,17 @@ import static org.assertj.core.api.Assertions.assertThat;
  * </ol>
  *
  * <p>Two start modes are proven. The default mode passes NO {@code -Dtibyan.capabilities} property
- * and NO {@code spring.ai.mcp.server} config: the app ships the generated manifest on its classpath
- * at {@code tibyan/capabilities.json}, and the starter auto-configures the MCP server. The explicit
- * mode still supports pointing the runtime at a manifest with {@code -Dtibyan.capabilities}.
+ * and NO {@code spring.ai.mcp.server} config: the app's own build generated the manifest onto its
+ * classpath at {@code tibyan/capabilities.json} (via tibyan-maven-plugin), and the starter
+ * auto-configures the MCP server. The explicit mode still supports pointing the runtime at a manifest
+ * with {@code -Dtibyan.capabilities}. A third test asserts the build-generated manifest is
+ * byte-identical to the CLI/backend output, so build-time generation is not a second code path.
  */
 class EndToEndMcpIT {
+
+    // The manifest the example app's build generated onto its own classpath, via tibyan-maven-plugin.
+    private static final Path BUILD_GENERATED_MANIFEST = Path.of(
+            "..", "examples", "legacy-spring-app", "target", "classes", "tibyan", "capabilities.json");
 
     private static Path generatedManifest;
     private static Path bootJar;
@@ -84,6 +90,20 @@ class EndToEndMcpIT {
         } finally {
             stopApp(app);
         }
+    }
+
+    @Test
+    void theBuildGeneratedManifestIsByteIdenticalToTheCliOutput() throws Exception {
+        // Build-time generation must not be a second code path: the tibyan-maven-plugin runs the same
+        // pipeline the CLI ran in scanAndGenerateThroughTheCli, so its manifest must match byte for
+        // byte. (The CLI output equals the backend golden, so this equals the golden too.)
+        assertThat(Files.exists(BUILD_GENERATED_MANIFEST))
+                .as("the app build must generate the manifest onto its classpath at "
+                        + BUILD_GENERATED_MANIFEST.toAbsolutePath())
+                .isTrue();
+        assertThat(Files.readAllBytes(BUILD_GENERATED_MANIFEST))
+                .as("build-time generation must equal tibyan generate output byte for byte")
+                .isEqualTo(Files.readAllBytes(generatedManifest));
     }
 
     @Test

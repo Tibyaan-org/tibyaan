@@ -41,6 +41,25 @@
 
     <build>
         <plugins>
+            <!--
+              Build-time generation: the tibyan-maven-plugin scans this app's own source and writes
+              tibyan/capabilities.json onto the classpath (target/classes), so no one runs
+              `tibyan generate` by hand or commits the manifest. It runs the same pipeline the CLI
+              does, so the output matches `tibyan generate` byte for byte.
+            -->
+            <plugin>
+                <groupId>com.tibyaan</groupId>
+                <artifactId>tibyan-maven-plugin</artifactId>
+                <version>${project.version}</version>
+                <executions>
+                    <execution>
+                        <id>generate-tibyan-manifest</id>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
