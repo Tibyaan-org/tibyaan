@@ -321,3 +321,87 @@ Unchanged and absolute: mis-bound exactly 0 on both apps. Tolerance and closure 
 discovery: the 4.1 and 4.2 matching rules, eligibility, and the never-guess pooling are untouched, and
 a partial entity's discovery must bind to exactly the method it would have bound to with a complete
 shape. A single mis-binding on either benchmark stops all phase work.
+
+---
+
+## 11. E5 build result: actual versus forecast (2026-07-02)
+
+The partial-model integrity build (Volume 5 sections 4.7 to 4.9) was run against both benchmarks. The
+hard bar held: mis-bound 0 on both. `mvn clean verify` is green, the example-app golden byte-identical.
+
+### 11.1 erp-backend, number by number
+
+| Metric | Forecast (section 10.1) | Actual | Match |
+|---|---|---|---|
+| Discovered | 16 | 16 | yes |
+| Mis-bound | 0 | 0 | yes |
+| NO_BACKING_METHOD | 7 | 6 | no (composition, see below) |
+| NO_IDENTIFIER | 1 (EmailTemplate) | 1 (EmailTemplate) | yes |
+| AMBIGUOUS_BINDING | 1 (User) | 2 (User, Quote) | no (composition) |
+| UNMAPPED_FIELD_TYPE | 0 | 0 | yes |
+| Partial entities | 13 | 13 | yes |
+| Skipped fields | ~two dozen | 22 | within the stated uncertainty |
+| scan --out | valid, exit 0 | valid, exit 0 | yes |
+| Generation | 16 tools | 16 tools | yes |
+
+The discovered count, mis-bound, partial count, and generation all matched the forecast exactly. Two
+per-entity compositions deviated, and both are findings explained, not massaged. They cancel in the
+count (one entity left discovered, one entered), which is why discovered held at 16.
+
+Deviation 1, Quote is AMBIGUOUS, not discovered. Forecast had Quote discovering via rule 4.1
+(`QuoteServiceImpl#findById` returns Quote). Actual: Quote is AMBIGUOUS_BINDING, because
+`QuoteServiceImpl` also declares `getInvoice(UUID)`, which loads Quote by primary key and maps it in
+one step via `reportGenerationService.generateInvoice(quote)` returning `byte[]`, a genuine rule 4.2
+match (view type `byte[]`). Two real by-id reads of Quote (the entity and the invoice rendering) tie,
+so the pool is ambiguous and refuses. Correct behavior, never a guess; the forecast missed the
+competing method because the source survey searched only for `findById`.
+
+Deviation 2, VariationGroup discovers, not NO_BACKING. Forecast had VariationGroup as NO_BACKING (no
+`findById`). Actual: it discovers via `VariationGroupServiceImpl#getVariationGroup(UUID)`, whose body
+is `return variationGroupRepository.findById(groupId).orElseThrow(...)`, a differently-named
+entity-returning finder that rule 4.1 catches by shape. The forecast's `findById`-only search missed
+it. Correct discovery, hand-verified below.
+
+Hand-verification of the nine new discoveries (guilty until proven correct):
+
+| Capability | Binding | Verified |
+|---|---|---|
+| getContact | ContactServiceImpl#findById | `public Contact findById(UUID)` returns Contact by its UUID id |
+| getContactCategory | ContactCategoryServiceImpl#findById | `public ContactCategory findById(UUID)` returns it by id |
+| getContactGroup | ContactGroupServiceImpl#findById | `public ContactGroup findById(UUID)` returns it by id |
+| getTransaction | TransactionServiceImpl#findById | `public Transaction findById(UUID)` returns it by id |
+| getProduct | ProductServiceImpl#findById | `public Product findById(UUID)` returns Product by id |
+| getProductCategory | ProductCategoryServiceImpl#findById | `public ProductCategory findById(UUID)` returns it by id |
+| getProductGroup | ProductGroupServiceImpl#findById | `public ProductGroup findById(UUID)` returns it by id |
+| getPayment | PaymentServiceImpl#findById | `public Payment findById(UUID)` returns Payment by id |
+| getVariationGroup | VariationGroupServiceImpl#getVariationGroup | body loads `variationGroupRepository.findById(groupId)` and returns the VariationGroup; entity-returning, one UUID param |
+
+Quote, forecast as the ninth new discovery, is instead AMBIGUOUS (verified above). The other eight
+findById discoveries and getVariationGroup are all correct, right method on the right entity, UUID id.
+The seven pre-existing discoveries are unchanged. Mis-bound is 0.
+
+### 11.2 pms-backend, number by number
+
+Byte-identical to the E3-plus-E2 row, as forecast: discovered 2, failed 41 (NO_BACKING_METHOD 38,
+COMPOSITE_KEY 3), skipped-by-parse 27, partial 0, mis-bound 0. pms has no to-many collection, no
+`@Embeddable`, no `byte[]`, no unresolvable-type field, so tolerance skips nothing; and all 43
+entities already extract, so closure prunes nothing. The phase moved pms not at all, which is the
+proof it is additive.
+
+### 11.3 The model-closure finding
+
+Model closure (section 4.7) was implemented exactly as ratified: a pass after extraction drops every
+`ENTITY_REF` field and `Relation` whose target is absent, and discloses it. During the build a
+structural fact surfaced: given field tolerance (section 4.8), every scanned `@Entity` extracts, and
+an `ENTITY_REF` is emitted only for a type that resolves in the registry as an `@Entity`, so every
+`ENTITY_REF` target is present. The scan path therefore never produces a dangling reference, and
+closure never fires on any real input; on erp it dropped nothing, and the acceptance shape (the
+discoveries generate) is met because tolerance leaves no dangling reference to begin with.
+
+This is recorded, not worked around. Closure is retained as the standing producibility invariant, so a
+model that passes validation is always producible whatever fraction extracted, even if a future phase
+reintroduces a way for an entity to be absent (a parse-skipped entity file that another entity
+resolves against, or a later shape tolerance does not cover). Because the scan path cannot exercise it,
+its drop-and-disclose logic is unit-tested directly on a synthetic model (PartialModelIntegrityTest,
+G1 and G2). The invariant holds; its trigger is currently unreachable, and that is a healthy state, not
+a gap.

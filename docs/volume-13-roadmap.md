@@ -92,7 +92,7 @@ Build outcome (2026-07-02): all three rules implemented exactly as ratified (FLO
 | Evidence | Trial gap 4: these shapes are the bulk of pms-backend's actual read API (`getAllByFilter` returning `TenantResultSet`, `List` returns, `getMyVendors(id, page, size)`). They rank after E1 to E3 only because parsing and DTO matching block the run before they are even reached; by volume of real capabilities they are large |
 | Exit criterion | At least one list or filter read discovered on pms-backend in each module where the source offers one, with zero mis-bindings, and the IR growth recorded in Volume 4 with its validators and golden-file tests |
 
-### Phase E5: Partial-model integrity (RATIFIED 2026-07-02; build this session)
+### Phase E5: Partial-model integrity (RATIFIED and BUILT 2026-07-02)
 
 Evidence from the third app (erp-backend), not pms-backend: this phase is idiom-driven, and its leverage was invisible on the first benchmark. It is three separate rules, each argued in Volume 5 (sections 4.7 to 4.9), and it needs no IR growth (the growth bar held; the Annotation hook and a closure invariant suffice, Volume 4, section 7.1).
 
@@ -109,6 +109,7 @@ Ratified 2026-07-02, all three rules as written: 4.7 model closure (drop-and-dis
 | Evidence | erp-backend trial (docs/experiments/third-app-trial.md, sections 6 and 8): the dangling-reference finding blocked generation for all 7 valid discoveries; the field-veto finding blocked 13 entities on a single unmodeled field, 9 of which have a good `findById`. Verified from source this session |
 | Exit criterion | On erp-backend: `tibyan scan --out` writes a valid IR and `generate` produces a valid manifest (closure); discovered rises to 16 with mis-bound 0 (tolerance); the survey and the benchmark row disclose partial entities (contract). On pms-backend: unchanged (no tolerated field shapes, no absent entities), proving the phase is additive, not a regression. Forecasts, number by number, in the experiment doc section 10 |
 | Not this phase | This is not E4. No list-read modeling, no collection outputs, no new discovery rules; collections are skipped, not modeled |
+| Build outcome (2026-07-02) | Built in `tibyan-provider-spring` and the CLI, no core change (no IR growth). erp: discovered 7 to 16 (all rule 4.1), partial 13, mis-bound 0, generation succeeds for all 16 (scan --out now exit 0). pms: byte-identical to its prior row (partial 0), proving the phase additive. Two forecast composition swaps, both verified with mis-bound 0 (Quote AMBIGUOUS via a competing getInvoice, VariationGroup discovers via getVariationGroup); the discovered count held at 16. Finding: model closure is unreachable via the scan path given tolerance, so it is retained as the invariant and unit-tested in isolation (Volume 5, section 4.7). `mvn clean verify` green, example-app golden byte-identical. Full result: experiment doc, section 11 |
 
 ### Deliberately not scheduled (from the trial's remaining causes)
 
