@@ -273,6 +273,21 @@ entities whose IR shape is incomplete because a field was skipped or a reference
 inflates `discovered` and never masks a mis-binding (Volume 5, section 4.9). The forecast rows for E5
 are in docs/experiments/third-app-trial.md, section 10.
 
+Methodology note, forward-looking (list reads, phase E4, pending ratification): once E4 is built,
+`discovered` is annotated by kind, `discovered N (by-id A, list B)`, because an entity can now yield a
+read-by-id, a list, both, or (for a list-only entity such as erp's EmailTemplate) a list without a
+read-by-id. This is a split, not a redefinition: `A` is directly comparable to every historical
+`discovered` figure above (all of which were by-id), so the rows stay readable, and `A` plus `B`
+equals `N`. `failed` keeps counting by-id outcomes at the entity level, so `by-id A` plus `failed`
+still partitions the entities as before. A new outcome, `LIST_AMBIGUOUS` (two or more unfiltered
+list-all methods for one entity), is reported on a separate `list-refused` line and totalled apart from
+`failed`, so an entity that discovers by-id but has an ambiguous list is never double-counted. Filtered
+and view-returning list reads are reported as named deferrals, not failures, so they never enter
+`failed`, `list-refused`, or the missed-capability count. `mis-bound` keeps its
+meaning, extended: a list bound to the wrong entity's collection, or a filtered method presented as
+unfiltered, is mis-bound (Volume 5, section 4.10.9). The E4 forecast rows are in this document,
+section 8.6 (pms), and docs/experiments/third-app-trial.md, section 12 (erp).
+
 ### 8.1 Interpretation of the E1 run (2026-07-02)
 
 The E1 run is the first that survived this app end to end. It is run with the built CLI:
@@ -410,3 +425,52 @@ Generation was confirmed end to end for the two discoveries: `tibyan generate --
 One finding, recorded rather than worked around: the ratified representation (section 4.2.5) puts the view type's name on the capability as a `view` annotation, and it is present in the IR (`getUnit` carries `view: [UnitVTO]`, `getLease` carries `view: [LeaseVTO]`). It does not appear in the generated MCP manifest, because the MCP backend does not serialize capability annotations, and no backend change was in scope for this provider-only phase. Surfacing the view in the manifest, so an agent reading the manifest learns the concrete shape's name as section 4.2.5 envisions, is a small, deliberate MCP backend enhancement, deferred to a backend phase. The IR side of the ratified rule is complete.
 
 Finding closed (2026-07-02, backend-only phase): the MCP backend now emits the `view` field on a view-carrying tool and adds a one-sentence description clause (Volume 6 section 3.1). Regenerating the pms-backend manifest confirms it: `getUnit` carries `"output": "ENTITY_REF(Unit)", "view": "UnitVTO"` and `getLease` carries `"output": "ENTITY_REF(Lease)", "view": "LeaseVTO"`. Discovery numbers are unchanged (this was output only, not a new discovery), so no new benchmark row is needed. The example-app golden stayed byte-identical, and the runtime tolerates the new field explicitly.
+
+### 8.6 E4 list-read census and forecast (pms-backend, read-only, 2026-07-02)
+
+The design half of phase E4 (list reads, Volume 5, section 4.10, pending ratification) needs the
+list-read inventory of both benchmarks. This is pms-backend's, traced from source, read only, no tool
+change. The erp-backend census and forecast are in docs/experiments/third-app-trial.md, section 12.
+
+The census (every `@Service` method returning a collection or page), by shape:
+
+| Shape | Count | Detail |
+|---|---|---|
+| (a) bare `findAll()`, clean framework pass-through | 0 | pms has no unfiltered entity-returning list read |
+| (b) `findAll(Pageable)`, clean framework pass-through | 0 | pms never forwards a lone `Pageable`; it uses Integer `pageNum`/`pageSize` with filters |
+| (c) filtered, one or more domain parameters, returning a `*ResultSet` view-envelope | ~35 | `getAllByFilter` (Tenant, Property, Lease), `getMyVendors`/`getVendorsByBuilding`, `getMyInvoices`/`getInvoicesByBuilding`, `getPaymentsByBuilding`/`getMyPayments`, `getCostsByBuilding`, `getStaffList`, `getMy*`/`getBuilding*` time-entries and invoices, `getChatRooms`/`getChatMessages`, `getGroupsByBuilding`/`getPendingGroups`, `getEventsByBuilding`/`getPendingEvents`, `getMyTickets`/`getTicketsByBuilding`/`getAllTickets`, `getMyInspections`/`getInspectionsByBuilding`/`getAllInspections`, `getAllUsers`/`getAllUsersByFilters`, `findAllByProperty`, `findAll(String, ...)`, `getAllByProperty` |
+| (d) view-returning `List<VTO>`, filtered by a foreign key | ~7 | `getVendorsByBuildingId(Long)` (`List<VendorVTO>`), `getAllVersions(String)` (`List<FileVTO>`), `getDocumentsByLeaseId(Long)` (`List<LeaseDocumentVTO>`), `getNotificationsForUser(Long)` (`List<NotificationVTO>`), `getStaffByBuilding(Long)`/`getMyStaff(Long)` (`List<StaffVTO>`), `findPropertiesByBuildingIds(List<Long>)` (`List<PropertyProxyResult>`) |
+| (e) other or scalar | 1 | `extractRoleIds(String)` (`List<Integer>`, a library JWT helper) |
+
+The decisive fact: pms has zero methods in the modeled list-all shape (a)+(b). Every one of its ~42
+list reads takes at least one domain parameter and returns a custom `*ResultSet` envelope or a `List`
+of a view type. pms's entire list API is in the E4 deferred set (filtered, view-returning, or both).
+This is not an artifact of the 27 unparseable files: the property and lease modules parse cleanly, and
+their list reads (`TenantServiceImpl#getAllByFilter` to `TenantResultSet`,
+`UnitServiceImpl#findAll(String, ...)` to `UnitResultSet`, `LeaseServiceImpl#getAllByFilter` to
+`LeaseResultSet`) are reachable and still deferred, because their shape is filtered and view-returning,
+not because they were skipped.
+
+The forecast (after the E4 build, stated before it):
+
+- Discovered: 2 (by-id 2, list 0). Unchanged. The two view-returning by-id reads (getUnit, getLease)
+  are untouched. No list capability is discovered, because pms has no unfiltered entity-returning list
+  read for the modeled rule to match.
+- Deferred list reads (named, not failed): roughly 42 methods, all shape (c) or (d), each reported per
+  method with its reason. These are the direct evidence for the successor filtered/view-list phase, and
+  they are the reason pms, not erp, should drive that phase's design.
+- By-id failed: 41, unchanged (NO_BACKING_METHOD 38, COMPOSITE_KEY 3). Skipped-by-parse: 27, unchanged.
+  Partial: 0, unchanged. Mis-bound: 0. LIST_AMBIGUOUS: 0 (no entity has even one list-all method, so
+  none can have two).
+
+Row (projected, not a run row until the build): discovered 2 (by-id 2, list 0), by-id failed 41
+(NO_BACKING_METHOD 38, COMPOSITE_KEY 3), skipped-by-parse 27, partial 0, mis-bound 0.
+
+The split finding, stated as plainly as the E2 sequencing finding was: the modeled E4 rule discovers
+list capabilities on erp-backend and zero on pms-backend, because pms's list idiom is entirely filtered
+and view-returning. Modeling filtered and view-returning list reads honestly is a separate phase with
+its own semantics rule (a filter parameter's meaning cannot be verified structurally, Volume 5,
+section 4.10.2), and pms is its benchmark. The Volume 13 E4 exit criterion ("at least one list or filter
+read on pms-backend in each module") cannot be met by the modeled list-all rule and is re-scoped in the
+roadmap: E4's exit is stated against erp-backend (list discovered greater than zero, mis-bound 0), and
+the pms list API moves to the successor phase.

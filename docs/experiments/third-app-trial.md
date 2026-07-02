@@ -405,3 +405,101 @@ resolves against, or a later shape tolerance does not cover). Because the scan p
 its drop-and-disclose logic is unit-tested directly on a synthetic model (PartialModelIntegrityTest,
 G1 and G2). The invariant holds; its trigger is currently unreachable, and that is a healthy state, not
 a gap.
+
+---
+
+## 12. E4 list-read census and forecast (erp-backend, read-only, 2026-07-02)
+
+The design half of phase E4 (list reads, Volume 5, section 4.10, pending ratification) needs the
+list-read inventory of both benchmarks. This section is erp-backend's, traced from source, read only,
+no tool change. The pms-backend census and forecast are in docs/experiments/second-app-trial.md,
+section 8.6.
+
+### 12.1 The census (every @Service method returning a collection or page)
+
+Classified by shape: (a) bare `findAll()`, no parameters; (b) `findAll(Pageable)`, a lone framework
+paging parameter; (c) filtered, one or more domain parameters; (d) view-returning list or projection;
+(e) other or scalar. Shapes (a) and (b) additionally require the body to be a verbatim framework
+pass-through (`return <repo>.findAll(...)`) to count as the modeled list-all shape; a no-parameter
+method whose body transforms the result is not shape (a), it is a transformed read, grouped with the
+deferrals.
+
+| Shape | Count | Detail |
+|---|---|---|
+| (a) bare `findAll()`, clean pass-through | 3 methods | Account, Transaction, Truck (each `return <repo>.findAll();`) |
+| (b) `findAll(Pageable)`, clean pass-through | 8 methods | Contact, ContactCategory, ContactGroup, ProductGroup, VariationGroup, EmailTemplate (one each), ProductCategory (one of its two) |
+| (a)+(b) modeled list-all total | 11 methods, 10 entities | ProductCategory has both a bare and a paged clean method (the indistinguishable pair) |
+| (c) filtered, one or more domain parameters | ~30 methods | `searchByFields` (Account, User, Truck 10-param, EmailTemplate), `findAll(String search, Pageable)` (ContactType, Brand, BarcodeType, Unit, ContactCategory, ProductCategory), `findByCategory`/`findBySupplier`/`findByParentId`/`findByContactId`/`findByProductId`/`findByNameContaining`/`search`/`findContacts`/`getHasAccounts`/`getHasNoAccounts`/`findByAccountId`/`getMessagesByContact`/`getMessagesByNumber` |
+| (d) view-returning list or projection | ~9 methods | `getListableContacts`/`getListableProducts` (`Page<NameIdDTO>`), `getSupplierContacts`/`findByAccountType` (`List<NameIdDTO>`), `QuoteServiceImpl#findAll` (`List<QuoteReadDTO>`), `DeliveryServiceImpl#findAll` (`List<DeliveryReadDTO>`), `findAllTickets` (`List<TicketReadDTO>`), `findCompletedByType` (`List<TransactionReadDTO>`), `getHierarchicalCategoryDTOs` (`List<HierarchicalCategoryDTO>`) |
+| transformed body, no domain parameter (not shape a) | 5 methods | `Transaction#findCompleted`, `#findCompletedWithAssociations` (post-`findAll` stream-filter), `User#findAll` (post-filter deleted users), `Product#findAll(Pageable)` (custom query + `convertToFullName` + manual `PageImpl`), `Contact#findByHasNumber` (derived query) |
+| (e) other or scalar | several | `getUnknownSenders`, `listCognitoGroups` (`List<String>`), mapping helpers (`mapToInventoryTransactionResponse`), and writes returning a list (`create`) |
+
+Repository contract confirmed for the modeled shape: the loads resolve to Spring Data repositories of
+the element type, for example `ContactRepository extends JpaRepository<Contact, UUID>` and
+`EmailTemplateRepository extends JpaRepository<EmailTemplate, EmailTemplateType>`, so the framework
+`findAll` / `findAll(Pageable)` is inherited and resolvable by the same `RepositoryCatalog` E2 built.
+
+### 12.2 The modeled positives (11 methods, 10 entities)
+
+| Entity | Method | Return | Body | E4 outcome |
+|---|---|---|---|---|
+| Contact | ContactServiceImpl#findAll(Pageable) | Page<Contact> | `return contactRepository.findAll(pageable);` | listContact (paged) |
+| ContactCategory | ContactCategoryServiceImpl#findAll(Pageable) | Page<ContactCategory> | `return contactCategoryRepository.findAll(pageable);` | listContactCategory (paged) |
+| ContactGroup | ContactGroupServiceImpl#findAll(Pageable) | Page<ContactGroup> | `return contactGroupRepository.findAll(pageable);` | listContactGroup (paged) |
+| Account | AccountServiceImpl#findAll() | List<Account> | `return accountRepository.findAll();` | listAccount |
+| Transaction | TransactionServiceImpl#findAll() | List<Transaction> | `return transactionRepository.findAll();` | listTransaction |
+| Truck | TruckServiceImpl#findAll() | List<Truck> | `return truckRepository.findAll();` | listTruck |
+| ProductGroup | ProductGroupServiceImpl#findAll(Pageable) | Page<ProductGroup> | `return productGroupRepository.findAll(pageable);` | listProductGroup (paged) |
+| VariationGroup | VariationGroupServiceImpl#findAll(Pageable) | Page<VariationGroup> | `return variationGroupRepository.findAll(pageable);` | listVariationGroup (paged) |
+| EmailTemplate | EmailTemplateServiceImpl#findAll(Pageable) | Page<EmailTemplate> | `return emailTemplateRepository.findAll(pageable);` | listEmailTemplate (paged) |
+| ProductCategory | ProductCategoryServiceImpl#findAll() and #findAll(Pageable) | List / Page<ProductCategory> | both clean pass-throughs | LIST_AMBIGUOUS (two candidates), no capability minted |
+
+Two facts this table proves, both requested in the design brief:
+
+- `listEmailTemplate` is discovered even though `getEmailTemplate` is not. EmailTemplate's `@Id` is an
+  enum, so its by-id read fails NO_IDENTIFIER (section 11.1), but a list-all needs no bindable id, so
+  `listEmailTemplate` is clean. E4 adds a capability on an entity E5 could not read at all.
+- ProductCategory is the structurally-indistinguishable pair, live: `findAll()` and `findAll(Pageable)`
+  are both clean list-all methods, and because paging is unmodeled they produce the identical
+  capability. The tool refuses (LIST_AMBIGUOUS) rather than prefer the paged overload, which would be a
+  nominal guess. ProductCategory keeps its by-id discovery (getProductCategory); only its list
+  candidate refuses.
+
+### 12.3 The forecast (after the E4 build, stated before it)
+
+- Discovered: 25 (by-id 16, list 9). The 16 by-id discoveries are byte-identical to the E5 row
+  (E4 is additive; the list pool and the by-id pools are disjoint by construction, Volume 5,
+  section 4.10.5). Nine new list capabilities: listContact, listContactCategory, listContactGroup,
+  listAccount, listTransaction, listTruck, listProductGroup, listVariationGroup, listEmailTemplate.
+- List-refused: 1, LIST_AMBIGUOUS (ProductCategory, two clean list-all methods). A new cause code.
+- By-id failed: 9, unchanged (NO_BACKING_METHOD 6, NO_IDENTIFIER 1, AMBIGUOUS_BINDING 2). The entity
+  denominator is preserved: by-id discovered 16 plus by-id failed 9 equals 25 entities.
+- Deferred list reads (named, not failed): roughly 44 methods across shapes (c), (d), transformed, and
+  (e), each reported per method under "Deferred list reads" with its reason (filtered, view-returning,
+  transformed body, or non-framework terminal). None is counted as a discovery or a failure; they are
+  out of E4 scope by design, and are the evidence for the successor filtered/view-list phase.
+- Partial: 13, unchanged. Skipped-by-parse: 0, unchanged. Mis-bound: exactly 0.
+- Generation: the 9 new list capabilities generate to MCP (each tool carries `outputMultiple: true`,
+  the paged ones also `paged: true`) and to OpenAPI (each a GET on the collection path returning
+  `{type: array, items: {$ref to the entity}}`, the paged ones carrying `x-tibyan-paged`). The no-arg
+  list reads (listAccount, listTransaction, listTruck) are fully executable; the paged reads carry the
+  deferred runtime-paging note (Volume 6, section 3.3).
+
+Row (projected, not a run row until the build): discovered 25 (by-id 16, list 9), list-refused 1
+(LIST_AMBIGUOUS), by-id failed 9 (NO_BACKING_METHOD 6, NO_IDENTIFIER 1, AMBIGUOUS_BINDING 2),
+skipped-by-parse 0, partial 13, mis-bound 0.
+
+The one named uncertainty: the exact count of deferred list reads ("roughly 44") depends on final
+per-method classification at build time; the 9 discovered list capabilities, the 1 LIST_AMBIGUOUS, and
+the unchanged 16 by-id are firm from source verification.
+
+### 12.4 The mis-bound guard, hand-checked from source
+
+The nine forecast list bindings were each checked against the actual service body: every one is a
+single `return <repo>.findAll(...);` on a Spring Data repository of exactly the element entity, with no
+post-filter, so none presents a subset as the whole and none binds the wrong entity's collection. The
+two live traps were confirmed to refuse: `Transaction#findCompleted()` (a no-parameter method that
+post-filters status COMPLETED) is refused on the body-shape condition, so listTransaction binds to
+`findAll()` and never to `findCompleted()`; and ProductCategory's two clean methods refuse as
+ambiguous. Mis-bound stays 0 in the forecast, and the two ways a list can mis-bind are both structurally
+prevented.
