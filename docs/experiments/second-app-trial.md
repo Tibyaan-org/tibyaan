@@ -244,6 +244,7 @@ silent wrong result, did not occur.
 | 2026-07-02 | MVP plus three hardening steps, unchanged | 0 | 0 | 43 (f2: 31, f1: 7, f3: 4, d: 1) | (n/a, scan aborted) | Baseline. Whole-app scan aborted at the first unparseable file (exit 3); per-entity outcomes are by the wall each module hit first, not a real per-entity classification |
 | 2026-07-02 | E1: Java 17 language level, collect-and-continue, scoped walk | 0 | 0 | 43 per entity (UNMAPPED_FIELD_TYPE 24, NO_BACKING_METHOD 19) | 27 files | Scan completes end to end (exit 0). Every one of the 43 entities gets a located per-entity outcome, and every unparseable file is named with its parse location, instead of a single abort. See the interpretation below |
 | 2026-07-02 | E3 build (associations, enums, FLOAT); E2 not yet built | 0 | 0 | 43 (NO_BACKING_METHOD 43) | 27 files | All 24 formerly UNMAPPED_FIELD_TYPE entities now extract, so every entity reaches binding and fails there. The IR gained the full shapes: 20 ENTITY_REF association fields deduped to 19 MANY_TO_ONE relations, 21 enum fields carrying their value sets, and 8 FLOAT fields. `mvn clean verify` green; golden manifest byte-identical. See section 8.4 |
+| 2026-07-02 | E3 plus E2 build (the joint measurement) | 2 | 0 | 41 (NO_BACKING_METHOD 38, COMPOSITE_KEY 3) | 27 files | getUnit bound to UnitServiceImpl#findById (view UnitVTO) and getLease bound to LeaseServiceImpl#findById (view LeaseVTO), both through pattern P1a one-hop. The ratified joint exit: discovered greater than zero with mis-bound 0. `mvn clean verify` green; golden manifest byte-identical. See section 8.5 |
 
 Each Tier 2 phase (Volume 13, section 3) appends one row after its re-run. A row's totals must
 come from an actual run of the tool as built at that date, never from a projection.
@@ -358,3 +359,28 @@ Actual versus forecast: this matches the section 8.3 "E3 build alone" row exactl
 One forecast wording is corrected here rather than massaged. The build instruction's summary line said the E3-alone run should show "COMPOSITE_KEY becomes 3 as UserRole's key surfaces." That conflicts with both the ratified rule text (Volume 5, section 4.4.3, "UserRole moves to the identifier cause once section 4.2 condition 0 is built, and to NO_BACKING_METHOD in the interim") and the section 8.3 E3-alone row (all NO_BACKING_METHOD). The COMPOSITE_KEY cause is section 4.2 condition 0, which is phase E2 and was correctly not built this session, so the actual run shows 43 NO_BACKING_METHOD and zero COMPOSITE_KEY. COMPOSITE_KEY 3 is the joint E3-plus-E2 forecast (section 8.3, second bullet), not the E3-alone one. The E3-alone run is right; the summary line's mention of COMPOSITE_KEY was a slip against the design, resolved in favor of the ratified rule.
 
 The @IdClass join entities behaved as the design predicts for the interim: EventAttendee and GroupMember (two plain `@Id Long` fields) extract and form a half-key read intent on the first `@Id`, which nothing backs, so they are NO_BACKING_METHOD; UserRole extracts (its `@Id @ManyToOne Role` now maps to ENTITY_REF plus a relation, and its first `@Id`, `userId`, is a Long) and is likewise NO_BACKING_METHOD. The half-key intent is harmless here (nothing backs it) and is closed by E2's eligibility condition 0, which moves these three to COMPOSITE_KEY in the joint run.
+
+### 8.5 Interpretation of the joint E3 plus E2 run (actual versus forecast, 2026-07-02)
+
+With the E2 build in place (Volume 5, section 4.2, conditions 0 to 10), the benchmark was re-run: `tibyan scan examples/pms-backend`, exit 0.
+
+Actual, number by number against the section 8.3 joint forecast:
+
+| Metric | Forecast | Actual | Match |
+|---|---|---|---|
+| Discovered | 2 | 2 | yes |
+| Mis-bound | 0 | 0 | yes |
+| Failed, NO_BACKING_METHOD | 38 | 38 | yes |
+| Failed, COMPOSITE_KEY | 3 | 3 | yes |
+| Skipped by parse | 27 | 27 | yes |
+
+Every number matched the forecast. The two discoveries are exactly the forecast ones, with the exact bindings and views:
+
+- getUnit, bound to `UnitServiceImpl#findById`, view `UnitVTO`. Structural evidence: loads Unit by primary key through `UnitRepository#selectById`, whose implementation `UnitRepositoryImpl` delegates one hop to `UnitJpaRepository#findById` (a Spring Data repository of Unit), then maps via `PropertyMgtMapper#toUnitVTO(Unit) : UnitVTO`. Pattern P1a, one-hop.
+- getLease, bound to `LeaseServiceImpl#findById`, view `LeaseVTO`. Structural evidence: loads Lease by primary key through `LeaseRepository#selectById`, whose implementation `LeaseRepositoryImpl` delegates one hop to `LeaseJpaRepository#findById` (a Spring Data repository of Lease), then maps via `LeaseMgtMapper#toVTO(Lease) : LeaseVTO`. Pattern P1a, one-hop.
+
+The three COMPOSITE_KEY entities are EventAttendee, GroupMember, and UserRole, moved from NO_BACKING_METHOD (their E3 interim state) by eligibility condition 0. Tenant remains refused with the named P1b near-miss (its `TenantRepository#selectById` delegates to a custom `@Query`, `findByIdWithRelations`); Building, Property, and ChatRoom remain refused as P2 (a second repository access after the load). This is the correct end state of the phase: the 38 NO_BACKING_METHOD refusals carry named near-misses, not silence.
+
+Generation was confirmed end to end for the two discoveries: `tibyan generate --backend mcp` from the pms-backend IR produces a valid manifest with `getUnit` and `getLease`, each carrying its binding, `ENTITY_REF` output, and `id: LONG` input (output only, into `./generated`, not committed).
+
+One finding, recorded rather than worked around: the ratified representation (section 4.2.5) puts the view type's name on the capability as a `view` annotation, and it is present in the IR (`getUnit` carries `view: [UnitVTO]`, `getLease` carries `view: [LeaseVTO]`). It does not appear in the generated MCP manifest, because the MCP backend does not serialize capability annotations, and no backend change was in scope for this provider-only phase. Surfacing the view in the manifest, so an agent reading the manifest learns the concrete shape's name as section 4.2.5 envisions, is a small, deliberate MCP backend enhancement, deferred to a backend phase. The IR side of the ratified rule is complete.
