@@ -92,7 +92,7 @@ $ tibyan scan ./erp-backend
 ...
 Discovered (25):
   by-id (16):
-    + getContact -> ContactServiceImpl#findById (partial: 4 fields skipped)
+    + Contact: getContact -> ContactServiceImpl#findById (partial: 3 fields skipped)
     ...
   list (9):
     + listContact -> ContactServiceImpl#findAll (paged)
@@ -103,11 +103,11 @@ Failed (9):
   - User [AMBIGUOUS_BINDING]: backed by more than one candidate ...
   ...
 List-refused (1):
-  - ProductCategory [LIST_AMBIGUOUS]: 2 list-all candidates: ProductCategoryServiceImpl#findAll(), #findAll(Pageable).
-Deferred list reads (not modeled in E4):
-  ~ ProductServiceImpl#findAll(Pageable): filtered or transformed body, deferred (filtered/view list reads).
+  - ProductCategory [LIST_AMBIGUOUS]: list capability 'listProductCategory' has more than one list-all candidate: [ProductCategoryServiceImpl#findAll, ProductCategoryServiceImpl#findAll].
+Deferred list reads (56):
+  ~ ProductServiceImpl#findAll(Pageable): body is not a single return of the framework findAll; a transformed, filtered, or multi-statement body is deferred (condition 6).
   ...
-Totals: discovered 25 (by-id 16, list 9), failed 9 (by cause: NO_BACKING_METHOD 6, NO_IDENTIFIER 1, AMBIGUOUS_BINDING 2), list-refused 1 (LIST_AMBIGUOUS), skipped-by-parse 0, partial 13, mis-bound 0
+Totals: discovered 25 (by-id 16, list 9), failed 9 (by cause: NO_IDENTIFIER 1, NO_BACKING_METHOD 6, AMBIGUOUS_BINDING 2), list-refused 1, skipped-by-parse 0, partial 13 (22 fields skipped), mis-bound 0
 ```
 
 Note that `EmailTemplate` appears in both `list (9)` and `Failed (9)`: its list-all read is clean, so `listEmailTemplate` is discovered, while its by-id read fails NO_IDENTIFIER. This is exactly the decoupling E4 introduces, and it is why the two ledgers are kept on separate axes.
