@@ -13,9 +13,10 @@ import java.util.Optional;
  * <p>The mapping is by simple type name, so both {@code BigDecimal} and
  * {@code java.math.BigDecimal} resolve. A type with no equivalent returns empty: the closed
  * set is deliberately small, and an unmapped type is a problem the caller surfaces, never a
- * silent passthrough (Volume 5 rule 3). Notably the set has no floating point type, so
- * {@code double} and {@code float} are intentionally left unmapped rather than coerced into
- * the exact {@code DECIMAL}.
+ * silent passthrough (Volume 5 rule 3). The exact-inexact line is hard (Volume 5 section 4.6):
+ * inexact Java floating point ({@code double}, {@code Double}, {@code float}, {@code Float}) maps
+ * to {@code FLOAT}, exact {@code BigDecimal} maps to {@code DECIMAL}, and nothing crosses between
+ * them in either direction.
  */
 public final class JavaTypeMapper {
 
@@ -28,6 +29,10 @@ public final class JavaTypeMapper {
             Map.entry("Short", Primitive.INTEGER),
             Map.entry("short", Primitive.INTEGER),
             Map.entry("BigDecimal", Primitive.DECIMAL),
+            Map.entry("double", Primitive.FLOAT),
+            Map.entry("Double", Primitive.FLOAT),
+            Map.entry("float", Primitive.FLOAT),
+            Map.entry("Float", Primitive.FLOAT),
             Map.entry("Boolean", Primitive.BOOLEAN),
             Map.entry("boolean", Primitive.BOOLEAN),
             Map.entry("UUID", Primitive.UUID),

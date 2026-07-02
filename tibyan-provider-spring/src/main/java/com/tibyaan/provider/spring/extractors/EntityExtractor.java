@@ -8,31 +8,37 @@ import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.expr.AnnotationExpr;
 import com.github.javaparser.ast.expr.MemberValuePair;
 import com.github.javaparser.ast.nodeTypes.NodeWithAnnotations;
+import com.tibyaan.core.ir.Annotation;
 import com.tibyaan.core.ir.Entity;
 import com.tibyaan.core.ir.Field;
 import com.tibyaan.core.ir.Metadata;
+import com.tibyaan.core.ir.Primitive;
+import com.tibyaan.core.ir.Relation;
+import com.tibyaan.core.ir.RelationKind;
 import com.tibyaan.core.ir.Type;
 import com.tibyaan.provider.spring.JavaTypeMapper;
 import com.tibyaan.provider.spring.ProviderException;
+import com.tibyaan.provider.spring.extractors.TypeRegistry.Kind;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
- * Reads entity classes (Volume 5 section 4.1). It finds {@code @Entity} types, reads their
- * persistent fields into the closed type set, and, for each entity that has an identifier, derives
- * a {@link ReadIntent} for a {@code get<Entity>} read.
+ * Reads entity classes (Volume 5 sections 4.1, 4.4, 4.5, 4.6). It finds {@code @Entity} types,
+ * reads their persistent fields into the closed type set, and, for each entity that has a usable
+ * identifier, derives a {@link ReadIntent} for a {@code get<Entity>} read.
+ *
+ * <p>Field mapping covers primitives (including FLOAT, section 4.6), associations to other entities
+ * (section 4.4: an {@code ENTITY_REF} field plus a {@link Relation}), and enums (section 4.5: a
+ * STRING field carrying an {@code enum} annotation with the constant names). Association and enum
+ * resolution is structural, through the {@link TypeRegistry}, never by name. A field whose type has
+ * no equivalent fails loudly with a located, enriched message; the provider decides whether that
+ * aborts the scan or is recorded (phase E1).
  *
  * <p>It deliberately does not produce the capability's binding. The binding is the real service
- * method, discovered by joining the read intent against the service-method catalog in the
- * provider (Volume 5 section 4.1). Keeping the entity side binding-free is what lets this
- * extractor stay independent of {@link ServiceExtractor}.
- *
- * <p>Extraction is exposed per type ({@link #entityTypes}, {@link #extractEntity},
- * {@link #readIntent}) so the provider can drive the loop and collect-and-continue past a single
- * bad entity (Volume 5 section 4, phase E1). Each of these still fails loudly for the one entity it
- * cannot map; the choice to record that and continue, or to abort, belongs to the provider.
+ * method, discovered by the provider's join against the service catalog (section 4.1).
  */
 public final class EntityExtractor {
 
@@ -41,6 +47,14 @@ public final class EntityExtractor {
     private static final String TRANSIENT_ANNOTATION = "Transient";
     private static final String COLUMN_ANNOTATION = "Column";
     private static final String NULLABLE_ANNOTATION = "Nullable";
+    private static final String MANY_TO_ONE_ANNOTATION = "ManyToOne";
+    private static final String ONE_TO_ONE_ANNOTATION = "OneToOne";
+    private static final String ENUM_ANNOTATION_KEY = "enum";
+
+    // Collection container types whose raw simple name signals a to-many shape, deferred to a later
+    // phase (section 4.4). Generic and array syntax is caught separately by the type string.
+    private static final Set<String> COLLECTION_TYPES =
+            Set.of("List", "Set", "Map", "Collection", "Iterable");
 
     private final JavaTypeMapper typeMapper = new JavaTypeMapper();
 
@@ -58,52 +72,163 @@ public final class EntityExtractor {
     }
 
     /**
-     * Reads one entity into IR, or fails loudly if a field's type has no equivalent in the closed
-     * primitive set. The provider decides whether that failure aborts the scan or is recorded.
+     * Reads one entity into IR together with the relations its associations contribute, or fails
+     * loudly if a field's type has no equivalent. The registry resolves association and enum types
+     * structurally (sections 4.4, 4.5).
      */
-    public Entity extractEntity(ClassOrInterfaceDeclaration type) {
+    public ExtractedEntity extractEntity(ClassOrInterfaceDeclaration type, TypeRegistry registry) {
         String entityName = type.getNameAsString();
         List<Field> fields = new ArrayList<>();
+        List<Relation> relations = new ArrayList<>();
         for (FieldDeclaration declaration : type.getFields()) {
             if (isSkipped(declaration)) {
                 continue;
             }
             boolean nullable = isNullable(declaration);
             for (VariableDeclarator variable : declaration.getVariables()) {
-                fields.add(toField(entityName, variable, nullable));
+                fields.add(toField(entityName, declaration, variable, nullable, registry, relations));
             }
         }
-        return new Entity(entityName, fields, List.of(), Metadata.empty());
+        return new ExtractedEntity(new Entity(entityName, fields, List.of(), Metadata.empty()), relations);
     }
 
-    private Field toField(String entityName, VariableDeclarator variable, boolean nullable) {
+    // One field to IR (sections 4.4, 4.5, 4.6). Order: primitive first (the closed set, FLOAT
+    // included); then the collection refusal (a to-many shape is deferred); then structural
+    // resolution of the declared type in-tree, which decides association, enum, or a located
+    // refusal. Nothing is decided by a type's name resemblance.
+    private Field toField(String entityName, FieldDeclaration declaration, VariableDeclarator variable,
+                          boolean nullable, TypeRegistry registry, List<Relation> relations) {
         String fieldName = variable.getNameAsString();
         String javaType = variable.getTypeAsString();
-        Type type = typeMapper.map(javaType).orElseThrow(() -> new ProviderException(
-                "unmapped Java type '" + javaType + "' on field '" + entityName + "." + fieldName
-                        + "'. The closed primitive type set (Volume 4 section 4) has no equivalent. "
-                        + "Extend the type mapping or exclude the field; do not coerce it."));
-        return new Field(fieldName, type, nullable, List.of());
+
+        Optional<Type> primitive = typeMapper.map(javaType);
+        if (primitive.isPresent()) {
+            return new Field(fieldName, primitive.get(), nullable, List.of());
+        }
+
+        if (isCollectionOrArray(javaType)) {
+            throw new ProviderException(
+                    "collection field '" + entityName + "." + fieldName + "' of type '" + javaType
+                            + "' is a to-many shape, deferred to the list-modeling phase (Volume 5 "
+                            + "section 4.4); it is not mapped as a single reference.");
+        }
+
+        String simpleName = lastSegment(javaType);
+        Optional<Kind> kind = registry.kindOf(simpleName);
+        if (kind.isEmpty()) {
+            throw new ProviderException(
+                    "unresolved type '" + javaType + "' on field '" + entityName + "." + fieldName
+                            + "'. It is neither a closed primitive nor a type declared in the scanned "
+                            + "source tree; resolution is structural (Volume 5 sections 4.4, 4.5), so "
+                            + "a type that only looks like an entity or enum name does not map.");
+        }
+        switch (kind.get()) {
+            case ENTITY:
+                return toAssociationField(entityName, declaration, fieldName, simpleName, nullable, relations);
+            case ENUM:
+                return toEnumField(fieldName, simpleName, nullable, registry);
+            case CLASS:
+            default:
+                throw new ProviderException(
+                        "unmapped type '" + javaType + "' on field '" + entityName + "." + fieldName
+                                + "'. It resolves in-tree to a class that is neither an @Entity nor an "
+                                + "enum (Volume 5 sections 4.4, 4.5); it has no place in the closed type "
+                                + "set and is not coerced.");
+        }
     }
 
-    // The MVP read getX(id) needs the entity's identifier, the field marked @Id. We emit the
-    // intent (what to read and the id's type), not the binding: the backing method is discovered
-    // later by the provider's join against the service catalog (Volume 5 section 4.1). Empty means
-    // the entity has no single @Id, a documented out-of-scope shape, not an error here.
-    public Optional<ReadIntent> readIntent(ClassOrInterfaceDeclaration type) {
-        String entityName = type.getNameAsString();
-        for (FieldDeclaration declaration : type.getFields()) {
-            if (isSkipped(declaration) || !hasAnnotation(declaration, ID_ANNOTATION)) {
-                continue;
-            }
-            VariableDeclarator id = declaration.getVariable(0);
-            Type idType = typeMapper.map(id.getTypeAsString()).orElseThrow(() -> new ProviderException(
-                    "unmapped identifier type on entity '" + entityName + "'"));
-            return Optional.of(new ReadIntent(
-                    entityName, "get" + entityName, id.getNameAsString(), idType));
+    // Section 4.4: an entity-typed field maps to ENTITY_REF plus a Relation only when the source
+    // itself declares the relationship with @ManyToOne or @OneToOne. The kind is read from that
+    // annotation, never inferred. An @Id association still maps here; read eligibility is separate.
+    private Field toAssociationField(String entityName, FieldDeclaration declaration, String fieldName,
+                                     String target, boolean nullable, List<Relation> relations) {
+        Optional<RelationKind> relationKind = declaredRelationKind(declaration);
+        if (relationKind.isEmpty()) {
+            throw new ProviderException(
+                    "entity-typed field '" + entityName + "." + fieldName + "' references entity '"
+                            + target + "' but declares no @ManyToOne or @OneToOne; the relationship "
+                            + "is not stated in the source and the provider will not infer one "
+                            + "(Volume 5 section 4.4).");
         }
-        // No identifier: emit the entity but no read intent. Documented, not an error.
+        relations.add(new Relation(entityName, target, relationKind.get()));
+        return new Field(fieldName, Type.entityRef(target), nullable, List.of());
+    }
+
+    // Section 4.5: an enum-typed field maps to STRING and carries the closed value set as an
+    // annotation, read from the enum declaration in declaration order. @Enumerated is irrelevant:
+    // the wire form is the constant name in every storage mode.
+    private static Field toEnumField(String fieldName, String enumType, boolean nullable,
+                                     TypeRegistry registry) {
+        List<String> constants = registry.enumConstants(enumType);
+        Annotation values = new Annotation(ENUM_ANNOTATION_KEY, constants);
+        return new Field(fieldName, Primitive.STRING, nullable, List.of(values));
+    }
+
+    // The MVP read getX(id) needs the entity's identifier, the field marked @Id, mapped to a
+    // bindable primitive (section 4.1). A FLOAT @Id forms no read intent: an inexact primary key is
+    // not a lookup key the tool will bind (section 4.6, rule 4). Empty means no usable identifier;
+    // the provider turns that into a located outcome.
+    public Optional<ReadIntent> readIntent(ClassOrInterfaceDeclaration type) {
+        Optional<VariableDeclarator> idField = firstIdField(type);
+        if (idField.isEmpty()) {
+            return Optional.empty();
+        }
+        VariableDeclarator id = idField.get();
+        String entityName = type.getNameAsString();
+        Optional<Type> idType = typeMapper.map(id.getTypeAsString());
+        if (idType.isEmpty() || idType.get() == Primitive.FLOAT) {
+            return Optional.empty();
+        }
+        return Optional.of(new ReadIntent(
+                entityName, "get" + entityName, id.getNameAsString(), idType.get()));
+    }
+
+    // The located reason an entity formed no read intent, for the provider's outcome. It
+    // distinguishes an inexact-id refusal (section 4.6) from a missing or non-primitive identifier,
+    // without adding a new cause code.
+    public String noReadIntentReason(ClassOrInterfaceDeclaration type) {
+        String entityName = type.getNameAsString();
+        Optional<VariableDeclarator> idField = firstIdField(type);
+        if (idField.isEmpty()) {
+            return "entity '" + entityName + "' has no single @Id identifier, so no read-by-id "
+                    + "capability is modeled. Only single-id-parameter reads are in scope (Volume 5 "
+                    + "section 4.1); composite or non-@Id keys are a later shape, not an error here.";
+        }
+        VariableDeclarator id = idField.get();
+        Optional<Type> idType = typeMapper.map(id.getTypeAsString());
+        if (idType.isPresent() && idType.get() == Primitive.FLOAT) {
+            return "entity '" + entityName + "' has @Id '" + id.getNameAsString() + "' of type '"
+                    + id.getTypeAsString() + "', which maps to the inexact FLOAT primitive. An "
+                    + "inexact identifier forms no read intent (Volume 5 section 4.6); the tool will "
+                    + "not bind a lookup to a floating-point key.";
+        }
+        return "entity '" + entityName + "' has @Id '" + id.getNameAsString() + "' of type '"
+                + id.getTypeAsString() + "', which does not map to a bindable primitive, so no "
+                + "read-by-id capability is modeled (Volume 5 section 4.1).";
+    }
+
+    private static Optional<VariableDeclarator> firstIdField(ClassOrInterfaceDeclaration type) {
+        for (FieldDeclaration declaration : type.getFields()) {
+            if (!isSkipped(declaration) && hasAnnotation(declaration, ID_ANNOTATION)) {
+                return Optional.of(declaration.getVariable(0));
+            }
+        }
         return Optional.empty();
+    }
+
+    private static Optional<RelationKind> declaredRelationKind(FieldDeclaration declaration) {
+        if (hasAnnotation(declaration, MANY_TO_ONE_ANNOTATION)) {
+            return Optional.of(RelationKind.MANY_TO_ONE);
+        }
+        if (hasAnnotation(declaration, ONE_TO_ONE_ANNOTATION)) {
+            return Optional.of(RelationKind.ONE_TO_ONE);
+        }
+        return Optional.empty();
+    }
+
+    private static boolean isCollectionOrArray(String javaType) {
+        return javaType.contains("<") || javaType.contains("[")
+                || COLLECTION_TYPES.contains(lastSegment(javaType));
     }
 
     private static boolean isSkipped(FieldDeclaration declaration) {
@@ -119,7 +244,7 @@ public final class EntityExtractor {
             return true;
         }
         for (AnnotationExpr annotation : declaration.getAnnotations()) {
-            if (COLUMN_ANNOTATION.equals(simpleName(annotation.getNameAsString()))
+            if (COLUMN_ANNOTATION.equals(lastSegment(annotation.getNameAsString()))
                     && annotation.isNormalAnnotationExpr()) {
                 for (MemberValuePair pair : annotation.asNormalAnnotationExpr().getPairs()) {
                     if ("nullable".equals(pair.getNameAsString())) {
@@ -133,11 +258,11 @@ public final class EntityExtractor {
 
     private static boolean hasAnnotation(NodeWithAnnotations<?> node, String simpleName) {
         return node.getAnnotations().stream()
-                .anyMatch(annotation -> simpleName.equals(simpleName(annotation.getNameAsString())));
+                .anyMatch(annotation -> simpleName.equals(lastSegment(annotation.getNameAsString())));
     }
 
-    private static String simpleName(String annotationName) {
-        int dot = annotationName.lastIndexOf('.');
-        return dot >= 0 ? annotationName.substring(dot + 1) : annotationName;
+    private static String lastSegment(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot >= 0 ? name.substring(dot + 1) : name;
     }
 }

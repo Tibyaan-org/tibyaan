@@ -12,20 +12,24 @@ import com.tibyaan.core.ir.Capability;
 import com.tibyaan.core.ir.CapabilityModel;
 import com.tibyaan.core.ir.Entity;
 import com.tibyaan.core.ir.Metadata;
+import com.tibyaan.core.ir.Relation;
 import com.tibyaan.core.ir.Type;
 import com.tibyaan.plugin.ProviderInput;
 import com.tibyaan.plugin.SourceAnalyzer;
 import com.tibyaan.provider.spring.EntityOutcome.Cause;
 import com.tibyaan.provider.spring.extractors.EntityExtractor;
+import com.tibyaan.provider.spring.extractors.ExtractedEntity;
 import com.tibyaan.provider.spring.extractors.ReadIntent;
 import com.tibyaan.provider.spring.extractors.ServiceExtractor;
 import com.tibyaan.provider.spring.extractors.ServiceMethod;
+import com.tibyaan.provider.spring.extractors.TypeRegistry;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -114,49 +118,62 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
         }
 
         ParseResults parsed = parseJavaSources(sourceRoot);
+        TypeRegistry registry = TypeRegistry.from(parsed.units());
         List<ServiceMethod> serviceMethods = serviceExtractor.discover(parsed.units());
 
         List<Entity> entities = new ArrayList<>();
         List<Capability> capabilities = new ArrayList<>();
         List<EntityOutcome> outcomes = new ArrayList<>();
+        List<Relation> relations = new ArrayList<>();
 
         for (ClassOrInterfaceDeclaration type : entityExtractor.entityTypes(parsed.units())) {
-            classifyEntity(type, serviceMethods, entities, capabilities, outcomes);
+            classifyEntity(type, registry, serviceMethods, entities, capabilities, relations, outcomes);
         }
 
         CapabilityModel model = new CapabilityModel(
-                moduleName(sourceRoot), IR_VERSION, entities, capabilities, List.of(), Metadata.empty());
+                moduleName(sourceRoot), IR_VERSION, entities, capabilities, dedupeAndSort(relations),
+                Metadata.empty());
         return new ScanReport(model, outcomes, parsed.skips());
+    }
+
+    // Relations are the entity-level summary (Volume 5 section 4.4, rule 5): identical (from, to,
+    // kind) triples are emitted once, in a deterministic order, so the same source always yields the
+    // same model. The fields carry the references; this is the deduplicated roll-up.
+    private static List<Relation> dedupeAndSort(List<Relation> relations) {
+        return relations.stream()
+                .distinct()
+                .sorted(Comparator.comparing(Relation::from)
+                        .thenComparing(Relation::to)
+                        .thenComparing(relation -> relation.kind().name()))
+                .toList();
     }
 
     // One entity's journey through extraction and binding discovery, recording a single outcome.
     // Each step that fails records a located reason and stops for this entity; the scan continues.
     private void classifyEntity(
             ClassOrInterfaceDeclaration type,
+            TypeRegistry registry,
             List<ServiceMethod> serviceMethods,
             List<Entity> entities,
             List<Capability> capabilities,
+            List<Relation> relations,
             List<EntityOutcome> outcomes) {
         String entityName = type.getNameAsString();
 
-        Entity entity;
+        ExtractedEntity extracted;
         try {
-            entity = entityExtractor.extractEntity(type);
+            extracted = entityExtractor.extractEntity(type, registry);
         } catch (ProviderException e) {
             outcomes.add(EntityOutcome.failed(entityName, Cause.UNMAPPED_FIELD_TYPE, e.getMessage()));
             return;
         }
-        entities.add(entity);
+        entities.add(extracted.entity());
+        relations.addAll(extracted.relations());
 
-        Optional<ReadIntent> intent;
-        try {
-            intent = entityExtractor.readIntent(type);
-        } catch (ProviderException e) {
-            outcomes.add(EntityOutcome.failed(entityName, Cause.UNMAPPED_FIELD_TYPE, e.getMessage()));
-            return;
-        }
+        Optional<ReadIntent> intent = entityExtractor.readIntent(type);
         if (intent.isEmpty()) {
-            outcomes.add(EntityOutcome.failed(entityName, Cause.NO_IDENTIFIER, noIdentifierMessage(entityName)));
+            outcomes.add(EntityOutcome.failed(
+                    entityName, Cause.NO_IDENTIFIER, entityExtractor.noReadIntentReason(type)));
             return;
         }
 
@@ -210,12 +227,6 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
         }
         Optional<Type> parameterType = typeMapper.map(method.parameterTypes().get(0));
         return parameterType.isPresent() && parameterType.get().equals(intent.idType());
-    }
-
-    private static String noIdentifierMessage(String entityName) {
-        return "entity '" + entityName + "' has no single @Id identifier, so no read-by-id capability "
-                + "is modeled. Only single-id-parameter reads are in scope (Volume 5 section 4.1); "
-                + "composite or non-@Id keys are a later shape, not an error here.";
     }
 
     private static String noBackingMethodMessage(ReadIntent intent, List<ServiceMethod> serviceMethods) {
