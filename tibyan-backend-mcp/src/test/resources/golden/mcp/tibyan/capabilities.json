@@ -1,0 +1,18 @@
+{
+  "module": "legacy-spring-app",
+  "version": "0.1",
+  "tools": [
+    {
+      "name": "getProduct",
+      "description": "Read Product by id.",
+      "binding": "ProductService#findById",
+      "output": "ENTITY_REF(Product)",
+      "inputs": [
+        {
+          "name": "id",
+          "type": "LONG"
+        }
+      ]
+    }
+  ]
+}

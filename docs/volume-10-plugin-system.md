@@ -21,6 +21,8 @@ flowchart LR
 
 Plugins are discovered at run time through a service registry. On the JVM this is the standard service-provider mechanism (the Java ServiceLoader, or Spring's equivalent). Each plugin module declares which contract it implements. The pipeline asks the registry for available providers and backends and selects the ones the run needs, by name or by a command-line flag. The composition root never hard-codes a list of plugins.
 
+> Current status (MVP): this discovery is the target, not the current state. As of the MVP it is not implemented. The pipeline composes plugins through their interfaces, and the CLI, as the composition root, injects the concrete plugins (the Spring provider and the MCP backend) directly. Real discovery needs a `name()` on the plugin interfaces and a `META-INF/services` declaration in each plugin module, both deferred to the plugin-system phase. Do not assume discovery already exists because Volume 12 lists the pipeline as discovering plugins at run time; today the CLI wires them, and the pipeline stays free of any concrete plugin (Volume 7, section 8).
+
 ## 3. Loading and isolation
 
 Each plugin is its own module with its own dependencies (Volume 12, section 4). A plugin carries the libraries it needs (JavaParser for the Spring provider, an MCP library for the runtime) without forcing those libraries on any other plugin. The rule that one module contains exactly one plugin is what keeps dependencies isolated; bundling two plugins would merge their dependency trees and defeat the purpose.

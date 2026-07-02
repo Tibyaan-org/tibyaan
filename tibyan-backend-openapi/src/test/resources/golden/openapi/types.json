@@ -1,0 +1,119 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "types API",
+    "version": "0.1"
+  },
+  "paths": {
+    "/sample/{id}": {
+      "get": {
+        "operationId": "getSample",
+        "summary": "Read Sample by id.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The Sample read by id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sample"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Kind": {
+        "type": "object",
+        "description": "Entity Kind as modeled by Tibyaan.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": true
+      },
+      "Sample": {
+        "type": "object",
+        "description": "Entity Sample as modeled by Tibyaan.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "price": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "ratio": {
+            "type": "number",
+            "format": "double"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "createdOn": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "NEW",
+              "DONE"
+            ]
+          },
+          "kind": {
+            "$ref": "#/components/schemas/Kind"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "count",
+          "size",
+          "price",
+          "ratio",
+          "active",
+          "createdOn",
+          "status",
+          "kind"
+        ],
+        "additionalProperties": true
+      }
+    }
+  }
+}

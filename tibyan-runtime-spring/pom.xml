@@ -8,7 +8,7 @@
     <parent>
         <groupId>com.tibyaan</groupId>
         <artifactId>tibyaan</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>0.1.0</version>
     </parent>
 
     <artifactId>tibyan-runtime-spring</artifactId>
@@ -16,6 +16,23 @@
     <description>Spring Boot starter that hosts an MCP server inside the application context</description>
 
     <dependencies>
+        <!--
+          The runtime hosts and binds (Volume 7). It depends on tibyan-plugin-api and
+          tibyan-core only (Volume 12 section 5), plus its host framework, Spring and Spring AI.
+          It depends on no provider and no backend: it reads the generated capabilities manifest,
+          never the source or the generator.
+        -->
+        <dependency>
+            <groupId>com.tibyaan</groupId>
+            <artifactId>tibyan-plugin-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.tibyaan</groupId>
+            <artifactId>tibyan-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
@@ -23,6 +40,17 @@
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 

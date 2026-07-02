@@ -41,7 +41,7 @@ The layers, from the inside out: the core holds the IR and validation and depend
 |---|---|---|
 | Strategy | CapabilityProvider, Backend, ExecutionAdapter, Runtime | Each is an interchangeable family of implementations behind one interface |
 | Pipeline | provide, validate, generate | A linear sequence of stages, each with one responsibility |
-| Plugin and service discovery (SPI) | Providers and backends found at run time | New capabilities added without editing the composition root |
+| Plugin and service discovery (SPI) | Providers and backends found at run time | New capabilities added without editing the composition root. Target, not yet current: as of the MVP the composition roots (CLI and Maven plugin) inject the concrete plugins directly (Volume 10, section 2) |
 | Template method | Source extractors | A common extraction skeleton with per-concern steps |
 | Adapter | ExecutionAdapter, and frameworks in general | Frameworks are adapters at the edge, never the architecture |
 | Builder | IR construction inside providers | Assemble a valid IR step by step |

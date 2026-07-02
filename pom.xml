@@ -14,20 +14,64 @@
 
     <groupId>com.tibyaan</groupId>
     <artifactId>tibyaan</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.1.0</version>
     <packaging>pom</packaging>
 
     <name>Tibyaan</name>
-    <description>Application modernization platform</description>
+    <description>Tibyan reads an existing Spring application, builds a verified model of what it can safely expose, and generates an AI-operable layer (MCP and OpenAPI) over it without modifying the original system.</description>
+    <url>https://github.com/Tibyaan-org/tibyaan</url>
+
+    <organization>
+        <name>Tibyaan</name>
+        <url>https://github.com/Tibyaan-org</url>
+    </organization>
+
+    <licenses>
+        <license>
+            <name>Apache-2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>aelseginy</id>
+            <name>Ahmed El-Seginy</name>
+            <email>ahmed0elseginy@gmail.com</email>
+            <organization>Tibyaan</organization>
+            <organizationUrl>https://github.com/Tibyaan-org</organizationUrl>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:https://github.com/Tibyaan-org/tibyaan.git</connection>
+        <developerConnection>scm:git:git@github.com:Tibyaan-org/tibyaan.git</developerConnection>
+        <url>https://github.com/Tibyaan-org/tibyaan</url>
+        <tag>HEAD</tag>
+    </scm>
 
     <properties>
         <java.version>17</java.version>
         <spring-ai.version>1.0.9</spring-ai.version>
+        <!-- Signing is off by default so `mvn -Prelease verify` builds the sources and javadoc jars
+             without any key material. The release deploy enables it with -Dgpg.skip=false, using an
+             external GPG key the publisher supplies (docs/RELEASING.md section 4). -->
+        <gpg.skip>true</gpg.skip>
     </properties>
 
     <modules>
+        <module>tibyan-core</module>
+        <module>tibyan-plugin-api</module>
+        <module>tibyan-provider-spring</module>
+        <module>tibyan-backend-mcp</module>
+        <module>tibyan-backend-openapi</module>
+        <module>tibyan-pipeline</module>
+        <module>tibyan-cli</module>
         <module>tibyan-runtime-spring</module>
+        <module>tibyan-maven-plugin</module>
         <module>examples/legacy-spring-app</module>
+        <module>tibyan-it</module>
     </modules>
 
     <dependencyManagement>
@@ -41,5 +85,79 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
+
+    <profiles>
+        <!--
+          The release profile prepares publishable artifacts (Volume 13 section 4.1;
+          docs/RELEASING.md). It attaches the sources and javadoc jars Maven Central requires, wires
+          GPG signing to an external key (off by default via gpg.skip so a keyless local verify
+          passes), and configures the Central publishing plugin. Verify locally without keys:
+          `mvn -Prelease verify`. Publish (human, with a key and a Central token):
+          `mvn -Prelease -Dgpg.skip=false clean deploy`.
+        -->
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals>
+                                    <goal>jar-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <configuration>
+                            <doclint>none</doclint>
+                            <failOnError>false</failOnError>
+                            <quiet>true</quiet>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>3.2.8</version>
+                        <configuration>
+                            <skip>${gpg.skip}</skip>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.6.0</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>central</publishingServerId>
+                            <autoPublish>false</autoPublish>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>

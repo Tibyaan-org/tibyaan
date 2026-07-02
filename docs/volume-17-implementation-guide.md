@@ -1,6 +1,6 @@
 # Volume 17: Implementation Guide
 
-Status: Active. This is the builder-facing volume: how to implement Tibyan, in order, starting from nothing. It turns the architecture (Volumes 3 to 7), the structure (Volume 12), and the stack (Volume 16) into concrete steps. Code shown here is illustrative sketch, meant to fix shape and intent, not to be copied as final.
+Status: Executed. Every step in this volume, the spike and P0 through P3, was built in the order written here and is complete on the main branch (Volume 13, Tier 1; docs/STATUS.md has the reproduce commands). The volume is preserved as the record of the build order and its reasoning; the sketches remain sketches, and the real code in the modules is what shipped. For what to build next, this volume is not the guide: Volume 13, Tier 2 is. This volume originally read as instructions to a builder starting from nothing, and its imperative voice is kept below unchanged.
 
 > Golden rule of sequencing: prove the hardest assumption before building the architecture around it. The spike (Volume 8) comes first. Do not build the IR, the provider, or the backend until the runtime binding is proven.
 
@@ -160,13 +160,15 @@ flowchart LR
     P2 --> P3[P3: CLI]
 ```
 
-| Step | You are proving | Done when |
-|---|---|---|
-| Spike | The runtime can call a real bean in-context | Agent gets a real result from an unmodified app |
-| P0 | The IR can stand alone | A hand-built IR validates and round-trips |
-| P1 | A provider can build IR from real source | Scanning the example yields a valid IR |
-| P2 | A backend plus adapter execute against the real system | MVP acceptance criteria pass |
-| P3 | The flow is usable | A developer modernizes a system from the CLI |
+| Step | You are proving | Done when | Status |
+|---|---|---|---|
+| Spike | The runtime can call a real bean in-context | Agent gets a real result from an unmodified app | Done |
+| P0 | The IR can stand alone | A hand-built IR validates and round-trips | Done |
+| P1 | A provider can build IR from real source | Scanning the example yields a valid IR | Done |
+| P2 | A backend plus adapter execute against the real system | MVP acceptance criteria pass | Done |
+| P3 | The flow is usable | A developer modernizes a system from the CLI | Done |
+
+Three hardening steps followed P3 (binding discovery, one-dependency adoption, build-time generation) and are recorded in Volume 13, Tier 1.
 
 ## 8. Two failure modes to watch, stated plainly
 

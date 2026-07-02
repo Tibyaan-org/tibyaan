@@ -60,10 +60,10 @@ Status: Draft. Summary: add Permission and Policy elements so the model carries 
 Status: Draft. Summary: add an Event element for occurrences the system emits or reacts to. Motivation: agents and workflows need to respond to change, not only poll. Open questions: delivery semantics, and how events relate to capabilities.
 
 ### RFC-0004: Database provider
-Status: Draft. Summary: a CapabilityProvider that builds IR from a database schema. Motivation: proves the IR accepts a non-code source and unlocks systems without readable application source (Volume 13, P6). Open questions: how much business meaning can be recovered from a schema alone.
+Status: Draft. Summary: a CapabilityProvider that builds IR from a database schema. Motivation: proves the IR accepts a non-code source and unlocks systems without readable application source (Volume 13, Tier 3). Open questions: how much business meaning can be recovered from a schema alone.
 
 ### RFC-0005: .NET provider and runtime
-Status: Draft. Summary: a provider and a runtime for the .NET ecosystem. Motivation: proves the platform crosses ecosystems and strengthens the cross-stack moat (Volume 13, P7). Open questions: in-process hosting on .NET, and source analysis tooling.
+Status: Draft. Summary: a provider and a runtime for the .NET ecosystem. Motivation: proves the platform crosses ecosystems and strengthens the cross-stack moat (Volume 13, Tier 3). Open questions: in-process hosting on .NET, and source analysis tooling.
 
 ### RFC-0006: Plugin marketplace
 Status: Draft. Summary: a distribution and discovery mechanism for third-party plugins. Motivation: grows an ecosystem around a stable plugin API (Volume 10, section 7). Open questions: versioning guarantees, trust, and compatibility signaling.

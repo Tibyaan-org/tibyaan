@@ -2,7 +2,9 @@
 
 **Application Modernization Platform. Turn an existing legacy business system into an AI-operable business platform without rewriting it.**
 
-> This is the consolidated single-file edition of the Tibyan documentation, the project's single source of truth. It uses GitHub-flavored Markdown with Mermaid diagrams. This edition contains the complete volume set, 1 through 17, covering vision, requirements, design, the IR, providers, backends, the runtime, the spike, the pipeline, the plugin system, the CLI, project structure, roadmap, decision records, future RFCs, the technology stack, and the implementation guide.
+> SNAPSHOT, NOT CURRENT. This single-file edition was consolidated before any code existed and is preserved unchanged as the pre-build record. It is not maintained. The individual volume files in this directory are the single source of truth, and several of them have since been corrected against the built reality (the reconciliation is recorded in docs/PLAN-REVIEW.md; the current plan is docs/volume-13-roadmap.md; the current build status is docs/STATUS.md). Read this file only to see what the design said before it met code.
+
+> This is the consolidated single-file edition of the Tibyan documentation. It uses GitHub-flavored Markdown with Mermaid diagrams. This edition contains the complete volume set, 1 through 17, covering vision, requirements, design, the IR, providers, backends, the runtime, the spike, the pipeline, the plugin system, the CLI, project structure, roadmap, decision records, future RFCs, the technology stack, and the implementation guide.
 
 ## Table of contents
 

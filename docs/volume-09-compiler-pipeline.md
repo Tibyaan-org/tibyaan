@@ -23,7 +23,7 @@ The pipeline is a straight line with one feedback edge: execution runs back agai
 ## 2. The stages
 
 ### 2.1 Provide
-A `CapabilityProvider` reads a source and produces IR. For the MVP this is `SpringCapabilityProvider`, which uses JavaParser to read `.java` files and the enabled `EntityExtractor` to find entities and basic capabilities. The provider's only output is IR. It does not generate anything and does not know what backends exist.
+A `CapabilityProvider` reads a source and produces IR. For the MVP this is `SpringCapabilityProvider`, which uses JavaParser to read `.java` files, the `EntityExtractor` to find entities and their read intents, and the `ServiceExtractor` to discover each read's real binding from the actual service method (Volume 5, section 4.1). The provider's only output is IR. It does not generate anything and does not know what backends exist.
 
 Input: a path to a system. Output: an in-memory Capability IR.
 
@@ -47,7 +47,7 @@ Input: the generated layer plus the live application context. Output: a running,
 
 ## 3. Orchestration
 
-`tibyan-pipeline` owns the sequence: provide, validate, generate. It does not contain provider, backend, or runtime logic; it composes them. Hosting is the runtime's job and happens in the target application, not in the pipeline. The CLI (Volume 11) is a thin caller of the pipeline.
+`tibyan-pipeline` owns the sequence: provide, validate, generate. It does not contain provider, backend, or runtime logic; it composes them. Hosting is the runtime's job and happens in the target application, not in the pipeline. The pipeline has two thin callers: the CLI (Volume 11) for terminal use, and `tibyan-maven-plugin` (Volume 11, section 3.1), which runs the same sequence during a host app's build and writes the manifest onto the classpath. Both invoke the same `TibyanCompiler`, so their outputs are identical by construction.
 
 ```mermaid
 sequenceDiagram

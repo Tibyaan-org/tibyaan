@@ -1,6 +1,9 @@
 # Build output
 target/
-generated/
+# The CLI scratch output directory, repo root only. Anchored so it does not match a
+# 'generated' path segment deep in the tree (for example a golden fixture whose expected
+# output lives under a com/tibyaan/generated package).
+/generated/
 *.class
 *.jar
 *.war
@@ -29,3 +32,5 @@ Thumbs.db
 *.db
 *.mv.db
 *.trace.db
+/examples/pms-backend
+/examples/erp-backend

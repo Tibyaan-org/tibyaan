@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.tibyaan</groupId>
+        <artifactId>tibyaan</artifactId>
+        <version>0.1.0</version>
+    </parent>
+
+    <artifactId>tibyan-plugin-api</artifactId>
+    <name>Tibyaan Plugin API</name>
+    <description>The contracts every plugin implements: CapabilityProvider, Backend, ExecutionAdapter.</description>
+
+    <!--
+      Volume 12 section 5: the plugin API depends on tibyan-core only, never on a
+      concrete provider, backend, or runtime. It carries no external libraries of its own.
+    -->
+    <dependencies>
+        <dependency>
+            <groupId>com.tibyaan</groupId>
+            <artifactId>tibyan-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+    </dependencies>
+
+</project>

@@ -1,0 +1,64 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "widgets API",
+    "version": "0.1"
+  },
+  "paths": {
+    "/gizmo/{id}": {
+      "get": {
+        "operationId": "getGizmo",
+        "summary": "Read Gizmo by id.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The Gizmo read by id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Gizmo"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Gizmo": {
+        "type": "object",
+        "description": "Entity Gizmo as modeled by Tibyaan. Partial model: 2 field(s) of the source entity are not represented: parts, tags.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "additionalProperties": true,
+        "x-tibyan-partial": [
+          "parts",
+          "tags"
+        ]
+      }
+    }
+  }
+}

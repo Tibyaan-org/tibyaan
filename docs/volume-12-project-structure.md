@@ -18,13 +18,15 @@ The top-level module layout, which is the structure most contributors need day t
 tibyan/
 ├── tibyan-core/                  # IR + semantic validation, zero dependencies
 ├── tibyan-plugin-api/            # CapabilityProvider · Backend · ExecutionAdapter
-├── tibyan-provider-spring/       # JavaParser + EntityExtractor (the rest are placeholders)
+├── tibyan-provider-spring/       # JavaParser + Entity and Service extractors (the rest are placeholders)
 ├── tibyan-backend-mcp/           # IR -> MCP tools (talks to ExecutionAdapter)
+├── tibyan-backend-openapi/       # IR -> OpenAPI 3.0 document (the second backend, IR-reuse proof)
 ├── tibyan-runtime-spring/        # Spring Boot starter:
 │                                 #   MVP:   auto-config + tool registration + bean access + run MCP
 │                                 #   later: discovery · health · observability · lifecycle
 ├── tibyan-pipeline/              # provide -> IR -> generate
 ├── tibyan-cli/                   # tibyan scan / tibyan generate
+├── tibyan-maven-plugin/          # Maven wiring only: runs the pipeline at build time onto the classpath
 ├── tibyan-it/                    # end-to-end: a real product comes back from ProductService
 └── generated/                    # gitignored
 ```
@@ -40,6 +42,9 @@ tibyan/
 |-- docs/                           # this documentation set
 |-- examples/
 |   `-- legacy-spring-app/          # a small real Spring app used by tests and the spike
+|                                   # (examples/pms-backend, the standing benchmark target, lives
+|                                   #  here locally but is outside the reactor and not committed;
+|                                   #  see Volume 13, section 5)
 |
 |-- tibyan-core/                    # IR + semantic validation. ZERO external deps
 |   `-- src/main/java/com/tibyaan/core/
@@ -59,9 +64,9 @@ tibyan/
 |   `-- src/main/java/com/tibyaan/provider/spring/
 |       |-- SpringCapabilityProvider.java
 |       `-- extractors/
-|           |-- EntityExtractor.java        # MVP: enabled
+|           |-- EntityExtractor.java        # enabled: entities, fields, read intents
+|           |-- ServiceExtractor.java        # enabled: service method catalog for binding discovery
 |           |-- RepositoryExtractor.java     # placeholder
-|           |-- ServiceExtractor.java        # placeholder
 |           |-- ControllerExtractor.java     # placeholder
 |           `-- AnnotationExtractor.java      # placeholder
 |
@@ -86,6 +91,10 @@ tibyan/
 |   `-- src/main/java/com/tibyaan/cli/
 |       `-- TibyanCli.java          # tibyan scan / tibyan generate
 |
+|-- tibyan-maven-plugin/            # Maven wiring only: runs the same pipeline at build time
+|   `-- src/main/java/com/tibyaan/maven/
+|       `-- GenerateManifestMojo.java   # binds to generate-resources, calls TibyanCompiler
+|
 |-- tibyan-it/                      # integration + golden-file + end-to-end tests
 |   `-- src/test/...
 |
@@ -102,9 +111,11 @@ Later modules slot in without changing anything above: `tibyan-backend-openapi`,
 | tibyan-plugin-api | Define CapabilityProvider, Backend, ExecutionAdapter | Depend on any concrete provider, backend, or runtime |
 | tibyan-provider-spring | Read Spring source and produce IR | Depend on any backend or runtime; produce any output |
 | tibyan-backend-mcp | Turn IR into MCP server code | Know the source; call a framework directly; depend on a runtime |
+| tibyan-backend-openapi | Turn IR into an OpenAPI 3.0 document | Know the source; call a framework directly; depend on a runtime or another backend |
 | tibyan-runtime-spring | Host the generated layer and bind to real beans | Contain IR or generation logic |
 | tibyan-pipeline | Orchestrate provide, validate, generate | Contain provider, backend, or runtime logic itself |
 | tibyan-cli | Parse commands and call the pipeline | Contain compiler logic |
+| tibyan-maven-plugin | Run the pipeline during a host app's build and write the manifest onto the classpath | Contain compiler logic; generate anything the CLI would not |
 | tibyan-it | Test across modules end to end | Be depended on by any production module |
 
 ## 5. Dependency rules
@@ -123,6 +134,7 @@ flowchart TD
     PIPE[tibyan-pipeline] --> PA
     PIPE --> C
     CLI[tibyan-cli] --> PIPE
+    MVN[tibyan-maven-plugin] --> PIPE
     IT[tibyan-it] --> CLI
 ```
 
@@ -134,9 +146,12 @@ Allowed:
 | any provider | plugin-api, core |
 | any backend | plugin-api, core |
 | any runtime | plugin-api, core |
-| pipeline | plugin-api, core (and discovers providers and backends at run time) |
-| cli | pipeline |
+| pipeline | plugin-api, core (plugin discovery at run time is the target; see the composition-root note below) |
+| cli | pipeline, plus the concrete plugins it composes |
+| maven-plugin | pipeline, plus the concrete plugins it composes |
 | it | cli and everything, for tests only |
+
+Composition-root note: real service-provider discovery is not implemented yet (Volume 10, section 2). Until it is, the two composition roots, `tibyan-cli` and `tibyan-maven-plugin`, depend directly on the concrete Spring provider and MCP backend and inject them into the pipeline. The pipeline itself stays free of any concrete plugin. When SPI discovery lands, those direct dependencies move behind the registry.
 
 Forbidden, and these are the rules that keep the architecture honest:
 

@@ -6,6 +6,8 @@
 
 This repository is the **single source of truth** for the project. It is written for contributors from anywhere in the world. Every architectural decision here is intentional and is justified in Volume 14 (Architecture Decision Records).
 
+> To **adopt** Tibyan (add it to your app and serve your capabilities), start at the [root README](../README.md), read [docs/SECURITY.md](SECURITY.md) before exposing anything, and see [docs/RELEASING.md](RELEASING.md) for the publish status. This hub is the **design** documentation: the reasoning behind what the tool does. Where the build actually stands is [docs/STATUS.md](STATUS.md).
+
 ---
 
 ## The one-sentence mission
@@ -86,7 +88,7 @@ The durable asset is not MCP generation. When frameworks such as Spring or .NET 
 
 ## Documentation map
 
-The documentation is organized into volumes. This installment delivers the spine. The remaining volumes follow in the same structure and style.
+The documentation is organized into volumes. All volumes exist. The MVP they describe has been built and verified (docs/STATUS.md); volumes whose subject is complete say so in their status line and are preserved as the record.
 
 | Volume | Title | Status |
 |---|---|---|
@@ -98,26 +100,24 @@ The documentation is organized into volumes. This installment delivers the spine
 | 5 | Capability Providers | Done |
 | 6 | Backends | Done |
 | 7 | Runtime | Done |
-| 8 | Technical Spike | Done |
+| 8 | Technical Spike | Done (spike complete) |
 | 9 | Compiler Pipeline | Done |
 | 10 | Plugin System | Done |
 | 11 | CLI Specification | Done |
 | 12 | Project Structure | Done |
-| 13 | Development Roadmap | Done |
+| 13 | Development Roadmap | Done (the living plan, in three tiers) |
 | 14 | Architecture Decision Records (ADR) | Done |
 | 15 | Future RFCs | Done |
 | 16 | Technology Stack | Done |
-| 17 | Implementation Guide | Done |
-| 16 | Technology Stack | Done |
-| 17 | Implementation Guide | Done |
+| 17 | Implementation Guide | Done (executed) |
 
 ## Suggested reading order
 
 1. Volume 1 to understand why the project exists.
 2. Volume 14 to understand every decision and its justification.
 3. Volume 2 for the formal requirements.
-4. Volume 8 for the first thing that will actually be built.
-5. Volume 13 for the path from the spike to a full platform.
+4. docs/STATUS.md for where the build actually stands, and Volume 8 for the spike that started it.
+5. Volume 13 for the plan: what was built (Tier 1), what the evidence says to build next (Tier 2), and the direction beyond (Tier 3).
 
 ## Glossary (quick reference)
 

@@ -9,11 +9,6 @@ spring:
   h2:
     console:
       enabled: true
-  ai:
-    mcp:
-      server:
-        name: tibyaan-spike
-        version: 0.1.0
 
 server:
   port: 8080

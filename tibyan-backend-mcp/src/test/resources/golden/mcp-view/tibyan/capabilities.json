@@ -1,0 +1,19 @@
+{
+  "module": "pms-backend",
+  "version": "0.1",
+  "tools": [
+    {
+      "name": "getUnit",
+      "description": "Read Unit by id. Returns the UnitVTO view of Unit.",
+      "binding": "UnitServiceImpl#findById",
+      "output": "ENTITY_REF(Unit)",
+      "view": "UnitVTO",
+      "inputs": [
+        {
+          "name": "id",
+          "type": "LONG"
+        }
+      ]
+    }
+  ]
+}

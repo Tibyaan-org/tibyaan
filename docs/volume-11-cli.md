@@ -12,7 +12,7 @@ The CLI binary is `tibyan`. It exposes a small set of commands that map directly
 
 | Command | Purpose | Key options |
 |---|---|---|
-| tibyan scan | Read a system and produce IR | path (positional), --out (IR JSON file) |
+| tibyan scan | Survey a system into IR, resiliently (Volume 5 section 4.3) | path (positional), --out (write the discovered IR JSON) |
 | tibyan generate | Generate a backend from IR | --backend (for example mcp), --ir (IR file) or path, --out (output dir) |
 | tibyan validate | Validate an IR without generating | --ir (IR file) |
 | tibyan version | Print the tool and IR schema versions | none |
@@ -22,10 +22,29 @@ The CLI binary is `tibyan`. It exposes a small set of commands that map directly
 ```text
 $ tibyan scan ./legacy-spring-app --out inventory.ir.json
 Scanning ./legacy-spring-app
-Provider: spring (entity extractor)
-Found 1 entity (Product), 1 capability (getProduct)
-Validation: ok
+Provider: spring (entity and service extractors)
+Entities found (in parseable files): 1
+Discovered (1):
+  + Product: getProduct -> ProductService#findById
+Totals: discovered 1, failed 0, skipped-by-parse 0, mis-bound 0
 Wrote IR to inventory.ir.json
+```
+
+On a large, messy app the survey does not abort; it classifies every entity it can parse and names every file it cannot (Volume 5 section 4.3):
+
+```text
+$ tibyan scan ./pms-backend
+Scanning ./pms-backend
+Provider: spring (entity and service extractors)
+Entities found (in parseable files): 43
+Failed (43):
+  - Building [UNMAPPED_FIELD_TYPE]: unmapped Java type 'Property' on field 'Building.property'.
+  - Admin [NO_BACKING_METHOD]: no service method backs read capability 'getAdmin' for entity 'Admin'.
+  ...
+Skipped, unparseable (27):
+  ~ .../VendorServiceImpl.java: (line 1,col 36) Parse error. Found  "nimport" <IDENTIFIER>, ...
+  ...
+Totals: discovered 0, failed 43 (by cause: UNMAPPED_FIELD_TYPE 24, NO_BACKING_METHOD 19), skipped-by-parse 27, mis-bound 0
 ```
 
 ```text
@@ -42,13 +61,99 @@ $ tibyan validate --ir inventory.ir.json
 Validation: ok (1 entity, 1 capability, 0 relations)
 ```
 
+### 3.2 Partial entities in the survey (partial-model integrity, pending ratification)
+
+When an app extracts only in part, the provider skips fields it cannot map rather than vetoing the whole entity, and it closes the model by dropping references to entities that are absent (Volume 5, sections 4.7 to 4.9). An entity can therefore be discovered and still carry skipped fields; the survey discloses this. A discovered partial entity gains a qualifier, and the totals gain a partial dimension, distinct from discovered and failed so historical rows stay comparable:
+
 ```text
-$ tibyan scan ./broken-app --out out.ir.json
-Scanning ./broken-app
+$ tibyan scan ./erp-backend
+Scanning ./erp-backend
+Provider: spring (entity and service extractors)
+Entities found (in parseable files): 25
+Discovered (16):
+  + getProduct -> ProductService#findById (partial: 3 fields skipped)
+  + getContactType -> ContactTypeServiceImpl#findById
+  ...
+Failed (9):
+  - EmailTemplate [NO_IDENTIFIER]: @Id 'type' is an enum, which maps to no bindable primitive.
+  - User [AMBIGUOUS_BINDING]: backed by more than one candidate ...
+  ...
+Totals: discovered 16, failed 9 (by cause: NO_BACKING_METHOD 7, NO_IDENTIFIER 1, AMBIGUOUS_BINDING 1), skipped-by-parse 0, partial 13 (23 fields skipped), mis-bound 0
+```
+
+The `discovered`, `failed`, `skipped-by-parse`, and `mis-bound` figures keep their historical meaning; `partial` is a new dimension that never inflates discovered and never masks a mis-binding. Absence of a qualifier means the entity's shape is complete.
+
+### 3.3 List capabilities in the survey (phase E4, list reads, RATIFIED and BUILT 2026-07-02)
+
+Until E4, an entity yielded at most one capability (a read-by-id), so `discovered` counted both capabilities and discovered entities at once. E4 breaks that one-to-one link: an entity can now yield a read-by-id and a list, a list and no read-by-id (for example when its identifier does not map, so `getEmailTemplate` fails but `listEmailTemplate` is clean), or several list candidates that refuse. The survey extends additively, and `discovered` stays a capability count, now split by kind so historical comparisons still hold:
+
+```text
+$ tibyan scan ./erp-backend
+...
+Discovered (25):
+  by-id (16):
+    + Contact: getContact -> ContactServiceImpl#findById (partial: 3 fields skipped)
+    ...
+  list (9):
+    + listContact -> ContactServiceImpl#findAll (paged)
+    + listEmailTemplate -> EmailTemplateServiceImpl#findAll (paged)
+    ...
+Failed (9):
+  - EmailTemplate [NO_IDENTIFIER]: @Id 'type' is an enum, which maps to no bindable primitive.
+  - User [AMBIGUOUS_BINDING]: backed by more than one candidate ...
+  ...
+List-refused (1):
+  - ProductCategory [LIST_AMBIGUOUS]: list capability 'listProductCategory' has more than one list-all candidate: [ProductCategoryServiceImpl#findAll, ProductCategoryServiceImpl#findAll].
+Deferred list reads (56):
+  ~ ProductServiceImpl#findAll(Pageable): body is not a single return of the framework findAll; a transformed, filtered, or multi-statement body is deferred (condition 6).
+  ...
+Totals: discovered 25 (by-id 16, list 9), failed 9 (by cause: NO_IDENTIFIER 1, NO_BACKING_METHOD 6, AMBIGUOUS_BINDING 2), list-refused 1, skipped-by-parse 0, partial 13 (22 fields skipped), mis-bound 0
+```
+
+Note that `EmailTemplate` appears in both `list (9)` and `Failed (9)`: its list-all read is clean, so `listEmailTemplate` is discovered, while its by-id read fails NO_IDENTIFIER. This is exactly the decoupling E4 introduces, and it is why the two ledgers are kept on separate axes.
+
+The contract, stated so it is not a silent redefinition:
+
+- `discovered` remains the count of emitted capabilities. From E4 on it is annotated by kind, `discovered N (by-id A, list B)`, and `A` is directly comparable to the pre-E4 `discovered` figure, so every historical row stays readable. `A` plus `B` equals `N`. The `failed` figure keeps its historical meaning too: it counts failed by-id outcomes at the entity level, so `by-id A` plus `failed` still equals the entity count, and the by-id ledger stays a clean partition of the entities exactly as before E4.
+- A refused list candidate is either its own dimension or a named deferral, and neither disturbs the by-id `failed` count. A `LIST_AMBIGUOUS` (two or more list-all methods for one entity) is reported on a separate `list-refused` line and totalled separately, precisely so an entity that discovers by-id but has an ambiguous list (ProductCategory) is not double-counted against the entity partition. A filtered, view-returning, or transformed list read is out of E4 scope by design, not a failure of it, so it is reported per method under "Deferred list reads", never counted in `failed` or `list-refused` and never counted as a missed capability, exactly as 4.2's non-primary-key reads are named rather than failed.
+- The health metric is unchanged: discovered rising while mis-bound stays zero. `mis-bound` keeps its meaning, extended to lists: a list capability is mis-bound if it is bound to a method returning a collection of the wrong entity, or to a method that presents a filtered subset as the whole collection (Volume 5, section 4.10.9). Both are counted; either one stops all phase work.
+- A list capability may itself be partial, when its element entity is partial (its schema is incomplete). The `partial` dimension counts the entity once, as today; it is orthogonal to whether the entity yielded a by-id capability, a list capability, or both.
+
+Writing an artifact is where strictness returns. With `--out`, the survey prints as above and then the discovered IR is validated before it is written; if it does not validate, nothing is written and the command exits 2, with the survey already shown:
+
+```text
+$ tibyan scan ./some-app --out out.ir.json
+Scanning ./some-app
+... survey ...
 Validation: FAILED
-  - capability 'getOrder' returns ENTITY_REF(Order) but no entity 'Order' is defined
+  - <located validation error on the discovered IR>
 Exit code 2
 ```
+
+With model closure (Volume 5, section 4.7) a partial model is always valid, so `--out` writes it and generation succeeds even when the app extracted only in part; the exit-2 validation failure above is reserved for a genuinely malformed discovered IR, which closure makes far rarer.
+
+### 3.1 The generated manifest is what the runtime hosts
+
+Generation, whether from the CLI or at build time, writes a capabilities manifest, `tibyan/capabilities.json`. That manifest is the artifact the runtime hosts. The CLI's `tibyan generate --backend mcp` writes it (plus the generated tool files) into the chosen `--out` directory, for example `./generated/<module>-mcp/`.
+
+Recommended adoption: generate at build time. The `tibyan-maven-plugin` runs the same pipeline during the app's own build and writes the manifest onto the classpath (`target/classes/tibyan/capabilities.json`). Add it to the app's build once:
+
+```xml
+<plugin>
+  <groupId>com.tibyaan</groupId>
+  <artifactId>tibyan-maven-plugin</artifactId>
+  <version>...</version>
+  <executions>
+    <execution><goals><goal>generate</goal></goals></execution>
+  </executions>
+</plugin>
+```
+
+The goal binds to `generate-resources`, scans the module (by default `${project.basedir}`, matching `tibyan scan <module>`), and produces a manifest byte-identical to `tibyan generate`, because it invokes the same `TibyanCompiler` and `McpBackend`, not a second generator. With the `tibyan-runtime-spring` dependency on the classpath, the runtime finds the manifest there automatically, with no launch property and no MCP config in `application.yml` (Volume 7, section 4). Nothing is committed by hand.
+
+The CLI remains for manual and inspection use: run `tibyan scan` and `tibyan generate` to see the IR and the generated output, or to produce a manifest for a host that is not built with Maven. You can also point the runtime at a manifest file for an ad hoc run with `-Dtibyan.capabilities=file:./generated/<module>-mcp/tibyan/capabilities.json`, a relative path, never a hardcoded absolute or machine-specific path; the explicit property overrides the classpath default.
+
+The manifest that ships under `tibyan-backend-mcp/src/test/resources/...` is only a golden fixture for the backend's tests. It is not a runtime artifact. Nothing should point the runtime at it, or at any fixed location such as a hand-placed file in a system directory; the only manifest the runtime should host is one a generation run produces, from the CLI or the build plugin.
 
 ## 4. Exit codes
 
@@ -58,6 +163,16 @@ Exit code 2
 | 1 | Usage error (bad arguments) |
 | 2 | Validation failure |
 | 3 | Provider or backend error |
+
+### 4.1 What each code means for `tibyan scan` (Volume 5 section 4.3)
+
+`scan` is a resilient survey, so its exit codes distinguish "the scan could not run" from "the scan ran and found problems in the source":
+
+- 0: the survey completed. This is the code whatever it discovered, including the honest "discovered 0, many failed" case: per-entity failures and unparseable files are reported, not fatal. If `--out` was given, the discovered IR validated and was written.
+- 2: only when `--out` was given and the discovered IR did not validate, so no file was written. The survey still printed in full.
+- 3: the scan could not run at all: the source root is missing, is not a directory, or cannot be walked.
+
+Surveying is not the same as producing an artifact. `tibyan generate` (and the build plugin) stay strict: they run the provider's strict path, which refuses a scan with any unparseable file or hard failure and exits 3, so a manifest is never produced from a partial read. A per-entity failure being exit 0 under `scan` is a survey result; the same source under `generate` is a loud refusal.
 
 ## 5. Future commands
 

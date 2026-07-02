@@ -1,0 +1,54 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "erp-backend API",
+    "version": "0.1"
+  },
+  "paths": {
+    "/contact": {
+      "get": {
+        "operationId": "listContact",
+        "summary": "List all Contact. Returns a page of results; the total count and page envelope are not modeled.",
+        "responses": {
+          "200": {
+            "description": "A list of Contact.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Contact"
+                  },
+                  "description": "The wire response is a page envelope; this schema models the element collection, not the page envelope.",
+                  "x-tibyan-paged": true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Contact": {
+        "type": "object",
+        "description": "Entity Contact as modeled by Tibyaan.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "additionalProperties": true
+      }
+    }
+  }
+}

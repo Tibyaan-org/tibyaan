@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.tibyaan</groupId>
+        <artifactId>tibyaan</artifactId>
+        <version>0.1.0</version>
+    </parent>
+
+    <artifactId>tibyan-cli</artifactId>
+    <name>Tibyaan CLI</name>
+    <description>The tibyan command. Parses arguments and calls the pipeline. Holds no compiler logic.</description>
+
+    <properties>
+        <picocli.version>4.7.6</picocli.version>
+    </properties>
+
+    <!--
+      The CLI is the composition root. It depends on the pipeline (which it calls) and on the
+      concrete plugins it offers, the Spring provider and the MCP and OpenAPI backends, so it can
+      construct them and inject them into the interface-only pipeline. This is the standard
+      alternative to SPI discovery (Volume 12), which is deferred to the plugin-system phase because
+      it would require changing the plugin API and the plugin modules.
+    -->
+    <dependencies>
+        <dependency>
+            <groupId>com.tibyaan</groupId>
+            <artifactId>tibyan-pipeline</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.tibyaan</groupId>
+            <artifactId>tibyan-provider-spring</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.tibyaan</groupId>
+            <artifactId>tibyan-backend-mcp</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.tibyaan</groupId>
+            <artifactId>tibyan-backend-openapi</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>info.picocli</groupId>
+            <artifactId>picocli</artifactId>
+            <version>${picocli.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Package an executable jar so the flow is usable from a terminal as `java -jar`. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>com.tibyaan.cli.TibyanCli</mainClass>
+                        </manifest>
+                    </archive>
+                    <descriptorRefs>
+                        <descriptorRef>jar-with-dependencies</descriptorRef>
+                    </descriptorRefs>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>make-cli</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

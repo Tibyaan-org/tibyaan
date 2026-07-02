@@ -1,0 +1,65 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "legacy-spring-app API",
+    "version": "0.1"
+  },
+  "paths": {
+    "/product/{id}": {
+      "get": {
+        "operationId": "getProduct",
+        "summary": "Read Product by id.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The Product read by id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Product": {
+        "type": "object",
+        "description": "Entity Product as modeled by Tibyaan.",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number",
+            "format": "decimal"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "price"
+        ],
+        "additionalProperties": true
+      }
+    }
+  }
+}

@@ -42,17 +42,90 @@ public Object call(Map<String,Object> args) {
 }
 ```
 
-## 4. Future backends
+### 3.1 Surfacing the view of a read (decided 2026-07-02)
+
+A read discovered from a view-returning service method carries a `view` annotation in the IR (Volume 5, section 4.2.5): the output stays `ENTITY_REF(E)`, and the annotation records the concrete return type's simple name, for example `getUnit` with `view: UnitVTO`. Without surfacing it, the generated tool tells its consumer only `ENTITY_REF(Unit)`, which is less honest than the IR: the wire shape is a `UnitVTO`, a projection of Unit. This subsection decides how the MCP backend surfaces that.
+
+The decision, smallest honest surface first:
+
+- Manifest field (required). A tool entry for a capability whose IR carries a `view` annotation gains one field, `"view"`, whose value is the view type's simple name, placed immediately after `"output"`. It refines the output: `"output": "ENTITY_REF(Unit)"` says the read is of Unit; `"view": "UnitVTO"` says the concrete shape returned has its own name. A capability with no `view` annotation gets no `view` field at all, no null and no empty string; its absence means the output is the entity shape itself. This keeps unchanged capabilities byte-identical.
+- Description (added, and justified). The synthesized `"description"` gains one clause for a view-carrying capability: `Read Unit by id. Returns the UnitVTO view of Unit.` The description is the surface most MCP clients show an agent directly, and a generic client may never render a custom `view` field; leaving the description saying only `Read Unit by id.` while the wire returns a `UnitVTO` reproduces the very dishonesty this change closes. The clause is one sentence, deterministic, and appears only when a view is present.
+- One-off for `view`, not a generic annotation passthrough. The backend surfaces the `view` annotation specifically, not arbitrary IR annotations. A generic passthrough would dump every annotation key the provider ever attaches into the manifest, inviting schema sprawl and leaking hints the backend does not know how to render. The backend surfaces only annotations it understands how to present; `view` is the one it understands today. A second such annotation is a second deliberate, one-off decision here.
+
+The IR, the provider, and the runtime do not change. The `view` field is additive; the runtime's manifest loader reads only the fields it knows (`name`, `description`, `binding`, `output`, `inputs`) and tolerates the unknown `view` field. That tolerance is made explicit on the runtime's manifest types so it does not depend on the host's Jackson configuration; the runtime's behavior is otherwise unchanged (it does not act on the view).
+
+### 3.3 Surfacing a list read (phase E4, RATIFIED and BUILT 2026-07-02)
+
+A list capability carries `output: ENTITY_REF(E)` with `outputMultiple: true` (Volume 4, section 3.4; Volume 5, section 4.10). Without surfacing the multiplicity, the generated tool would tell its consumer `ENTITY_REF(E)`, hiding that the tool returns many E, not one. This subsection decides how the MCP backend surfaces it, in the same smallest-honest-surface spirit as the `view` field (section 3.1).
+
+- Manifest field (required). A tool entry for a capability with `outputMultiple: true` gains one field, `"outputMultiple": true`, placed immediately after `"output"`. It refines the output: `"output": "ENTITY_REF(Contact)"` names the element, `"outputMultiple": true` says the tool returns a collection of that element. A singular capability gets no such field at all, no `false` and no null, so every existing capability stays byte-identical.
+- Paged field (required when present). A capability carrying the `paged` annotation (Volume 5, section 4.10.3) gains a `"paged": true` field after `"outputMultiple"`. It is the machine half of the page-envelope disclosure; a list read whose terminal was the no-argument `findAll()` gets no `paged` field.
+- Description (added, and justified). The synthesized `"description"` for a list capability reads `List all Contact.`; for a paged one it reads `List all Contact. Returns a page of results; the total count and page envelope are not modeled.` The description is the surface most MCP clients show an agent directly, so leaving it silent about multiplicity or paging while the wire returns many, or a page envelope, reproduces the dishonesty this change closes. The clause is deterministic and appears only for the shape it describes.
+- One-off for `outputMultiple` and `paged`, not a generic passthrough. As with `view`, the backend surfaces the two annotations it understands how to present, not arbitrary IR annotations. A third understood annotation is a third deliberate decision here.
+
+The IR, the provider, and the runtime's contract do not change shape. The two new fields are additive; the runtime's manifest loader reads only the fields it acts on and tolerates the unknown `outputMultiple` and `paged` fields explicitly on its manifest types (the same `@JsonIgnoreProperties` tolerance the `view` field uses), so tolerance does not depend on the host's Jackson configuration.
+
+Runtime note, and the one deferred piece named honestly. To invoke a list read, `SpringExecutionAdapter` resolves the binding to the real bean and method as today, invokes it with no arguments for a no-parameter `findAll()`, and serializes the returned collection as a JSON array. When the method takes a `Pageable` (the paged shape), the adapter must supply one, and what `Pageable` to supply (an unpaged default, or a first page) is runtime paging behavior, which is explicitly out of phase E4's scope (Volume 13). Until that is designed, a no-argument list read is fully executable end to end, and a paged list read is discovered, modeled, and rendered by both backends but carries a deferred runtime invocation note (Volume 7, section 8). For a `Page` result the adapter serializes the page content (the elements), never the envelope, consistent with the IR modeling the element collection and disclosing the envelope rather than claiming it.
+
+### 3.2 Future backends (direction)
 
 | Backend | Output | Note |
 |---|---|---|
-| OpenAPI | An OpenAPI document | Proves the IR feeds more than one backend (Volume 13, P4) |
-| SDK | Typed client libraries | Generated clients for the same capabilities (P5) |
+| OpenAPI | An OpenAPI document | Built 2026-07-02: the second backend, proving one IR feeds more than one output with no provider change (section 4) |
+| SDK | Typed client libraries | Generated clients for the same capabilities (Volume 13, Tier 3) |
 | Documentation | Human-readable API docs | A side output from the same model |
 | GraphQL | A GraphQL schema and resolvers | Has no controllers, which is why the IR must stay neutral (ADR-0013) |
 | REST | A conventional REST surface | For systems that want a fresh, generated API |
 
 Because each backend derives its own surface (a tool, an operation, a resolver) from capabilities, the IR never needs an Endpoint or Service concept. Those were deliberately removed from the IR (ADR-0013).
+
+## 4. The OpenAPI backend (the second backend, an IR-reuse proof; built 2026-07-02)
+
+`tibyan-backend-openapi` turns the same Capability IR into an OpenAPI 3.0 document, proving the one-IR-many-outputs claim on real capabilities: the erp-backend IR (16 read capabilities) and the pms-backend IR (2) both render to valid OpenAPI with zero change to `tibyan-core`, `tibyan-plugin-api`, or any provider. It is a proof, not a product backend: read-by-id GET operations only, exactly what the IR carries today. It reads only the IR (rule 1) and emits a deterministic JSON document by the same hand-rolled approach `ManifestWriter` uses, so no serialization library reaches the backend and golden-file output is exact. JSON is a valid OpenAPI 3.x serialization; hand-rolling it is deterministic and dependency-free, where hand-rolling YAML would risk whitespace and escaping bugs.
+
+Shape: one GET operation per capability. The path is `/<resource>/{<id>}` where `<resource>` is the output entity's name with its first letter lowercased and `<id>` is the capability's single input name; the `operationId` is the capability name; the single typed input becomes a required path parameter. The 200 response schema follows the partiality-in-schema rule (section 4.1).
+
+The closed type set maps to OpenAPI as follows:
+
+| IR type | OpenAPI | Note |
+|---|---|---|
+| STRING | `{type: string}` | |
+| LONG | `{type: integer, format: int64}` | |
+| INTEGER | `{type: integer, format: int32}` | |
+| DECIMAL | `{type: number, format: decimal}` | Wire-accurate: the default JSON serialization of an exact decimal is a JSON number, so `number` matches the wire, and `format: decimal` hints the exactness the bare `number` cannot. A `string` representation would over-claim a serialization the app does not use by default; a source that serializes decimals as strings would need this revisited (a finding, not now) |
+| FLOAT | `{type: number, format: double}` | Inexact 64-bit float, per the IR |
+| BOOLEAN | `{type: boolean}` | |
+| UUID | `{type: string, format: uuid}` | |
+| TIMESTAMP | `{type: string, format: date-time}` | |
+| ENTITY_REF(T) in a field | `{$ref: '#/components/schemas/T'}` | T is present by model closure (Volume 5, section 4.7); a component is emitted for every entity in the reference closure of the entity-returning capabilities |
+
+The `enum` annotation (Volume 5, section 4.5) surfaces as an OpenAPI `enum` on the field's string schema, which is exactly what the annotation was recorded for. The `view` annotation surfaces per the schema rule (section 4.1, condition 3). A nullable field carries `nullable: true`; an `ENTITY_REF` field is emitted as a bare `$ref`, so its nullability is not expressed (an OpenAPI 3.0 limitation not worth `allOf`-wrapping in a proof, noted).
+
+### 4.1 The partiality-in-schema rule (the honesty baseline for generated schemas)
+
+This is the first backend that emits entity field schemas, so it inherits the ratified requirement (Volume 5, section 4.9, the ratification rider): a partial entity's schema must not present itself as the complete shape. More broadly, a generated schema must never let a reader be more confident about the wire shape than the IR's knowledge justifies. The rule:
+
+1. No response schema claims closedness. `additionalProperties` is never set to `false` on any generated object. The IR is a semantic model of an entity's persistent fields, not a wire contract; the real response may carry fields the IR does not model (transient or computed fields), so asserting a closed object would claim a completeness the IR cannot back.
+2. Entity-returning capability (output `ENTITY_REF(E)`, no `view` annotation): the 200 response is a `$ref` to E's component schema. E's component lists its modeled fields as `properties`, each typed per the mapping table, is permissive per condition 1, and its `description` states it is entity E as modeled.
+3. View-returning capability (output `ENTITY_REF(E)` with a `view` annotation naming V): the 200 response is a standalone permissive object with no `properties`, because the IR does not model V's fields at all. Its `description` reads "Returns V, a view of E; the concrete field shape of V is not modeled, so this schema does not enumerate its fields," and it carries `x-tibyan-view: V`. It never references E's component and never presents E's fields as V's fields. This is the refusal-of-claims case: the schema declines to describe fields it does not know, because inventing the entity's fields for a view wire shape is exactly the dishonesty the project refuses.
+4. Partial entity component (E carries a `partial` annotation naming skipped fields): the component lists only the modeled (present) fields; its `description` carries the disclosure "Partial model: N field(s) of the source entity are not represented: <names>," and it carries `x-tibyan-partial: [<names>]`. A skipped field appears in neither `properties` nor `required`. The object is permissive per condition 1, so the omitted fields are allowed at runtime but never claimed.
+5. `required` lists a field only when it is both modeled and non-nullable. A partial entity's omitted fields never appear in `required`.
+6. Disclosure is in two places for two audiences: a vendor extension (`x-tibyan-partial`, `x-tibyan-view`) for machine consumers and the `description` prose for human and agent readers. Both are emitted; neither alone.
+
+What this rule will never claim: a closed object (`additionalProperties: false`) for any response; a view's fields (it does not know them), nor the source entity's fields presented as the view's fields; a skipped or unmodeled field in `properties` or `required`; a partial entity's schema as the complete shape; or any field, type, format, or constraint the IR does not carry.
+
+The guiding test, restated: a view response says "I do not model these fields"; a partial entity says "these N fields are not represented"; a complete entity says "here are the modeled fields, and there may be more." A reader is never more confident than the IR.
+
+### 4.2 List operations (phase E4, RATIFIED and BUILT 2026-07-02)
+
+This realizes the E4 seam recorded when the backend shipped (section 4): a list capability's output is an array whose items are the element schema. When the IR grows `outputMultiple` (Volume 4, section 3.4), the OpenAPI backend renders a list capability as follows, and the rendering is mechanical because the honesty machinery of section 4.1 already handles the element:
+
+1. Path and operation. A list capability has no id input, so its path is the collection path `/<resource>` (the output entity's name, first letter lowercased), with a GET whose `operationId` is the capability name (`listContact`). It has no path parameter and, in E4, no query parameters (paging is unmodeled, section 4.1's honesty rule forbids inventing them).
+2. The 200 response schema is `{type: array, items: <element schema>}`. The element schema is exactly what a singular capability of the same output would produce: for `output ENTITY_REF(E)` it is `{$ref: '#/components/schemas/E'}`, so E's component (with its partiality disclosure per section 4.1, condition 4) is the array's item type. A list of a partial entity is therefore an array whose items disclose their own omitted fields, with no new rule: the E5 rider rides along through the element.
+3. Paged disclosure. When the capability carries the `paged` annotation, the array response additionally carries `x-tibyan-paged: true` and a `description` clause: "The wire response is a page envelope; this schema models the element collection, not the page envelope." The array is not wrapped in a fabricated page object, because the IR does not model the envelope and section 4.1 forbids claiming a shape the IR does not carry. The array itself is never marked closed (`additionalProperties` does not apply to arrays, and the item object stays permissive per section 4.1).
+4. Filtered inputs do not arise. E4 discovers no filtered list read (Volume 5, section 4.10.2), so the backend renders no opaque filter parameters and makes no unverified "filter by X" claim. When filtered reads are modeled in a later phase, how their inputs render (a query parameter with a copied name, and whether the description states the semantics are not verified) is that phase's decision, inheriting this same honesty rule; it is named here, not designed here.
+
+What this will never claim: a page envelope shape the IR does not model (only an array of the element, plus a paged disclosure); a filter parameter the IR does not carry; or, through the array's items, any more than the element schema already honestly claims under section 4.1.
 
 ## 5. Templates and testing
 

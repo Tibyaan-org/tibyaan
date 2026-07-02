@@ -14,13 +14,23 @@ The five abstractions: CapabilityProvider (input), Capability IR (model), Backen
 
 ---
 
-## Prime directive: build the spike first
+## Prime directive: evidence before elaboration
 
-Do NOT build the platform yet. Build the Technical Spike (Phase -1) first and stop.
+The Technical Spike (Phase -1) was the original prime directive; it ran on 2026-06-30 and succeeded (Volume 8; answers in Volume 16, section 3). The directive that replaces it: build only what evidence from a real application justifies, in the order the evidence ranks it. The current plan lives in Volume 13, in three tiers: Tier 1 is the completed record, Tier 2 is the evidence-based next phases, Tier 3 is direction only. Do not start Tier 3 work, and do not start a Tier 2 phase before the previous one meets its exit criterion.
 
-The spike exists to prove the only real unknown: can a generated MCP layer run inside a real Spring application and call a real bean, by adding one dependency, so an AI agent gets a real result? Everything in the architecture depends on this being true. If it is not true, the design changes. So prove it before building anything on top of it.
+The spike precedent stands: when a future step rests on an unknown that big, spike it before building on it.
 
-Read Volume 8 (Technical Spike) and Volume 16 (Technology Stack) before starting.
+---
+
+## Current status (MVP complete, hardened, and benchmarked)
+
+All MVP phases are complete on the main branch: -1 (Spike), P0 (Core and IR), P1 (Spring provider), P2 (MCP backend and runtime), and P3 (CLI and pipeline), plus three hardening steps: the binding is discovered from the real service method (Volume 5, section 4.1); a truly untouched app needs only the one dependency, with the MCP server auto-configured and the manifest discovered from the classpath (Volume 7, sections 4 and 8); and the manifest is generated at build time by the `tibyan-maven-plugin`, which runs the same pipeline as the CLI, so nothing is copied by hand (Volume 11). The MVP works end to end: `mvn clean verify` is green, and the flow (build generates the manifest onto the classpath, launch the app with no launch property, live MCP getProduct) is verified.
+
+After the MVP, the unchanged tool was run against a second, large real app (pms-backend, 43 entities). It discovered 0 capabilities, mis-bound 0, and failed loudly on all 43, and the gaps were ranked by counted evidence (docs/experiments/second-app-trial.md). That app is now the standing benchmark (Volume 13, section 5): after each Tier 2 phase it is re-run, and discovered rising while mis-bound stays zero is the health metric. Mis-bound greater than zero becomes the top priority over everything.
+
+The full resume point, with the exact commands that reproduce the MVP, is in `docs/STATUS.md`. Known gaps and deferred work are in Volume 7, section 8; plugin discovery status is in Volume 10, section 2.
+
+The one-phase-per-session rule remains in force for any future phase.
 
 ---
 
@@ -29,13 +39,16 @@ Read Volume 8 (Technical Spike) and Volume 16 (Technology Stack) before starting
 1. `tibyan-core` has zero external dependencies. Not Spring, not JavaParser, not an MCP library, not a template engine. If core needs one of those, a concept has leaked; move it out.
 2. A Backend never knows the source and never calls a framework directly. It reads only the IR and invokes logic through `ExecutionAdapter`.
 3. A Provider only produces IR. It never generates output and never depends on a backend or a runtime.
-4. The Runtime hosts and binds. It contains no IR and no generation logic. It owns the `ExecutionAdapter` for its host.
+4. The Runtime hosts and binds. It contains no IR and no generation logic. It owns the `ExecutionAdapter` for its host. Known MVP runtime gaps and deferred work are listed in Volume 7, section 8.
 5. Keep the IR tiny. MVP IR is entities plus read-only capabilities only. Do NOT add workflows, events, policies, permissions, dependencies, or domain knowledge. Those are future (Volume 4, section 7); they are off limits for the MVP.
 6. One plugin per module. A provider, a backend, or a runtime is its own module that depends only on `tibyan-plugin-api` and `tibyan-core`. Never bundle two plugins in one module. Never let one plugin depend on another.
 7. Dependencies point inward, toward the core, never sideways between plugins. See Volume 12, section 5 for the allowed and forbidden edges.
 8. Package root is `com.tibyaan`.
 9. No em dashes anywhere: code comments, docs, commit messages, output. Use commas or colons.
 10. Generation is deterministic and covered by golden-file tests. Same IR in, same files out.
+11. Branching: trunk-based. All phase work commits to the main branch. No per-phase branches.
+12. Ratification before build. For any design-then-build phase, the ratification records (the frozen design in the volumes) are committed before implementation begins, as E3 and E5 did. Committing the frozen design first guarantees the build implements the ratified rule, rather than the rule drifting to fit the build.
+13. Flag mid-build diagnostic amendments. A diagnostic-only improvement made during a build session, one that changes no matching outcome and only the wording or precision of a message, is permitted, but it must be flagged as an amendment in that session's summary, so ratified text and built behavior never silently diverge.
 
 ---
 
@@ -47,7 +60,7 @@ Read Volume 8 (Technical Spike) and Volume 16 (Technology Stack) before starting
 - Source analysis: JavaParser (AST). No reflection-based or bytecode analysis in the MVP.
 - CLI: picocli.
 - Tests: JUnit 5, AssertJ, golden-file tests, one end-to-end test.
-- MCP server library: NOT yet decided. The spike chooses between Spring AI MCP server support (preferred, because it does much of the starter and auto-configuration work) and the official MCP Java SDK. Pin the exact version during the spike and record it in Volume 16.
+- MCP server library: decided by the spike. Spring AI MCP server support (`spring-ai-starter-mcp-server-webmvc`, Spring AI BOM 1.0.9, SSE transport), with the official MCP Java SDK underneath. Pinned versions and the full answers are in Volume 16, sections 3.1 and 3.2.
 
 Do not add a dependency without a reason tied to the current phase. Never add a dependency to `tibyan-core`.
 
@@ -65,39 +78,18 @@ The author's own Spring systems are still useful here, just on the other side of
 
 ## Build order (one phase per session)
 
-Do these in order. Do not start a phase until the previous phase meets its definition of done. Volume 17 has the step detail and code sketches.
+The build order lives in Volume 13, the roadmap, in three tiers. Do not re-derive it from this file.
 
-| Phase | Goal | Definition of done |
-|---|---|---|
-| -1 Spike | Prove the runtime binding | An agent calls `getProduct(5)` on an unmodified Spring app and gets a real result from the real database |
-| P0 Core + IR | The IR stands alone | A hand-built IR validates and round-trips to JSON; `tibyan-core` has zero forbidden deps |
-| P1 Spring provider | Build IR from real source | Scanning the example app yields a valid IR with `Product` and `getProduct` |
-| P2 MCP backend + runtime | Execute against the real system | The MVP acceptance criteria in Volume 2, section 5 pass against a real, unmodified Spring app |
-| P3 CLI | Make the flow usable | A developer can modernize a system using only `tibyan scan` and `tibyan generate` |
+- Tier 1 is complete and is a record, not a plan: the spike, P0 to P3, the three hardening steps, the second-app trial, and phase E1 (parse resilience).
+- Tier 2 is the active plan: evidence-based phases E1 (parse resilience and scan scope, done), E2 (DTO-aware read discovery, design in Volume 5 first, then build), E3 (associations), E4 (list, filter, and multi-argument reads, the first phase that grows the IR). Each has a goal, evidence, and an exit criterion in Volume 13, section 3. Do them in order; re-run the pms-backend benchmark after each and append the dated entry to docs/experiments/second-app-trial.md.
+- Tier 3 is direction only. Do not build Tier 3 items, and do not write detailed plans for them; they are conditional on Tier 2 proving the semantic core on real apps.
 
----
+The next phase is E2, and its rule must be designed into Volume 5, section 4.2 before any code is written, exactly as the binding rule was. One phase per session; a phase is not started until the previous phase meets its exit criterion.
 
-## Task 1 (do this now): the spike
+Two disciplines from the spike era survive verbatim into every phase:
 
-Build ONLY this. Nothing else.
-
-Deliverable:
-- `examples/legacy-spring-app/` with `Product` (id, name, price), `ProductService.findById(Long)` returning a real product, a normal controller, and H2 seeded with one product. Treat this app as if you cannot edit it, except to add one dependency.
-- `tibyan-runtime-spring/` as a hand-written Spring Boot starter (NOT generated) that: auto-configures on startup, discovers the real `ProductService` bean, registers ONE hard-coded `getProduct` tool, and starts an MCP server inside the application's own context.
-
-Do NOT build in the spike: the IR, any provider, JavaParser, any backend, any generator, the CLI, or the plugin system. All hard-coded.
-
-Success test (this is the only thing that counts):
-1. Add the starter as a dependency to the legacy app. Start the app.
-2. A human connects an MCP client (Claude Desktop) and calls `getProduct(5)`.
-3. The real product comes back, from the real `ProductService`, from H2.
-4. No file of the legacy app was edited except adding the one dependency.
-
-Environment note: you can write and run the Spring app and the starter. You cannot connect Claude Desktop yourself. When the app is running and the MCP server is up, stop and tell the human exactly how to connect Claude Desktop and what to call, then wait for them to confirm the real result. The spike is not done until the human confirms a real product came back.
-
-Also record, in Volume 16: which MCP library you used and its version, whether the starter alone was enough, whether bean discovery and tool registration were clean, and the transport (stdio or HTTP). These answers are the real output of the spike.
-
-If the spike does not work cleanly: stop. Do not work around it by faking the result or by quietly switching to a separate process without flagging it. Report the problem and the options (for example, a separate-process runtime calling over REST). Changing the runtime model is a decision for the human, not a silent workaround.
+- Fail loud, never guess. If a rule does not decide a case unambiguously, the tool refuses with a located error; it never falls back to a convention or emits a plausible binding. Collect-and-continue (phase E1) relocates loudness, it does not soften it: every skipped file is named, and a partial result never masquerades as a complete one.
+- If a phase does not work cleanly: stop. Do not work around it by faking a result or quietly changing the model. Report the problem and the options. Changing the design is a decision for the human, not a silent workaround.
 
 ---
 
@@ -105,15 +97,15 @@ If the spike does not work cleanly: stop. Do not work around it by faking the re
 
 The biggest failure mode is building the elegant full platform instead of the smallest working slice. Resist it.
 
-Do not, unless the current phase's definition of done requires it:
-- add IR elements beyond entities and read-only capabilities,
-- implement extractors other than the Entity extractor (leave the rest as empty placeholders),
+Do not, unless the current phase's exit criterion requires it:
+- add IR elements beyond entities and read-only capabilities (phase E4 is the first sanctioned growth, and only through the Volume 4, section 7 discipline: designed, validated, golden-tested),
+- implement extractors beyond the enabled Entity and Service extractors (repository, controller, and annotation stay empty placeholders),
 - add backends other than MCP,
 - add runtimes other than Spring,
 - build the plugin marketplace, governance, workflows, or events,
 - generalize an abstraction before there is a second case that needs it.
 
-When unsure whether something is in scope, it is not. Ask the human.
+Tier 2's detail is not license to build ahead: a phase's exit criterion bounds its scope, and the benchmark, not ambition, decides what is next. When unsure whether something is in scope, it is not. Ask the human.
 
 ---
 
@@ -121,7 +113,8 @@ When unsure whether something is in scope, it is not. Ask the human.
 
 | You are working on | Open |
 |---|---|
-| The spike | Volume 8, Volume 16, Volume 17 section 2 |
+| What to build next, and why | Volume 13 (the tiers), docs/STATUS.md |
+| The benchmark and its evidence | docs/experiments/second-app-trial.md |
 | The IR | Volume 4 |
 | A provider | Volume 5 |
 | A backend | Volume 6 |
@@ -129,7 +122,7 @@ When unsure whether something is in scope, it is not. Ask the human.
 | The pipeline | Volume 9 |
 | Module layout and dependency rules | Volume 12 |
 | Why a decision is the way it is | Volume 14 (ADRs) |
-| Step-by-step build with code sketches | Volume 17 |
+| The spike and the completed build, as records | Volume 8, Volume 16, Volume 17 |
 
 ---
 

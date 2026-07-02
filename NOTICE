@@ -1,0 +1,10 @@
+Tibyan
+Copyright 2026 Ahmed El-Seginy and the Tibyaan contributors
+
+This product is licensed under the Apache License, Version 2.0 (see the LICENSE
+file). It reads an existing Spring application and generates an AI-operable layer
+(an MCP server and an OpenAPI document) over it without modifying the original
+system.
+
+This product includes software developed as part of the Tibyan project
+(https://github.com/Tibyaan-org/tibyaan).
