@@ -83,7 +83,7 @@ Totals: discovered 16, failed 9 (by cause: NO_BACKING_METHOD 7, NO_IDENTIFIER 1,
 
 The `discovered`, `failed`, `skipped-by-parse`, and `mis-bound` figures keep their historical meaning; `partial` is a new dimension that never inflates discovered and never masks a mis-binding. Absence of a qualifier means the entity's shape is complete.
 
-### 3.3 List capabilities in the survey (phase E4, list reads, pending ratification)
+### 3.3 List capabilities in the survey (phase E4, list reads, RATIFIED and BUILT 2026-07-02)
 
 Until E4, an entity yielded at most one capability (a read-by-id), so `discovered` counted both capabilities and discovered entities at once. E4 breaks that one-to-one link: an entity can now yield a read-by-id and a list, a list and no read-by-id (for example when its identifier does not map, so `getEmailTemplate` fails but `listEmailTemplate` is clean), or several list candidates that refuse. The survey extends additively, and `discovered` stays a capability count, now split by kind so historical comparisons still hold:
 

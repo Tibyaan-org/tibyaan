@@ -503,3 +503,64 @@ post-filters status COMPLETED) is refused on the body-shape condition, so listTr
 `findAll()` and never to `findCompleted()`; and ProductCategory's two clean methods refuse as
 ambiguous. Mis-bound stays 0 in the forecast, and the two ways a list can mis-bind are both structurally
 prevented.
+
+---
+
+## 13. E4 build result: actual versus forecast (erp-backend, 2026-07-02)
+
+The E4 build (Volume 5 section 4.10) was run: `tibyan scan examples/erp-backend`, exit 0, and
+`tibyan scan --out` plus `tibyan generate` for both backends. The hard bar held: mis-bound 0.
+
+| Metric | Forecast (section 12.3) | Actual | Match |
+|---|---|---|---|
+| Discovered total | 25 | 25 | yes |
+| Discovered by-id | 16 | 16 | yes |
+| Discovered list | 9 | 9 | yes |
+| List-refused (LIST_AMBIGUOUS) | 1 (ProductCategory) | 1 (ProductCategory) | yes |
+| By-id failed | 9 (NO_BACKING 6, NO_IDENTIFIER 1, AMBIGUOUS 2) | 9 (same) | yes |
+| Partial | 13 | 13 | yes |
+| Mis-bound | 0 | 0 | yes |
+| Generation (both backends) | 25 | 25 | yes |
+| Named deferrals | ~44 (stated uncertainty) | 56 | within the stated uncertainty |
+
+Every firm number matched exactly. The 16 by-id discoveries are byte-identical to the E5 row, bindings
+and partial qualifiers alike (E4 is additive by construction: the list pool and the by-id pool are
+disjoint). The 9 list capabilities are exactly the forecast ones, and `listEmailTemplate` discovers
+though `getEmailTemplate` fails NO_IDENTIFIER, the identifier-independence proof live on the benchmark.
+ProductCategory keeps its by-id discovery and refuses only its list candidate (two clean `findAll`
+methods), LIST_AMBIGUOUS.
+
+The one soft number resolved: 56 named deferrals against the forecast's "~44" (which section 12.3
+flagged as the one uncertainty, confirmed only at build time). The build-time classifier names every
+collection-container-returning `@Service` method that is not a clean list-all, which is more inclusive
+than the hand census: it includes view-DTO-returning reads, mapping helpers that return collections, and
+write methods that return a collection (a `create` returning `List<DTO>`). Each is a truthful deferral
+(the phase does not model it), so the higher count is honest, not a miss; the reason string names why
+each is deferred. This is within the stated uncertainty and is correctness-neutral.
+
+Hand-verification of the nine list discoveries (guilty until proven correct), each opened at source:
+
+| Capability | Binding | Verified |
+|---|---|---|
+| listAccount | AccountServiceImpl#findAll | `public List<Account> findAll() { return accountRepository.findAll(); }`; AccountRepository extends JpaRepository<Account, UUID>; element Account; not paged |
+| listContact | ContactServiceImpl#findAll | `public Page<Contact> findAll(Pageable p) { return contactRepository.findAll(p); }`; element Contact; paged |
+| listContactCategory | ContactCategoryServiceImpl#findAll | `Page<ContactCategory> findAll(Pageable)` returns `contactCategoryRepository.findAll(pageable)`; element ContactCategory; paged |
+| listContactGroup | ContactGroupServiceImpl#findAll | `Page<ContactGroup> findAll(Pageable)` returns `contactGroupRepository.findAll(pageable)`; element ContactGroup; paged |
+| listEmailTemplate | EmailTemplateServiceImpl#findAll | `Page<EmailTemplate> findAll(Pageable)` returns `emailTemplateRepository.findAll(pageable)`; EmailTemplateRepository extends JpaRepository<EmailTemplate, EmailTemplateType>; element EmailTemplate; paged. getEmailTemplate is NO_IDENTIFIER (enum @Id), and the list is independent of it |
+| listProductGroup | ProductGroupServiceImpl#findAll | `Page<ProductGroup> findAll(Pageable)` returns `productGroupRepository.findAll(pageable)`; element ProductGroup; paged |
+| listTransaction | TransactionServiceImpl#findAll | `public List<Transaction> findAll() { return transactionRepository.findAll(); }`; element Transaction; not paged. The sibling `findCompleted()` post-filters and is correctly refused, so listTransaction binds to findAll, not findCompleted |
+| listTruck | TruckServiceImpl#findAll | `public List<Truck> findAll() { return truckRepository.findAll(); }`; element Truck; not paged |
+| listVariationGroup | VariationGroupServiceImpl#findAll | `Page<VariationGroup> findAll(Pageable)` returns `variationGroupRepository.findAll(pageable)`; element VariationGroup; paged |
+
+Every list binds to a verbatim `findAll` on a Spring Data repository of exactly the element entity, with
+no post-filter, so none presents a subset as the whole and none binds the wrong entity's collection.
+Product gets no list (its `findAll(Pageable)` is a custom-query transform with a manual `PageImpl`,
+correctly refused). Mis-bound is 0.
+
+Generation was confirmed end to end: `tibyan generate --backend mcp` and `--backend openapi` from the
+erp IR each produce all 25 capabilities. A representative paged list, `listContact`, renders in the MCP
+manifest as `"output": "ENTITY_REF(Contact)", "outputMultiple": true, "paged": true` with the
+description `List all Contact. Returns a page of results; the total count and page envelope are not
+modeled.`, and in OpenAPI as a GET on `/contact` whose 200 schema is `{"type": "array", "items":
+{"$ref": "#/components/schemas/Contact"}, "x-tibyan-paged": true}` with the page-envelope disclosure.
+The Contact component still discloses its partiality (the E5 rider rides through the element schema).

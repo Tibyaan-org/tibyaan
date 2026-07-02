@@ -405,7 +405,7 @@ A flagged, deferred concern (stated plainly, not thinned): when a later backend 
 
 Pre-registered fixtures: S1, the survey line for a discovered partial entity carries the `(partial: ...)` qualifier and the entity's IR carries the `partial` annotation naming the skipped fields. S2, a fully-modeled discovered entity carries no `partial` annotation and no qualifier (absence means complete). S3, the survey totals line reports a partial count distinct from discovered and failed.
 
-### 4.10 List reads: the unfiltered list-all capability (phase E4; designed 2026-07-02, pending ratification)
+### 4.10 List reads: the unfiltered list-all capability (phase E4; designed, RATIFIED, and BUILT 2026-07-02)
 
 Phase E4 is the trial's fourth-ranked gap: real service APIs are dominated by reads that return many of an entity, and the tool models none of them. This section is that rule, designed before any code exactly as 4.1, 4.2, and E3 to E5 were: it enters the volume in one commit, the code follows only after ratification. It is the largest design surface since 4.2, and its first duty is to draw its own boundary honestly.
 

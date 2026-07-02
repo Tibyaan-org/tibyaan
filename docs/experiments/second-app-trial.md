@@ -248,6 +248,8 @@ silent wrong result, did not occur.
 | 2026-07-02 | Third app added: erp-backend, tool unchanged (post-E2, post-view) | 7 | 0 | 18 (UNMAPPED_FIELD_TYPE 13, NO_BACKING_METHOD 4, AMBIGUOUS_BINDING 1) | 0 files | A second standing benchmark now exists at examples/erp-backend (25 entities, UUID ids, entity-returning reads). Baseline: all 7 discoveries via rule 4.1; rule 4.2 fired zero times; mis-bound 0. Full generalization writeup: docs/experiments/third-app-trial.md |
 | 2026-07-02 | E5 build (partial-model integrity), pms-backend | 2 | 0 | 41 (NO_BACKING_METHOD 38, COMPOSITE_KEY 3) | 27 files | partial 0 (0 fields). Byte-identical to the E3-plus-E2 row: pms has no tolerated field shapes and no absent entities, so tolerance skips nothing and closure prunes nothing. Proof the phase is additive |
 | 2026-07-02 | E5 build (partial-model integrity), erp-backend | 16 | 0 | 9 (NO_BACKING_METHOD 6, NO_IDENTIFIER 1, AMBIGUOUS_BINDING 2) | 0 files | partial 13 (22 fields skipped). Discovered up from 7 to 16, all via rule 4.1; scan --out now writes a valid IR and generation succeeds for all 16 (was exit 2). Two forecast composition swaps, both verified and mis-bound 0: Quote is AMBIGUOUS (a competing getInvoice), VariationGroup discovers via getVariationGroup. See third-app-trial.md, section 11 |
+| 2026-07-02 | E4 build (list reads), pms-backend | 2 | 0 | 41 (NO_BACKING_METHOD 38, COMPOSITE_KEY 3) | 27 files | by-id 2, list 0, list-refused 0, partial 0. Byte-identical to the E5 row: pms has no framework findAll list-all (its list API is filtered and `*ResultSet`-shaped). 3 named deferrals only, a recorded finding: the `*ResultSet` envelope reads are outside rule condition 2 (not a recognized collection container), and most `List<VTO>` reads are in the 27 unparseable placeholder files. getUnit and getLease unchanged. See section 8.7 |
+| 2026-07-02 | E4 build (list reads), erp-backend | 25 | 0 | 9 (NO_BACKING_METHOD 6, NO_IDENTIFIER 1, AMBIGUOUS_BINDING 2) | 0 files | by-id 16 (byte-identical to E5), list 9, list-refused 1 (ProductCategory LIST_AMBIGUOUS), partial 13. `listEmailTemplate` discovers though `getEmailTemplate` is NO_IDENTIFIER (lists are identifier-independent). 56 named deferrals (forecast "~44" was the stated uncertainty). Generates 25 through both backends. See third-app-trial.md, section 13 |
 
 Each Tier 2 phase (Volume 13, section 3) appends one row after its re-run. A row's totals must
 come from an actual run of the tool as built at that date, never from a projection.
@@ -474,3 +476,39 @@ section 4.10.2), and pms is its benchmark. The Volume 13 E4 exit criterion ("at 
 read on pms-backend in each module") cannot be met by the modeled list-all rule and is re-scoped in the
 roadmap: E4's exit is stated against erp-backend (list discovered greater than zero, mis-bound 0), and
 the pms list API moves to the successor phase.
+
+### 8.7 Interpretation of the E4 build run (pms-backend, actual versus forecast, 2026-07-02)
+
+The E4 build was re-run: `tibyan scan examples/pms-backend`, exit 0.
+
+| Metric | Forecast (8.6) | Actual | Match |
+|---|---|---|---|
+| Discovered (by-id) | 2 | 2 | yes |
+| Discovered (list) | 0 | 0 | yes |
+| Mis-bound | 0 | 0 | yes |
+| NO_BACKING_METHOD | 38 | 38 | yes |
+| COMPOSITE_KEY | 3 | 3 | yes |
+| Skipped by parse | 27 | 27 | yes |
+| Partial | 0 | 0 | yes |
+| Named deferrals | ~42 | 3 | no (a finding, below) |
+
+The split finding held exactly: pms discovers no list capability, because it has no unfiltered
+entity-returning list read. getUnit and getLease are byte-identical to their E5 row, the whole point of
+an additive phase. Mis-bound stayed 0.
+
+Finding, recorded not massaged: the named-deferral count is 3, not the forecast's ~42. The reason is a
+property of the ratified rule, not a defect. Rule 4.10 condition 2 recognizes a list read only when the
+return type is one of six collection containers (`List`, `Set`, `Collection`, `Iterable`, `Page`,
+`Slice`). pms's ~35 list reads return a custom `*ResultSet` envelope type (`TenantResultSet`,
+`VendorResultSet`), which is none of those, so the structural rule classifies them as not-a-list-read
+and does not enumerate them; recognizing them would require unwrapping the opaque envelope class, which
+is exactly the paged-envelope analysis section 4.10.6 defers. And of pms's ~7 `List<VTO>` reads, most
+live in the 27 unparseable placeholder files, so they never reach the service catalog. What surfaces as
+a named deferral is the handful of container-returning methods in parseable files: three, two of them
+infrastructure `getAll` helpers and one `findPropertiesByBuildingIds` returning `List<PropertyProxyResult>`.
+The forecast's ~42 was a human census that read the `*ResultSet` classes and counted them as list reads;
+the structural rule cannot, and deliberately does not. The deferral ledger names what the rule
+recognizes as a list read; an opaque envelope return is not one. This is correctness-neutral: list
+discovered is 0, mis-bound is 0, and every by-id row is byte-identical, which are the properties that
+matter. It sharpens the case for E6: pms's list API is not just filtered, it is hidden behind opaque
+envelope types that a filter-semantics phase must decide whether and how to see.

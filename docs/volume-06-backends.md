@@ -54,7 +54,7 @@ The decision, smallest honest surface first:
 
 The IR, the provider, and the runtime do not change. The `view` field is additive; the runtime's manifest loader reads only the fields it knows (`name`, `description`, `binding`, `output`, `inputs`) and tolerates the unknown `view` field. That tolerance is made explicit on the runtime's manifest types so it does not depend on the host's Jackson configuration; the runtime's behavior is otherwise unchanged (it does not act on the view).
 
-### 3.3 Surfacing a list read (phase E4, designed 2026-07-02, pending ratification)
+### 3.3 Surfacing a list read (phase E4, RATIFIED and BUILT 2026-07-02)
 
 A list capability carries `output: ENTITY_REF(E)` with `outputMultiple: true` (Volume 4, section 3.4; Volume 5, section 4.10). Without surfacing the multiplicity, the generated tool would tell its consumer `ENTITY_REF(E)`, hiding that the tool returns many E, not one. This subsection decides how the MCP backend surfaces it, in the same smallest-honest-surface spirit as the `view` field (section 3.1).
 
@@ -116,7 +116,7 @@ What this rule will never claim: a closed object (`additionalProperties: false`)
 
 The guiding test, restated: a view response says "I do not model these fields"; a partial entity says "these N fields are not represented"; a complete entity says "here are the modeled fields, and there may be more." A reader is never more confident than the IR.
 
-### 4.2 List operations (phase E4, designed 2026-07-02, pending ratification)
+### 4.2 List operations (phase E4, RATIFIED and BUILT 2026-07-02)
 
 This realizes the E4 seam recorded when the backend shipped (section 4): a list capability's output is an array whose items are the element schema. When the IR grows `outputMultiple` (Volume 4, section 3.4), the OpenAPI backend renders a list capability as follows, and the rendering is mechanical because the honesty machinery of section 4.1 already handles the element:
 
