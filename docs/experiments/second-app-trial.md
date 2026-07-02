@@ -278,6 +278,12 @@ fixed here, E1 is parse resilience only):
   `LeaseTimeEntry.hoursWorked`), which the type mapper deliberately leaves unmapped because the closed
   set has no floating-point primitive. Enums and `Double` are new, distinct type-mapping decisions
   that E3 (or a dedicated type-mapping step) should weigh, separate from associations.
+  Census correction from the E3 design study (2026-07-02): this 13/8/3 split counts only each
+  entity's first-blocking field, and it is verified exact as such; but extraction stops at the first
+  unmapped field, so more hides behind it. The full census (Volume 5, section 4.4.1): 20 association
+  fields on 15 entities, 21 enum fields on 13 entities, and 8 `Double` fields on 7 entities,
+  including both joint-exit targets (Lease and Unit both carry `Double` rent fields behind their
+  first-reported failures).
 - The 19 NO_BACKING_METHOD failures are entities that extracted cleanly but whose service either did
   not parse (its file is among the 27 skips) or returns a DTO or view type rather than the entity.
   Both are the E2 case: once the placeholder files are set aside and DTO-returning reads are matched,
@@ -313,3 +319,29 @@ run row and compares it to this.
   stay refused as P2 (composite view assembly).
 - The hard bar, restated: mis-bound must be exactly 0 on every run. A single mis-binding stops all
   phase work (Volume 13, section 5).
+
+### 8.3 E3 and joint E3 plus E2 expectation (stated forecast, 2026-07-02, before any build; not run rows)
+
+From the E3 design session (the three rules in Volume 5, sections 4.4 to 4.6, pending ratification),
+with the ratified sequencing (E3 built first, then E2, measured jointly):
+
+- After the E3 build alone (all three decisions; E2 not yet built): discovered 0, mis-bound 0,
+  skipped-by-parse 27, failed 43, now all NO_BACKING_METHOD. All 24 UNMAPPED_FIELD_TYPE entities
+  clear extraction (associations map to ENTITY_REF plus Relation, enums to STRING plus values, Double
+  to FLOAT), and none finds an entity-returning backing method because none exists in parseable
+  source (the E1 and E2 studies proved this), so they join the existing 19. What visibly changes is
+  the model, not the count: all 43 entities extract with full shapes, the IR gains 19 unique
+  MANY_TO_ONE relations, enum fields carry their closed value sets, and FLOAT fields appear.
+- After the E3 plus E2 builds (the joint measurement): discovered 2, getUnit bound to
+  UnitServiceImpl#findById (view UnitVTO) and getLease bound to LeaseServiceImpl#findById (view
+  LeaseVTO), both through pattern P1a with exactly one candidate each. Failed 41: NO_BACKING_METHOD
+  38 (with near-miss diagnostics naming Tenant's P1b chain and the P2 composites Building, Property,
+  ChatRoom) and COMPOSITE_KEY 3 (EventAttendee, GroupMember, and UserRole, which E3 unblocks from
+  extraction and E2's eligibility then refuses on its two @Id fields). Skipped-by-parse 27.
+  Mis-bound exactly 0. This meets the ratified joint exit criterion.
+- Reconciliation with the 8.2 forecast: 8.2's "up to 2 (Unit, Lease), contingent on E3 clearing
+  every field of those two entities" resolves to exactly 2, and the census shows the contingency
+  lands on decision (c): both entities carry `Double` fields, so the joint exit is reachable only if
+  FLOAT is ratified. 8.2's E2-alone row predicted COMPOSITE_KEY 2; the joint row predicts 3 because
+  E3 surfaces UserRole (previously hidden behind its unmapped `Role` association).
+- The hard bar is unchanged: mis-bound exactly 0 on every run, or everything stops.

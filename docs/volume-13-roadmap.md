@@ -63,13 +63,21 @@ Design finding on the exit criterion, recorded plainly rather than silently edit
 
 Ratified, 2026-07-02: (1) the Volume 5, section 4.2 rule stands as written, conditions 0 through 10, the ENTITY_REF-plus-view-annotation representation, fixtures F1 to F12, and the deferred patterns (P1b, P2, facades, non-pk reads). (2) Sequencing: E3 is designed and built before the E2 build; E2 and E3 are then measured jointly against the benchmark with the shared exit criterion, discovered greater than zero (forecast: Unit and Lease via P1a) and mis-bound exactly zero. (3) E3 is not one lump: it is three separate type-system decisions, associations, enums, and inexact numerics, each with its own design argument before any code (see phase E3 below).
 
-### Phase E3: Associations (entity-typed fields)
+### Phase E3: Type-system decisions (design half done 2026-07-02; three rules pending ratification)
+
+Per the ratified decision above, E3 is not one lump: it is three separate type-system decisions, each with its own design argument, rule text, and refusal behavior, designed before any code. They may share one build session. The designs are in Volume 5, sections 4.4 to 4.6, from a full field census of the 24 extraction-blocked entities (the census corrected E1's first-cause split: 20 association fields on 15 entities, 21 enum fields on 13, 8 `Double` fields on 7).
+
+| Decision | Rule (designed, pending ratification) | Clears alone | Evidence highlight |
+|---|---|---|---|
+| (a) Associations | Pure provider mapping onto the existing IR, no growth: `@ManyToOne` and `@OneToOne` fields whose type resolves in-tree to an `@Entity` map to `ENTITY_REF` plus a deduplicated `Relation`; to-many and embeddables deferred (zero exist in the app); undeclared or unresolvable kinds refuse (Volume 5, section 4.4) | 8 of 24 | Every association in the app is `@ManyToOne` to an in-tree entity; `UserRole` has an `@Id @ManyToOne` field, so field mapping and read eligibility are kept separate |
+| (b) Enums | STRING plus an `enum` annotation carrying the constant names, no IR growth; enum-ness proven by finding the in-tree declaration, never by name; unresolvable types keep refusing (Volume 5, section 4.5) | 5 of 24 | `User.status` is an entity, `Lease.status` is an enum: same naming pattern, different structure, so names carry nothing |
+| (c) Inexact numerics | FLOAT enters the closed set as flagged, deliberate IR growth (Volume 4, section 4 growth note); the exact-inexact line stays hard, and a FLOAT id forms no read intent (Volume 5, section 4.6) | 2 of 24 | The census flipped this decision: 8 `Double` fields on 7 entities, gating both joint-exit targets; refusal would make the ratified joint exit unachievable |
 
 | Field | Detail |
 |---|---|
-| Goal | A deliberate modeling decision for entity fields whose type is another entity, then its implementation. The IR already defines `ENTITY_REF` and `Relation` (Volume 4, sections 3.5 and 4), so this is primarily a provider mapping decision: represent the association as a reference, or skip the field explicitly, never coerce it into a primitive. The decision is recorded (in Volume 5, and as an ADR if it constrains future providers) before the extractor changes |
-| Evidence | Trial gap 3: all 4 property-module entities failed loudly at the first association field (`Building.property` of type `Property`). Real domain entities have relationships; the extractor currently has no answer for them except a correct, loud refusal |
-| Exit criterion | The property module's entities extract on pms-backend, with association fields either mapped or explicitly skipped per the recorded decision, and zero mis-bindings |
+| Evidence | Trial gap 3 plus the E1 sub-findings, now fully counted (Volume 5, section 4.4.1). All three decisions together clear all 24 UNMAPPED_FIELD_TYPE entities; any subset clears fewer (the census gives the per-combination math) |
+| Exit criterion (E3 build) | All 24 extraction-blocked entities extract on pms-backend with full shapes: 19 unique MANY_TO_ONE relations, enum value sets carried as annotations, FLOAT fields present; every remaining refusal is a located message naming the field and the deferred shape; zero mis-bindings. Discovered stays 0 until E2 lands (forecast: experiment doc, section 8.3) |
+| Joint exit (E3 plus E2, ratified) | Discovered greater than zero (forecast: exactly 2, getUnit and getLease via P1a) and mis-bound exactly 0 (forecast detail: experiment doc, section 8.3) |
 
 ### Phase E4: List, filter, and multi-argument reads
 
