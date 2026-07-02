@@ -223,7 +223,7 @@ Three properties make the survey survive real source (phase E1):
 
 Every entity the survey parses receives exactly one outcome: discovered, or failed with one located cause (`UNMAPPED_FIELD_TYPE`, `NO_IDENTIFIER`, `NO_BACKING_METHOD`, or `AMBIGUOUS_BINDING`). A mis-binding, a wrong capability, cannot appear, because the discovery rule emits only on an exact single-shape match; the survey states a mis-bound count and it is zero by construction. What phase E1 deliberately does not do: it adds no discovery power. Discovered stays where it was until DTO-aware matching (section 4.2, phase E2) and later phases open it.
 
-### 4.4 Associations: entity-typed fields (E3 decision a; designed 2026-07-02, pending ratification)
+### 4.4 Associations: entity-typed fields (E3 decision a; designed and RATIFIED 2026-07-02)
 
 #### 4.4.1 Evidence: the full field census of the 24 blocked entities
 
@@ -268,7 +268,7 @@ Pre-registered fixtures for the build session: A1, `@ManyToOne` to an in-tree en
 
 Benchmark effect of (a) alone: 8 of 24 entities clear extraction (7 move to NO_BACKING_METHOD; UserRole moves to the identifier cause once section 4.2 condition 0 is built, and to NO_BACKING_METHOD in the interim). Contributes to clearing 15 of 24 in combination. Expected new relations in the benchmark IR once all three decisions land: 19 unique MANY_TO_ONE relations. New cause codes: none; refusals stay UNMAPPED_FIELD_TYPE with enriched messages.
 
-### 4.5 Enums (E3 decision b; designed 2026-07-02, pending ratification)
+### 4.5 Enums (E3 decision b; designed and RATIFIED 2026-07-02)
 
 #### 4.5.1 Evidence
 
@@ -295,7 +295,7 @@ Pre-registered fixtures: B1, an in-tree enum field with `@Enumerated(EnumType.ST
 
 Benchmark effect of (b) alone: 5 of 24 entities clear extraction (all move to NO_BACKING_METHOD). Contributes to clearing 13 of 24 in combination. New cause codes: none.
 
-### 4.6 Inexact numerics (E3 decision c; designed 2026-07-02, pending ratification)
+### 4.6 Inexact numerics (E3 decision c; designed and RATIFIED 2026-07-02)
 
 #### 4.6.1 Evidence, and why this decision grew
 

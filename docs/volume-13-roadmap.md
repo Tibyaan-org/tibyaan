@@ -63,9 +63,9 @@ Design finding on the exit criterion, recorded plainly rather than silently edit
 
 Ratified, 2026-07-02: (1) the Volume 5, section 4.2 rule stands as written, conditions 0 through 10, the ENTITY_REF-plus-view-annotation representation, fixtures F1 to F12, and the deferred patterns (P1b, P2, facades, non-pk reads). (2) Sequencing: E3 is designed and built before the E2 build; E2 and E3 are then measured jointly against the benchmark with the shared exit criterion, discovered greater than zero (forecast: Unit and Lease via P1a) and mis-bound exactly zero. (3) E3 is not one lump: it is three separate type-system decisions, associations, enums, and inexact numerics, each with its own design argument before any code (see phase E3 below).
 
-### Phase E3: Type-system decisions (design half done 2026-07-02; three rules pending ratification)
+### Phase E3: Type-system decisions (three rules RATIFIED 2026-07-02; build in progress)
 
-Per the ratified decision above, E3 is not one lump: it is three separate type-system decisions, each with its own design argument, rule text, and refusal behavior, designed before any code. They may share one build session. The designs are in Volume 5, sections 4.4 to 4.6, from a full field census of the 24 extraction-blocked entities (the census corrected E1's first-cause split: 20 association fields on 15 entities, 21 enum fields on 13, 8 `Double` fields on 7).
+Per the ratified decision above, E3 is not one lump: it is three separate type-system decisions, each with its own design argument, rule text, and refusal behavior, designed before any code and ratified 2026-07-02, including the FLOAT growth and the growth bar recorded in Volume 4. They share one build session. The designs are in Volume 5, sections 4.4 to 4.6, from a full field census of the 24 extraction-blocked entities (the census corrected E1's first-cause split: 20 association fields on 15 entities, 21 enum fields on 13, 8 `Double` fields on 7).
 
 | Decision | Rule (designed, pending ratification) | Clears alone | Evidence highlight |
 |---|---|---|---|
