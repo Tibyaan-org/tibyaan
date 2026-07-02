@@ -1,0 +1,41 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "pms-backend API",
+    "version": "0.1"
+  },
+  "paths": {
+    "/unit/{id}": {
+      "get": {
+        "operationId": "getUnit",
+        "summary": "Read Unit by id. Returns the UnitVTO view of Unit.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The Unit read by id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Returns UnitVTO, a view of Unit; the concrete field shape of UnitVTO is not modeled, so this schema does not enumerate its fields.",
+                  "additionalProperties": true,
+                  "x-tibyan-view": "UnitVTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

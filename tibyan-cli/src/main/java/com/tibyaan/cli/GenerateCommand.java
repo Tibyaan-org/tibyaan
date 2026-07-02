@@ -1,6 +1,7 @@
 package com.tibyaan.cli;
 
 import com.tibyaan.backend.mcp.McpBackend;
+import com.tibyaan.backend.openapi.OpenApiBackend;
 import com.tibyaan.core.ir.Capability;
 import com.tibyaan.core.ir.CapabilityModel;
 import com.tibyaan.core.semantic.ValidationException;
@@ -21,7 +22,7 @@ import java.util.stream.Collectors;
 @Command(name = "generate", description = "Generate a backend from an IR file, or by scanning a path.")
 final class GenerateCommand implements Callable<Integer> {
 
-    @Option(names = "--backend", required = true, paramLabel = "<backend>", description = "Backend to generate (mcp).")
+    @Option(names = "--backend", required = true, paramLabel = "<backend>", description = "Backend to generate (mcp, openapi).")
     String backend;
 
     @Option(names = "--ir", paramLabel = "<ir.json>", description = "IR JSON file to read.")
@@ -37,8 +38,8 @@ final class GenerateCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
-        if (!"mcp".equals(backend)) {
-            System.err.println("Unknown backend: " + backend + " (supported: mcp)");
+        if (!"mcp".equals(backend) && !"openapi".equals(backend)) {
+            System.err.println("Unknown backend: " + backend + " (supported: mcp, openapi)");
             return 1;
         }
         try {
@@ -46,6 +47,17 @@ final class GenerateCommand implements Callable<Integer> {
             if (model == null) {
                 System.err.println("Provide --ir <file> or a <path> to scan");
                 return 1;
+            }
+            if ("openapi".equals(backend)) {
+                compiler.generate(new OpenApiBackend(), model, new GenerationContext(out));
+                System.out.println("Validation: ok");
+                System.out.println("Backend: openapi");
+                int operations = model.capabilities().size();
+                System.out.println("Generated " + operations + " " + (operations == 1 ? "operation" : "operations")
+                        + " (" + toolNames(model) + ")");
+                System.out.println("Wrote files to " + out
+                        + " (document: " + out.resolve("openapi.json") + ")");
+                return 0;
             }
             compiler.generate(new McpBackend(), model, new GenerationContext(out));
             System.out.println("Validation: ok");

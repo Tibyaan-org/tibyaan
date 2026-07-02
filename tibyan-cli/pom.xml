@@ -21,10 +21,10 @@
 
     <!--
       The CLI is the composition root. It depends on the pipeline (which it calls) and on the
-      concrete plugins it offers, the Spring provider and the MCP backend, so it can construct
-      them and inject them into the interface-only pipeline. This is the standard alternative to
-      SPI discovery (Volume 12), which is deferred to the plugin-system phase because it would
-      require changing the plugin API and the plugin modules.
+      concrete plugins it offers, the Spring provider and the MCP and OpenAPI backends, so it can
+      construct them and inject them into the interface-only pipeline. This is the standard
+      alternative to SPI discovery (Volume 12), which is deferred to the plugin-system phase because
+      it would require changing the plugin API and the plugin modules.
     -->
     <dependencies>
         <dependency>
@@ -40,6 +40,11 @@
         <dependency>
             <groupId>com.tibyaan</groupId>
             <artifactId>tibyan-backend-mcp</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.tibyaan</groupId>
+            <artifactId>tibyan-backend-openapi</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

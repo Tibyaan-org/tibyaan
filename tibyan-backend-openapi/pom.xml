@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.tibyaan</groupId>
+        <artifactId>tibyaan</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>tibyan-backend-openapi</artifactId>
+    <name>Tibyaan Backend OpenAPI</name>
+    <description>Turns the Capability IR into an OpenAPI 3.0 document. Reads only the IR, never a framework or a service.</description>
+
+    <!--
+      Volume 6 rule 2 and Volume 12 section 5: a backend depends on tibyan-plugin-api and
+      tibyan-core only. It never depends on a provider, never on a runtime, and never calls a
+      framework. The document is written by a small deterministic JSON writer (no serialization
+      library reaches the backend), so golden-file output is exact. swagger-parser is test-scope
+      only: it validates the generated documents against the OpenAPI 3.x schema at build time.
+    -->
+    <dependencies>
+        <dependency>
+            <groupId>com.tibyaan</groupId>
+            <artifactId>tibyan-plugin-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.tibyaan</groupId>
+            <artifactId>tibyan-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.swagger.parser.v3</groupId>
+            <artifactId>swagger-parser</artifactId>
+            <version>2.1.22</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>
