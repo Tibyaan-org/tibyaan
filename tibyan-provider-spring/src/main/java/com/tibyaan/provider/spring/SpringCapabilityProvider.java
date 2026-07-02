@@ -7,8 +7,10 @@ import com.github.javaparser.ParserConfiguration.LanguageLevel;
 import com.github.javaparser.Problem;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
+import com.tibyaan.core.ir.Annotation;
 import com.tibyaan.core.ir.BindingRef;
 import com.tibyaan.core.ir.Capability;
+import com.tibyaan.core.ir.CapabilityKind;
 import com.tibyaan.core.ir.CapabilityModel;
 import com.tibyaan.core.ir.Entity;
 import com.tibyaan.core.ir.Metadata;
@@ -19,10 +21,14 @@ import com.tibyaan.plugin.SourceAnalyzer;
 import com.tibyaan.provider.spring.EntityOutcome.Cause;
 import com.tibyaan.provider.spring.extractors.EntityExtractor;
 import com.tibyaan.provider.spring.extractors.ExtractedEntity;
+import com.tibyaan.provider.spring.extractors.MatchResult;
 import com.tibyaan.provider.spring.extractors.ReadIntent;
+import com.tibyaan.provider.spring.extractors.RepositoryCatalog;
 import com.tibyaan.provider.spring.extractors.ServiceExtractor;
 import com.tibyaan.provider.spring.extractors.ServiceMethod;
+import com.tibyaan.provider.spring.extractors.ServiceMethodSource;
 import com.tibyaan.provider.spring.extractors.TypeRegistry;
+import com.tibyaan.provider.spring.extractors.ViewReadMatcher;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -98,7 +104,9 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
             throw new ProviderException("failed to parse " + first.path() + ": " + first.reason());
         }
         for (EntityOutcome outcome : report.entityOutcomes()) {
-            if (outcome.status() == EntityOutcome.Status.FAILED && outcome.cause() != Cause.NO_IDENTIFIER) {
+            if (outcome.status() == EntityOutcome.Status.FAILED
+                    && outcome.cause() != Cause.NO_IDENTIFIER
+                    && outcome.cause() != Cause.COMPOSITE_KEY) {
                 throw new ProviderException(outcome.detail());
             }
         }
@@ -119,15 +127,19 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
 
         ParseResults parsed = parseJavaSources(sourceRoot);
         TypeRegistry registry = TypeRegistry.from(parsed.units());
-        List<ServiceMethod> serviceMethods = serviceExtractor.discover(parsed.units());
+        RepositoryCatalog repositories = RepositoryCatalog.from(parsed.units());
+        ViewReadMatcher viewMatcher = new ViewReadMatcher(repositories, typeMapper);
+        List<ServiceMethodSource> serviceSources = serviceExtractor.sources(parsed.units());
+        int skipCount = parsed.skips().size();
 
         List<Entity> entities = new ArrayList<>();
         List<Capability> capabilities = new ArrayList<>();
         List<EntityOutcome> outcomes = new ArrayList<>();
         List<Relation> relations = new ArrayList<>();
 
+        Discovery discovery = new Discovery(serviceSources, viewMatcher, skipCount);
         for (ClassOrInterfaceDeclaration type : entityExtractor.entityTypes(parsed.units())) {
-            classifyEntity(type, registry, serviceMethods, entities, capabilities, relations, outcomes);
+            classifyEntity(type, registry, discovery, entities, capabilities, relations, outcomes);
         }
 
         CapabilityModel model = new CapabilityModel(
@@ -148,12 +160,13 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
                 .toList();
     }
 
-    // One entity's journey through extraction and binding discovery, recording a single outcome.
-    // Each step that fails records a located reason and stops for this entity; the scan continues.
+    // One entity's journey through extraction, eligibility, and binding discovery, recording a
+    // single outcome. Each step that fails records a located reason and stops for this entity; the
+    // scan continues (phase E1).
     private void classifyEntity(
             ClassOrInterfaceDeclaration type,
             TypeRegistry registry,
-            List<ServiceMethod> serviceMethods,
+            Discovery discovery,
             List<Entity> entities,
             List<Capability> capabilities,
             List<Relation> relations,
@@ -170,6 +183,13 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
         entities.add(extracted.entity());
         relations.addAll(extracted.relations());
 
+        // Condition 0: a composite key forms no read intent and is never read by part of its key.
+        if (entityExtractor.hasCompositeKey(type)) {
+            outcomes.add(EntityOutcome.failed(
+                    entityName, Cause.COMPOSITE_KEY, entityExtractor.compositeKeyReason(type)));
+            return;
+        }
+
         Optional<ReadIntent> intent = entityExtractor.readIntent(type);
         if (intent.isEmpty()) {
             outcomes.add(EntityOutcome.failed(
@@ -177,77 +197,141 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
             return;
         }
 
-        List<ServiceMethod> matches = matchesFor(intent.get(), serviceMethods);
-        if (matches.isEmpty()) {
-            outcomes.add(EntityOutcome.failed(
-                    entityName, Cause.NO_BACKING_METHOD, noBackingMethodMessage(intent.get(), serviceMethods)));
-            return;
-        }
-        if (matches.size() > 1) {
-            outcomes.add(EntityOutcome.failed(
-                    entityName, Cause.AMBIGUOUS_BINDING, ambiguousBindingMessage(intent.get(), matches)));
-            return;
-        }
-
-        Capability capability = buildCapability(intent.get(), matches.get(0));
-        capabilities.add(capability);
-        outcomes.add(EntityOutcome.discovered(
-                entityName, capability.name(), capability.binding().value()));
+        outcomes.add(discovery.discover(intent.get(), capabilities));
     }
 
-    // The join (Volume 5 section 4.1): the @Service methods whose shape backs this read. Discovery
-    // is by shape, never by name; zero or many is a loud failure upstream, never a guessed binding.
-    private List<ServiceMethod> matchesFor(ReadIntent intent, List<ServiceMethod> serviceMethods) {
-        List<ServiceMethod> matches = new ArrayList<>();
-        for (ServiceMethod method : serviceMethods) {
-            if (backsRead(method, intent)) {
-                matches.add(method);
+    // The candidate pool (Volume 5 section 4.2, condition 10): 4.1 entity-returning and 4.2
+    // view-returning candidates pool with no precedence. Exactly one discovers; zero refuses with
+    // near-misses named; more than one is ambiguous. The provider never picks.
+    private final class Discovery {
+
+        private final List<ServiceMethodSource> serviceSources;
+        private final ViewReadMatcher viewMatcher;
+        private final int skipCount;
+
+        Discovery(List<ServiceMethodSource> serviceSources, ViewReadMatcher viewMatcher, int skipCount) {
+            this.serviceSources = serviceSources;
+            this.viewMatcher = viewMatcher;
+            this.skipCount = skipCount;
+        }
+
+        EntityOutcome discover(ReadIntent intent, List<Capability> capabilities) {
+            List<Candidate> candidates = new ArrayList<>();
+            List<String> nearMisses = new ArrayList<>();
+            for (ServiceMethodSource source : serviceSources) {
+                evaluate(source, intent, candidates, nearMisses);
+            }
+
+            if (candidates.size() == 1) {
+                Candidate winner = candidates.get(0);
+                Capability capability = buildCapability(intent, winner);
+                capabilities.add(capability);
+                return EntityOutcome.discovered(intent.entityName(), discoveredDetail(capability, winner));
+            }
+            if (candidates.isEmpty()) {
+                return EntityOutcome.failed(intent.entityName(), Cause.NO_BACKING_METHOD,
+                        noBackingMethodMessage(intent, serviceSources, nearMisses, skipCount));
+            }
+            return EntityOutcome.failed(intent.entityName(), Cause.AMBIGUOUS_BINDING,
+                    ambiguousBindingMessage(intent, candidates));
+        }
+
+        // Conditions 1 to 3 frame every candidate; a return equal to the entity is a section 4.1
+        // (entity-returning) candidate, and any other non-void return is evaluated as a section 4.2
+        // (view-returning) candidate. A 4.2 method that passed 1 to 3 but failed later is a near miss.
+        private void evaluate(ServiceMethodSource source, ReadIntent intent,
+                              List<Candidate> candidates, List<String> nearMisses) {
+            ServiceMethod method = source.method();
+            if (method.parameterTypes().size() != 1) {
+                return;
+            }
+            Optional<Type> parameterType = typeMapper.map(method.parameterTypes().get(0));
+            if (parameterType.isEmpty() || !parameterType.get().equals(intent.idType())) {
+                return;
+            }
+            if (method.returnTypeSimpleName().equals("void")) {
+                return;
+            }
+            if (method.returnTypeSimpleName().equals(intent.entityName())) {
+                candidates.add(new Candidate(method.toBinding(), null,
+                        "returns the entity " + intent.entityName() + " directly (section 4.1)"));
+                return;
+            }
+            MatchResult result = viewMatcher.evaluate(source.declaration(), source.service(), intent);
+            if (result.matched()) {
+                candidates.add(new Candidate(method.toBinding(), result.view(), result.explanation()));
+            } else {
+                nearMisses.add(method.signature() + ": " + result.reason());
             }
         }
-        return matches;
     }
 
-    private Capability buildCapability(ReadIntent intent, ServiceMethod method) {
-        BindingRef binding = new BindingRef(method.toBinding());
+    // A backing candidate: its binding, the view type simple name (null when entity-returning), and
+    // the structural explanation (section 4.2.3).
+    private record Candidate(String binding, String view, String explanation) {
+    }
+
+    private Capability buildCapability(ReadIntent intent, Candidate candidate) {
+        BindingRef binding = new BindingRef(candidate.binding());
         Map<String, Type> inputs = new LinkedHashMap<>();
         inputs.put(intent.idInputName(), intent.idType());
-        return Capability.read(
-                intent.capabilityName(), inputs, Type.entityRef(intent.entityName()), binding);
+        Type output = Type.entityRef(intent.entityName());
+        if (candidate.view() == null) {
+            return Capability.read(intent.capabilityName(), inputs, output, binding);
+        }
+        // Section 4.2.5: output stays ENTITY_REF(E); the view's concrete shape is recorded as a hint.
+        List<Annotation> annotations = List.of(new Annotation("view", List.of(candidate.view())));
+        return new Capability(intent.capabilityName(), CapabilityKind.READ, inputs, output, true,
+                binding, annotations);
     }
 
-    // The matching rule, in shapes not names (Volume 5 section 4.1): the method returns the
-    // entity, and takes exactly one parameter whose type maps to the entity's id type. The owning
-    // class being a @Service and the method being public are already guaranteed by the catalog.
-    private boolean backsRead(ServiceMethod method, ReadIntent intent) {
-        if (!method.returnTypeSimpleName().equals(intent.entityName())) {
-            return false;
+    private static String discoveredDetail(Capability capability, Candidate candidate) {
+        String base = capability.name() + " -> " + capability.binding().value();
+        if (candidate.view() != null) {
+            base += " (view " + candidate.view() + ")";
         }
-        if (method.parameterTypes().size() != 1) {
-            return false;
-        }
-        Optional<Type> parameterType = typeMapper.map(method.parameterTypes().get(0));
-        return parameterType.isPresent() && parameterType.get().equals(intent.idType());
+        return base + "; " + candidate.explanation();
     }
 
-    private static String noBackingMethodMessage(ReadIntent intent, List<ServiceMethod> serviceMethods) {
-        String seen = serviceMethods.isEmpty()
+    // Section 4.2.4: zero candidates stays NO_BACKING_METHOD, listing the @Service methods seen and,
+    // added here, the near-misses (methods that passed conditions 1 to 3 but failed a later one) and
+    // the count of unparseable files, so an absence of candidates is never mistaken for an absence of
+    // code. The binding is discovered, not assumed.
+    private static String noBackingMethodMessage(ReadIntent intent, List<ServiceMethodSource> sources,
+                                                 List<String> nearMisses, int skipCount) {
+        String seen = sources.isEmpty()
                 ? "no @Service methods were found"
                 : "the @Service methods found were "
-                        + serviceMethods.stream().map(ServiceMethod::signature).toList();
-        return "no service method backs read capability '" + intent.capabilityName()
-                + "' for entity '" + intent.entityName() + "'. Looked for a public method on an "
-                + "@Service class whose return type is '" + intent.entityName()
-                + "' and whose single parameter maps to " + intent.idType().canonical() + "; "
-                + seen + ". The binding is discovered, not assumed: add or expose a finder of that "
-                + "shape, or this entity cannot be read.";
+                        + sources.stream().map(source -> source.method().signature()).toList();
+        StringBuilder message = new StringBuilder()
+                .append("no service method backs read capability '").append(intent.capabilityName())
+                .append("' for entity '").append(intent.entityName())
+                .append("'. Looked for a public @Service method taking a single parameter mapping to ")
+                .append(intent.idType().canonical())
+                .append(" that returns '").append(intent.entityName())
+                .append("' or a view derived from a by-primary-key load of it; ").append(seen).append(".");
+        if (!nearMisses.isEmpty()) {
+            message.append(" Near misses: ").append(nearMisses).append(".");
+        }
+        if (skipCount > 0) {
+            message.append(" Note: ").append(skipCount).append(" source file(s) could not be parsed and "
+                    + "were skipped; a backing method may live in one of them.");
+        }
+        message.append(" The binding is discovered, not assumed: add or expose a finder of that shape, "
+                + "or this entity cannot be read.");
+        return message.toString();
     }
 
-    private static String ambiguousBindingMessage(ReadIntent intent, List<ServiceMethod> matches) {
+    private static String ambiguousBindingMessage(ReadIntent intent, List<Candidate> candidates) {
+        List<String> labelled = candidates.stream()
+                .map(candidate -> candidate.binding()
+                        + (candidate.view() == null ? " (entity-returning)" : " (view-returning "
+                                + candidate.view() + ")"))
+                .toList();
         return "read capability '" + intent.capabilityName() + "' for entity '" + intent.entityName()
-                + "' is backed by more than one service method: "
-                + matches.stream().map(ServiceMethod::signature).toList()
+                + "' is backed by more than one candidate: " + labelled
                 + ". The backing method must be unambiguous; the provider will not guess. "
-                + "Disambiguate the service API so exactly one method has this shape.";
+                + "Disambiguate the service API so exactly one method backs this read.";
     }
 
     // Collect-and-continue (phase E1): parse every walked file at the source's language level; a

@@ -44,6 +44,7 @@ public final class EntityExtractor {
 
     private static final String ENTITY_ANNOTATION = "Entity";
     private static final String ID_ANNOTATION = "Id";
+    private static final String EMBEDDED_ID_ANNOTATION = "EmbeddedId";
     private static final String TRANSIENT_ANNOTATION = "Transient";
     private static final String COLUMN_ANNOTATION = "Column";
     private static final String NULLABLE_ANNOTATION = "Nullable";
@@ -164,10 +165,57 @@ public final class EntityExtractor {
         return new Field(fieldName, Primitive.STRING, nullable, List.of(values));
     }
 
+    // Eligibility (section 4.2, condition 0): an entity with an @EmbeddedId, or with more than one
+    // @Id field, has a composite key. It forms no read intent and is never read by part of its key.
+    // This is separate from field mapping: an @Id association field still maps (section 4.4).
+    public boolean hasCompositeKey(ClassOrInterfaceDeclaration type) {
+        return idFieldCount(type) > 1 || hasEmbeddedId(type);
+    }
+
+    // A located reason for the composite-key refusal, naming what was seen (section 4.2.4).
+    public String compositeKeyReason(ClassOrInterfaceDeclaration type) {
+        String entityName = type.getNameAsString();
+        if (hasEmbeddedId(type)) {
+            return "entity '" + entityName + "' has an @EmbeddedId composite key, so it forms no "
+                    + "read-by-id capability and is never read by part of its key (Volume 5 "
+                    + "section 4.2, condition 0).";
+        }
+        List<String> idFields = new ArrayList<>();
+        for (FieldDeclaration declaration : type.getFields()) {
+            if (!isSkipped(declaration) && hasAnnotation(declaration, ID_ANNOTATION)) {
+                for (VariableDeclarator variable : declaration.getVariables()) {
+                    idFields.add(variable.getNameAsString());
+                }
+            }
+        }
+        return "entity '" + entityName + "' has a composite key: more than one @Id field " + idFields
+                + ". It forms no read-by-id capability and is never read by part of its key (Volume 5 "
+                + "section 4.2, condition 0).";
+    }
+
+    private static int idFieldCount(ClassOrInterfaceDeclaration type) {
+        int count = 0;
+        for (FieldDeclaration declaration : type.getFields()) {
+            if (!isSkipped(declaration) && hasAnnotation(declaration, ID_ANNOTATION)) {
+                count += declaration.getVariables().size();
+            }
+        }
+        return count;
+    }
+
+    private static boolean hasEmbeddedId(ClassOrInterfaceDeclaration type) {
+        for (FieldDeclaration declaration : type.getFields()) {
+            if (!isSkipped(declaration) && hasAnnotation(declaration, EMBEDDED_ID_ANNOTATION)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // The MVP read getX(id) needs the entity's identifier, the field marked @Id, mapped to a
     // bindable primitive (section 4.1). A FLOAT @Id forms no read intent: an inexact primary key is
     // not a lookup key the tool will bind (section 4.6, rule 4). Empty means no usable identifier;
-    // the provider turns that into a located outcome.
+    // the provider turns that into a located outcome. Callers check hasCompositeKey first.
     public Optional<ReadIntent> readIntent(ClassOrInterfaceDeclaration type) {
         Optional<VariableDeclarator> idField = firstIdField(type);
         if (idField.isEmpty()) {

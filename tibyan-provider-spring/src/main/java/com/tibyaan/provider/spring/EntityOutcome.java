@@ -36,6 +36,11 @@ public record EntityOutcome(String entityName, Status status, Cause cause, Strin
         UNMAPPED_FIELD_TYPE,
         /** The entity has no single {@code @Id} identifier, so no read-by-id is modeled (trial cause c). */
         NO_IDENTIFIER,
+        /**
+         * The entity has a composite key ({@code @EmbeddedId} or more than one {@code @Id}), so it
+         * forms no read intent and is never read by part of its key (Volume 5 section 4.2, condition 0).
+         */
+        COMPOSITE_KEY,
         /** No {@code @Service} method has the read-by-id shape that backs this entity (trial cause d). */
         NO_BACKING_METHOD,
         /** More than one {@code @Service} method backs this entity; the binding is ambiguous (cause e). */
@@ -53,9 +58,8 @@ public record EntityOutcome(String entityName, Status status, Cause cause, Strin
         detail = detail == null ? "" : detail;
     }
 
-    static EntityOutcome discovered(String entityName, String capabilityName, String binding) {
-        return new EntityOutcome(entityName, Status.DISCOVERED, Cause.NONE,
-                capabilityName + " -> " + binding);
+    static EntityOutcome discovered(String entityName, String detail) {
+        return new EntityOutcome(entityName, Status.DISCOVERED, Cause.NONE, detail);
     }
 
     static EntityOutcome failed(String entityName, Cause cause, String reason) {

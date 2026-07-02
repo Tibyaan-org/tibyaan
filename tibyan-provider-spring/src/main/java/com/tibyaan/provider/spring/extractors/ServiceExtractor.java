@@ -28,7 +28,16 @@ public final class ServiceExtractor {
 
     /** The catalog of public methods on every {@code @Service} class, in a deterministic order. */
     public List<ServiceMethod> discover(List<CompilationUnit> units) {
-        List<ServiceMethod> methods = new ArrayList<>();
+        return sources(units).stream().map(ServiceMethodSource::method).toList();
+    }
+
+    /**
+     * The same catalog, each entry carrying its declaration and owning class so the DTO-aware
+     * matcher can analyze method bodies (Volume 5 section 4.2). Deterministic order, so the same
+     * source always yields the same candidate lists and diagnostics (Volume 5 rule 3).
+     */
+    public List<ServiceMethodSource> sources(List<CompilationUnit> units) {
+        List<ServiceMethodSource> sources = new ArrayList<>();
         for (CompilationUnit unit : units) {
             for (ClassOrInterfaceDeclaration type : unit.findAll(ClassOrInterfaceDeclaration.class)) {
                 if (type.isInterface() || !hasAnnotation(type, SERVICE_ANNOTATION)) {
@@ -40,16 +49,15 @@ public final class ServiceExtractor {
                             || method.hasModifier(Modifier.Keyword.STATIC)) {
                         continue;
                     }
-                    methods.add(toServiceMethod(serviceName, method));
+                    sources.add(new ServiceMethodSource(toServiceMethod(serviceName, method), method, type));
                 }
             }
         }
-        // Sorted so the same source always yields the same catalog and the same diagnostics
-        // (Volume 5 rule 3).
-        methods.sort(Comparator.comparing(ServiceMethod::serviceSimpleName)
-                .thenComparing(ServiceMethod::methodName)
-                .thenComparing(ServiceMethod::signature));
-        return methods;
+        sources.sort(Comparator
+                .comparing((ServiceMethodSource s) -> s.method().serviceSimpleName())
+                .thenComparing(s -> s.method().methodName())
+                .thenComparing(s -> s.method().signature()));
+        return sources;
     }
 
     private static ServiceMethod toServiceMethod(String serviceName, MethodDeclaration method) {
