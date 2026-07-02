@@ -8,7 +8,7 @@
     <parent>
         <groupId>com.tibyaan</groupId>
         <artifactId>tibyaan</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>0.1.0</version>
     </parent>
 
     <artifactId>tibyan-backend-mcp</artifactId>

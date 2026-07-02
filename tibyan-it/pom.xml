@@ -8,12 +8,19 @@
     <parent>
         <groupId>com.tibyaan</groupId>
         <artifactId>tibyaan</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>0.1.0</version>
     </parent>
 
     <artifactId>tibyan-it</artifactId>
     <name>Tibyaan Integration Tests</name>
     <description>End-to-end test of the full path against the real example app. Test harness only.</description>
+
+    <!-- A test harness, never published (docs/RELEASING.md), and no sources or javadoc jars. -->
+    <properties>
+        <maven.deploy.skip>true</maven.deploy.skip>
+        <maven.source.skip>true</maven.source.skip>
+        <maven.javadoc.skip>true</maven.javadoc.skip>
+    </properties>
 
     <!--
       Volume 12: tibyan-it tests across modules end to end and is depended on by nothing. It runs

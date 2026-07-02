@@ -8,13 +8,23 @@
     <parent>
         <groupId>com.tibyaan</groupId>
         <artifactId>tibyaan</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>0.1.0</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
     <artifactId>legacy-spring-app</artifactId>
     <name>Legacy Spring App (Example)</name>
     <description>Example legacy Spring application for the technical spike</description>
+
+    <!-- An example app, never published (docs/RELEASING.md). It also builds no sources or javadoc
+         jars under the release profile: those are only for published artifacts, and an extra
+         non-runnable jar in this module's target would confuse the end-to-end test's launch of the
+         real app jar. -->
+    <properties>
+        <maven.deploy.skip>true</maven.deploy.skip>
+        <maven.source.skip>true</maven.source.skip>
+        <maven.javadoc.skip>true</maven.javadoc.skip>
+    </properties>
 
     <dependencies>
         <dependency>
