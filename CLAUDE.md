@@ -47,6 +47,8 @@ The one-phase-per-session rule remains in force for any future phase.
 9. No em dashes anywhere: code comments, docs, commit messages, output. Use commas or colons.
 10. Generation is deterministic and covered by golden-file tests. Same IR in, same files out.
 11. Branching: trunk-based. All phase work commits to the main branch. No per-phase branches.
+12. Ratification before build. For any design-then-build phase, the ratification records (the frozen design in the volumes) are committed before implementation begins, as E3 and E5 did. Committing the frozen design first guarantees the build implements the ratified rule, rather than the rule drifting to fit the build.
+13. Flag mid-build diagnostic amendments. A diagnostic-only improvement made during a build session, one that changes no matching outcome and only the wording or precision of a message, is permitted, but it must be flagged as an amendment in that session's summary, so ratified text and built behavior never silently diverge.
 
 ---
 
