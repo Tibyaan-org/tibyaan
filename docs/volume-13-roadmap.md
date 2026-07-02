@@ -92,6 +92,22 @@ Build outcome (2026-07-02): all three rules implemented exactly as ratified (FLO
 | Evidence | Trial gap 4: these shapes are the bulk of pms-backend's actual read API (`getAllByFilter` returning `TenantResultSet`, `List` returns, `getMyVendors(id, page, size)`). They rank after E1 to E3 only because parsing and DTO matching block the run before they are even reached; by volume of real capabilities they are large |
 | Exit criterion | At least one list or filter read discovered on pms-backend in each module where the source offers one, with zero mis-bindings, and the IR growth recorded in Volume 4 with its validators and golden-file tests |
 
+### Phase E5: Partial-model integrity (design half done 2026-07-02; three rules pending ratification)
+
+Evidence from the third app (erp-backend), not pms-backend: this phase is idiom-driven, and its leverage was invisible on the first benchmark. It is three separate rules, each argued in Volume 5 (sections 4.7 to 4.9), and it needs no IR growth (the growth bar held; the Annotation hook and a closure invariant suffice, Volume 4, section 7.1).
+
+| Decision | Rule (designed, pending ratification) | Effect |
+|---|---|---|
+| (1) Model closure | After extraction, drop every `ENTITY_REF` field and `Relation` whose target is not in the model, and disclose it; a validated model is then always producible whatever fraction extracted (Volume 5, section 4.7) | Unblocks generation. Acceptance: the 7 current erp discoveries generate, where the run now exits 2 |
+| (2) Field tolerance | A field the closed set and the association and enum rules cannot map is skipped with a note, and the entity extracts without it, rather than the field vetoing the entity; discovery is untouched (Volume 5, section 4.8) | The leverage: 9 erp entities with a good `findById` reach discovery via existing rule 4.1. Corrects the `byte[]` message and surfaces EmailTemplate's enum `@Id` as NO_IDENTIFIER |
+| (3) Survey contract | A discovered entity may be partial; the survey qualifies it and the benchmark row gains a `partial` dimension distinct from discovered and failed, so historical rows stay comparable and the metric is not gamed (Volume 5, section 4.9) | Keeps the health metric honest: discovered rising, mis-bound zero, with partiality disclosed |
+
+| Field | Detail |
+|---|---|
+| Evidence | erp-backend trial (docs/experiments/third-app-trial.md, sections 6 and 8): the dangling-reference finding blocked generation for all 7 valid discoveries; the field-veto finding blocked 13 entities on a single unmodeled field, 9 of which have a good `findById`. Verified from source this session |
+| Exit criterion | On erp-backend: `tibyan scan --out` writes a valid IR and `generate` produces a valid manifest (closure); discovered rises to 16 with mis-bound 0 (tolerance); the survey and the benchmark row disclose partial entities (contract). On pms-backend: unchanged (no tolerated field shapes, no absent entities), proving the phase is additive, not a regression. Forecasts, number by number, in the experiment doc section 10 |
+| Not this phase | This is not E4. No list-read modeling, no collection outputs, no new discovery rules; collections are skipped, not modeled |
+
 ### Deliberately not scheduled (from the trial's remaining causes)
 
 - Cause d, read with no backing service method (1 entity, audit): the current behavior, a loud refusal naming what was sought, may be the permanently correct answer. A write-heavy module yielding no read capability is honest, not a gap. Revisit only if evidence shows real reads being missed.

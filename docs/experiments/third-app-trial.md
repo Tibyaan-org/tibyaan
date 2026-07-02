@@ -260,3 +260,64 @@ never surfaces.
 The headline: the two benchmarks discover through disjoint rules. Neither app's discoveries would
 have been found by the rule the other app exercised. The union covers both; neither alone
 generalizes.
+
+---
+
+## 10. Partial-model integrity forecast (stated before the build, 2026-07-02)
+
+The partial-model integrity phase (Volume 5, sections 4.7 model closure, 4.8 field tolerance, 4.9
+the survey contract; designed, pending ratification) is forecast here number by number, so the build
+is measured against a stated prediction. These are projections and do not appear as run rows in the
+benchmark log until an actual run produces them.
+
+### 10.1 erp-backend forecast (after the build)
+
+Verified from source this session. All 25 entities extract once field tolerance stops a single
+unmodelable field from vetoing an entity, and model closure keeps the model valid.
+
+- Discovered: 16, up from 7, all via rule 4.1. The 7 current discoveries are unchanged (ContactType,
+  Account, Ticket, Truck, BarcodeType, Brand, Unit). Nine new, each with a hand-verified single
+  `public <Entity> findById(UUID id)`: Contact, Quote, ContactCategory, ContactGroup, Transaction,
+  Product, ProductCategory, ProductGroup, Payment. Rule 4.2 still fires zero times.
+- Failed: 9. NO_BACKING_METHOD 7: the current 4 (OutboundEmail, OutboundNotification, DeletedUser,
+  InventoryTransaction), plus SMSMessage and VariationGroup (extract now, but have no `findById`),
+  plus Delivery. Delivery has two independent reasons to refuse rule 4.2, both verified: its load is
+  a custom `@Query` (`deliveryRepository.findByIdWithRelationships`, not a framework by-primary-key
+  read, the P1b pattern on a direct Spring Data repository), and its mapping step `mapToDTO(delivery)`
+  is an implicit-this call on the service itself, not a resolvable mapper receiver. NO_IDENTIFIER 1:
+  EmailTemplate, whose enum-typed `@Id` surfaces now that its blocking `Map` field is tolerated.
+  AMBIGUOUS_BINDING 1: User, unchanged (`findById(String)` and `findByUsername(String)` still tie).
+- UNMAPPED_FIELD_TYPE: 0 (tolerance skips all). COMPOSITE_KEY: 0. Skipped-by-parse: 0.
+- Partial: 13 entities carry skipped fields, roughly two dozen field-skips in total (20 to-many
+  collections, 3 `@Embeddable Address`, 1 `byte[]`, and the exact total is a build-time count). Of the
+  13 partial, 9 are discovered-partial and 4 are failed-partial. The other 12 entities extract
+  complete and carry no partial note.
+- Generation: now succeeds for all 16 discoveries. `tibyan scan --out` writes a valid IR (closure
+  guarantees it), and `tibyan generate --backend mcp` produces a valid manifest, where before the run
+  exited 2 and generated nothing.
+- Mis-bound: exactly 0. The 9 new discoveries were verified from source to return the right entity by
+  its id; tolerance changed only whether they reached discovery, never how matching decided.
+
+Row: discovered 16, failed 9 (NO_BACKING_METHOD 7, NO_IDENTIFIER 1, AMBIGUOUS_BINDING 1),
+skipped-by-parse 0, partial 13, mis-bound 0. Total 16 plus 9 equals 25.
+
+The one named uncertainty: the exact skipped-field count (the "roughly two dozen") depends on how many
+unmapped fields each of the 13 entities carries and is confirmed only at build time; the partial
+entity count (13) and the discovered count (16) are firm from the source verification.
+
+### 10.2 pms-backend forecast (after the build)
+
+No movement, and the reason is concrete. After E3, all 43 pms-backend entities already extract
+(the E3-plus-E2 row shows zero UNMAPPED_FIELD_TYPE), because pms-backend has no to-many collection,
+no `@Embeddable`, no `byte[]`, and no unresolvable-type fields for tolerance to skip. And because all
+43 extract, no entity is absent, so model closure prunes nothing. The row is identical to the
+E3-plus-E2 row: discovered 2, failed 41 (NO_BACKING_METHOD 38, COMPOSITE_KEY 3), skipped-by-parse 27,
+partial 0, mis-bound 0. If any pms entity turns out to carry a tolerated field shape, its only effect
+would be a partial note, never a change in discovered or mis-bound; none is expected.
+
+### 10.3 The hard bar
+
+Unchanged and absolute: mis-bound exactly 0 on both apps. Tolerance and closure must never soften
+discovery: the 4.1 and 4.2 matching rules, eligibility, and the never-guess pooling are untouched, and
+a partial entity's discovery must bind to exactly the method it would have bound to with a complete
+shape. A single mis-binding on either benchmark stops all phase work.

@@ -61,6 +61,28 @@ $ tibyan validate --ir inventory.ir.json
 Validation: ok (1 entity, 1 capability, 0 relations)
 ```
 
+### 3.2 Partial entities in the survey (partial-model integrity, pending ratification)
+
+When an app extracts only in part, the provider skips fields it cannot map rather than vetoing the whole entity, and it closes the model by dropping references to entities that are absent (Volume 5, sections 4.7 to 4.9). An entity can therefore be discovered and still carry skipped fields; the survey discloses this. A discovered partial entity gains a qualifier, and the totals gain a partial dimension, distinct from discovered and failed so historical rows stay comparable:
+
+```text
+$ tibyan scan ./erp-backend
+Scanning ./erp-backend
+Provider: spring (entity and service extractors)
+Entities found (in parseable files): 25
+Discovered (16):
+  + getProduct -> ProductService#findById (partial: 3 fields skipped)
+  + getContactType -> ContactTypeServiceImpl#findById
+  ...
+Failed (9):
+  - EmailTemplate [NO_IDENTIFIER]: @Id 'type' is an enum, which maps to no bindable primitive.
+  - User [AMBIGUOUS_BINDING]: backed by more than one candidate ...
+  ...
+Totals: discovered 16, failed 9 (by cause: NO_BACKING_METHOD 7, NO_IDENTIFIER 1, AMBIGUOUS_BINDING 1), skipped-by-parse 0, partial 13 (23 fields skipped), mis-bound 0
+```
+
+The `discovered`, `failed`, `skipped-by-parse`, and `mis-bound` figures keep their historical meaning; `partial` is a new dimension that never inflates discovered and never masks a mis-binding. Absence of a qualifier means the entity's shape is complete.
+
 Writing an artifact is where strictness returns. With `--out`, the survey prints as above and then the discovered IR is validated before it is written; if it does not validate, nothing is written and the command exits 2, with the survey already shown:
 
 ```text
@@ -71,6 +93,8 @@ Validation: FAILED
   - <located validation error on the discovered IR>
 Exit code 2
 ```
+
+With model closure (Volume 5, section 4.7) a partial model is always valid, so `--out` writes it and generation succeeds even when the app extracted only in part; the exit-2 validation failure above is reserved for a genuinely malformed discovered IR, which closure makes far rarer.
 
 ### 3.1 The generated manifest is what the runtime hosts
 

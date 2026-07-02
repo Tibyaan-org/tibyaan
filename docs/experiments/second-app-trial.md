@@ -255,6 +255,14 @@ rule 4.2). erp-backend is the second standing benchmark: its entity-returning id
 4.1, and together the two apps stop any single phase from being tuned to one codebase. The health
 metric is unchanged: discovered rising while mis-bound stays exactly zero, on both apps.
 
+Methodology note, forward-looking (partial-model integrity, phase E5, pending ratification): once E5
+is built, a row gains a `partial N (M fields skipped)` figure alongside the existing columns. It is a
+new dimension, not a redefinition: `discovered`, `failed by cause`, `mis-bound`, and `skipped-by-parse`
+keep their historical meaning, so all rows above stay comparable. `partial` counts discovered-or-failed
+entities whose IR shape is incomplete because a field was skipped or a reference dropped; it never
+inflates `discovered` and never masks a mis-binding (Volume 5, section 4.9). The forecast rows for E5
+are in docs/experiments/third-app-trial.md, section 10.
+
 ### 8.1 Interpretation of the E1 run (2026-07-02)
 
 The E1 run is the first that survived this app end to end. It is run with the built CLI:
