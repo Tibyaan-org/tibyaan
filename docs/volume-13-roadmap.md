@@ -92,11 +92,13 @@ Build outcome (2026-07-02): all three rules implemented exactly as ratified (FLO
 | Evidence | Trial gap 4: these shapes are the bulk of pms-backend's actual read API (`getAllByFilter` returning `TenantResultSet`, `List` returns, `getMyVendors(id, page, size)`). They rank after E1 to E3 only because parsing and DTO matching block the run before they are even reached; by volume of real capabilities they are large |
 | Exit criterion | At least one list or filter read discovered on pms-backend in each module where the source offers one, with zero mis-bindings, and the IR growth recorded in Volume 4 with its validators and golden-file tests |
 
-### Phase E5: Partial-model integrity (design half done 2026-07-02; three rules pending ratification)
+### Phase E5: Partial-model integrity (RATIFIED 2026-07-02; build this session)
 
 Evidence from the third app (erp-backend), not pms-backend: this phase is idiom-driven, and its leverage was invisible on the first benchmark. It is three separate rules, each argued in Volume 5 (sections 4.7 to 4.9), and it needs no IR growth (the growth bar held; the Annotation hook and a closure invariant suffice, Volume 4, section 7.1).
 
-| Decision | Rule (designed, pending ratification) | Effect |
+Ratified 2026-07-02, all three rules as written: 4.7 model closure (drop-and-disclose, conditions 1 to 4, including condition 4's guarantee that a capability's output is never dropped or altered to force validity), 4.8 field tolerance (the five tolerated shapes, discovery untouched, the enum-@Id surfacing as NO_IDENTIFIER), and 4.9 the survey contract (the partial annotation via the existing hook, the survey qualifier, the additive benchmark column). Ratification rider: when any future backend emits entity field schemas (OpenAPI included), partiality must surface in that schema, a standing requirement inherited by that backend's design session (Volume 5, section 4.9).
+
+| Decision | Rule (ratified) | Effect |
 |---|---|---|
 | (1) Model closure | After extraction, drop every `ENTITY_REF` field and `Relation` whose target is not in the model, and disclose it; a validated model is then always producible whatever fraction extracted (Volume 5, section 4.7) | Unblocks generation. Acceptance: the 7 current erp discoveries generate, where the run now exits 2 |
 | (2) Field tolerance | A field the closed set and the association and enum rules cannot map is skipped with a note, and the entity extracts without it, rather than the field vetoing the entity; discovery is untouched (Volume 5, section 4.8) | The leverage: 9 erp entities with a good `findById` reach discovery via existing rule 4.1. Corrects the `byte[]` message and surfaces EmailTemplate's enum `@Id` as NO_IDENTIFIER |
