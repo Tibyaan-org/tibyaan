@@ -130,7 +130,9 @@ This tier is deliberately coarse: one short paragraph per item, no designs, no p
 | Security posture | Exposing tools from a legacy app respects the app's existing authentication and authorization (Volume 2, NFR-S1), with a stated stance on transport security and on which capabilities are exposed at all |
 | Versioning and release | The starter and the Maven plugin are published to a public repository with a versioning discipline; the plugin API is the compatibility boundary (Volume 10, section 6) |
 | Adoptable documentation | An outsider can adopt Tibyan from the docs alone: add the dependency and the build plugin, build, connect an agent |
-| Deferred architecture closed | Real SPI plugin discovery replaces direct injection (Volume 10, section 2); a second backend proves the IR feeds more than one output; a second provider proves source neutrality |
+| Deferred architecture closed | Real SPI plugin discovery replaces direct injection (Volume 10, section 2); a second backend proves the IR feeds more than one output (DONE, see below); a second provider proves source neutrality |
+
+Record, moved from direction to done: the second backend proving IR reuse. The OpenAPI backend (`tibyan-backend-openapi`) was built 2026-07-02 (Volume 6, section 4). It turns the same Capability IR into a valid OpenAPI 3.0 document with zero change to the core, the plugin API, or any provider: the erp-backend IR renders 16 GET operations (with 13 partial entity schemas each disclosing its omitted fields) and the pms-backend IR renders 2 view operations (each declining to enumerate the view's fields), both validated against the OpenAPI 3.x schema. This is the one-IR-many-outputs claim, proven on real capabilities. It also discharged the E5 ratification rider (Volume 5, section 4.9): as the first backend to emit entity field schemas, it surfaces partiality in the schema. The OpenAPI backend for the Maven plugin, and the SDK, database-provider, and .NET items below, remain direction.
 
 The former P4 to P7 ambitions, now direction, each conditional on the semantic core proving itself first:
 

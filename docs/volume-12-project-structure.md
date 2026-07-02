@@ -20,6 +20,7 @@ tibyan/
 ├── tibyan-plugin-api/            # CapabilityProvider · Backend · ExecutionAdapter
 ├── tibyan-provider-spring/       # JavaParser + Entity and Service extractors (the rest are placeholders)
 ├── tibyan-backend-mcp/           # IR -> MCP tools (talks to ExecutionAdapter)
+├── tibyan-backend-openapi/       # IR -> OpenAPI 3.0 document (the second backend, IR-reuse proof)
 ├── tibyan-runtime-spring/        # Spring Boot starter:
 │                                 #   MVP:   auto-config + tool registration + bean access + run MCP
 │                                 #   later: discovery · health · observability · lifecycle
@@ -110,6 +111,7 @@ Later modules slot in without changing anything above: `tibyan-backend-openapi`,
 | tibyan-plugin-api | Define CapabilityProvider, Backend, ExecutionAdapter | Depend on any concrete provider, backend, or runtime |
 | tibyan-provider-spring | Read Spring source and produce IR | Depend on any backend or runtime; produce any output |
 | tibyan-backend-mcp | Turn IR into MCP server code | Know the source; call a framework directly; depend on a runtime |
+| tibyan-backend-openapi | Turn IR into an OpenAPI 3.0 document | Know the source; call a framework directly; depend on a runtime or another backend |
 | tibyan-runtime-spring | Host the generated layer and bind to real beans | Contain IR or generation logic |
 | tibyan-pipeline | Orchestrate provide, validate, generate | Contain provider, backend, or runtime logic itself |
 | tibyan-cli | Parse commands and call the pipeline | Contain compiler logic |

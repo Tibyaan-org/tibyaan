@@ -257,6 +257,14 @@ rule 4.2). erp-backend is the second standing benchmark: its entity-returning id
 4.1, and together the two apps stop any single phase from being tuned to one codebase. The health
 metric is unchanged: discovered rising while mis-bound stays exactly zero, on both apps.
 
+Second-backend note (2026-07-02, no new benchmark row): both benchmark IRs now render to a valid
+OpenAPI 3.0 document through the new `tibyan-backend-openapi`, alongside the MCP manifest, proving the
+IR feeds more than one output with zero change to the core or any provider (Volume 6, section 4). The
+erp IR yields 16 GET operations (13 entity schemas disclosing their partial fields via
+`x-tibyan-partial`), and the pms IR yields 2 view operations (each declining to enumerate the view's
+fields via `x-tibyan-view`); both validate against the OpenAPI 3.x schema (swagger-parser). This is an
+output-side proof, not a scan, so discovery numbers are unchanged and no benchmark row is added.
+
 Methodology note, forward-looking (partial-model integrity, phase E5, pending ratification): once E5
 is built, a row gains a `partial N (M fields skipped)` figure alongside the existing columns. It is a
 new dimension, not a redefinition: `discovered`, `failed by cause`, `mis-bound`, and `skipped-by-parse`
