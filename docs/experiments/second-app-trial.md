@@ -282,6 +282,34 @@ fixed here, E1 is parse resilience only):
   not parse (its file is among the 27 skips) or returns a DTO or view type rather than the entity.
   Both are the E2 case: once the placeholder files are set aside and DTO-returning reads are matched,
   these are where discovery should first rise.
-- No entity reached NO_IDENTIFIER or AMBIGUOUS_BINDING here: the composite-key join entities
-  (EventAttendee, GroupMember, UserRole) fail earlier on an unmapped embedded-id or association type,
-  so cause c is latent behind UNMAPPED_FIELD_TYPE, not yet reached as its own verdict.
+- No entity reached NO_IDENTIFIER or AMBIGUOUS_BINDING here. Correction from the E2 design study
+  (2026-07-02): EventAttendee and GroupMember do not use `@EmbeddedId`; they use `@IdClass` with two
+  plain `@Id Long` fields, so they extracted cleanly, the first-`@Id` assumption formed a half-key
+  read intent for each, and both failed as NO_BACKING_METHOD (they are in the 19). Only UserRole hides
+  its composite key behind UNMAPPED_FIELD_TYPE (its `Role` association fails first). The half-key
+  intent is a latent mis-bind hazard: had a one-Long method matched, a composite-key entity would have
+  bound to part of its key. The E2 rule closes this with an eligibility condition (Volume 5,
+  section 4.2, condition 0).
+
+### 8.2 E2 expectation (stated forecast, 2026-07-02, before any build; not a run row)
+
+The E2 design session (the rule in Volume 5, section 4.2) pre-registers the following forecast, so
+the build is measured against a stated prediction rather than a moving target. These numbers are a
+projection and deliberately do not appear in the run table above; the build session appends the real
+run row and compares it to this.
+
+- After the E2 build alone: discovered 0, mis-bound 0, skipped-by-parse 27, failed 43 with a cause
+  shift: unmapped field type 24, no backing method 17, composite key 2 (EventAttendee and GroupMember
+  move to the new composite-key cause under the eligibility tightening). Discovered cannot rise
+  because none of the 19 has any single-id-parameter read in a parseable service: 15 have their whole
+  service layer among the 27 unparseable placeholder files, 2 are the composite-key join entities,
+  1 has an empty parsed service (AuditLog), and 1 has only a mutating counter method (DailyCounter).
+  What must visibly improve is diagnostics: near-miss reporting (which method came close and which
+  rule condition it failed) and skipped-file context on every NO_BACKING_METHOD message.
+- After E2 and E3 together (E3 clearing associations and enums so the census entities extract):
+  Unit and Lease flip to DISCOVERED through pattern P1a, each with exactly one candidate; predicted
+  discovered: up to 2, contingent on E3 clearing every field of those two entities. Tenant stays
+  refused with the named P1b near-miss (custom `@Query` terminal); Building, Property, and ChatRoom
+  stay refused as P2 (composite view assembly).
+- The hard bar, restated: mis-bound must be exactly 0 on every run. A single mis-binding stops all
+  phase work (Volume 13, section 5).
