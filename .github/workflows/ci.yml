@@ -1,0 +1,32 @@
+# Continuous integration for Tibyan.
+#
+# Runs the full reactor, including the end-to-end test (tibyan-it, EndToEndMcpIT), which boots a real
+# Spring context and a genuine MCP server on localhost. This is the same `mvn clean verify` that is
+# verified green locally; its first run on GitHub Actions is the human verification step. If the
+# end-to-end test proves environment-sensitive on a clean runner, scope this to the unit and golden
+# modules with `mvn -B -pl '!tibyan-it' clean verify` and keep the end-to-end test local-only
+# (docs/RELEASING.md section 5).
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Build and verify
+        run: mvn -B -ntp clean verify

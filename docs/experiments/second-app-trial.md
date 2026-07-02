@@ -1,5 +1,7 @@
 # Experiment: second real app trial (pms-backend)
 
+> The benchmark target is a private codebase, not committed to this repository (it is gitignored). This ledger is the published evidence: a stranger can read the numbers and the per-entity outcomes here without access to the source.
+
 Status: complete, and adopted as the standing benchmark (Volume 13, section 5). After each Tier 2
 phase, the tool is re-run against this app and section 8 below gains a dated entry with the new
 totals: discovered, failed loudly by cause, and mis-bound. Discovered rising while mis-bound stays

@@ -6,6 +6,8 @@
 
 This repository is the **single source of truth** for the project. It is written for contributors from anywhere in the world. Every architectural decision here is intentional and is justified in Volume 14 (Architecture Decision Records).
 
+> To **adopt** Tibyan (add it to your app and serve your capabilities), start at the [root README](../README.md), read [docs/SECURITY.md](SECURITY.md) before exposing anything, and see [docs/RELEASING.md](RELEASING.md) for the publish status. This hub is the **design** documentation: the reasoning behind what the tool does. Where the build actually stands is [docs/STATUS.md](STATUS.md).
+
 ---
 
 ## The one-sentence mission
