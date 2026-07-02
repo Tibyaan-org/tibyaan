@@ -54,6 +54,19 @@ The decision, smallest honest surface first:
 
 The IR, the provider, and the runtime do not change. The `view` field is additive; the runtime's manifest loader reads only the fields it knows (`name`, `description`, `binding`, `output`, `inputs`) and tolerates the unknown `view` field. That tolerance is made explicit on the runtime's manifest types so it does not depend on the host's Jackson configuration; the runtime's behavior is otherwise unchanged (it does not act on the view).
 
+### 3.3 Surfacing a list read (phase E4, designed 2026-07-02, pending ratification)
+
+A list capability carries `output: ENTITY_REF(E)` with `outputMultiple: true` (Volume 4, section 3.4; Volume 5, section 4.10). Without surfacing the multiplicity, the generated tool would tell its consumer `ENTITY_REF(E)`, hiding that the tool returns many E, not one. This subsection decides how the MCP backend surfaces it, in the same smallest-honest-surface spirit as the `view` field (section 3.1).
+
+- Manifest field (required). A tool entry for a capability with `outputMultiple: true` gains one field, `"outputMultiple": true`, placed immediately after `"output"`. It refines the output: `"output": "ENTITY_REF(Contact)"` names the element, `"outputMultiple": true` says the tool returns a collection of that element. A singular capability gets no such field at all, no `false` and no null, so every existing capability stays byte-identical.
+- Paged field (required when present). A capability carrying the `paged` annotation (Volume 5, section 4.10.3) gains a `"paged": true` field after `"outputMultiple"`. It is the machine half of the page-envelope disclosure; a list read whose terminal was the no-argument `findAll()` gets no `paged` field.
+- Description (added, and justified). The synthesized `"description"` for a list capability reads `List all Contact.`; for a paged one it reads `List all Contact. Returns a page of results; the total count and page envelope are not modeled.` The description is the surface most MCP clients show an agent directly, so leaving it silent about multiplicity or paging while the wire returns many, or a page envelope, reproduces the dishonesty this change closes. The clause is deterministic and appears only for the shape it describes.
+- One-off for `outputMultiple` and `paged`, not a generic passthrough. As with `view`, the backend surfaces the two annotations it understands how to present, not arbitrary IR annotations. A third understood annotation is a third deliberate decision here.
+
+The IR, the provider, and the runtime's contract do not change shape. The two new fields are additive; the runtime's manifest loader reads only the fields it acts on and tolerates the unknown `outputMultiple` and `paged` fields explicitly on its manifest types (the same `@JsonIgnoreProperties` tolerance the `view` field uses), so tolerance does not depend on the host's Jackson configuration.
+
+Runtime note, and the one deferred piece named honestly. To invoke a list read, `SpringExecutionAdapter` resolves the binding to the real bean and method as today, invokes it with no arguments for a no-parameter `findAll()`, and serializes the returned collection as a JSON array. When the method takes a `Pageable` (the paged shape), the adapter must supply one, and what `Pageable` to supply (an unpaged default, or a first page) is runtime paging behavior, which is explicitly out of phase E4's scope (Volume 13). Until that is designed, a no-argument list read is fully executable end to end, and a paged list read is discovered, modeled, and rendered by both backends but carries a deferred runtime invocation note (Volume 7, section 8). For a `Page` result the adapter serializes the page content (the elements), never the envelope, consistent with the IR modeling the element collection and disclosing the envelope rather than claiming it.
+
 ### 3.2 Future backends (direction)
 
 | Backend | Output | Note |
@@ -102,6 +115,17 @@ This is the first backend that emits entity field schemas, so it inherits the ra
 What this rule will never claim: a closed object (`additionalProperties: false`) for any response; a view's fields (it does not know them), nor the source entity's fields presented as the view's fields; a skipped or unmodeled field in `properties` or `required`; a partial entity's schema as the complete shape; or any field, type, format, or constraint the IR does not carry.
 
 The guiding test, restated: a view response says "I do not model these fields"; a partial entity says "these N fields are not represented"; a complete entity says "here are the modeled fields, and there may be more." A reader is never more confident than the IR.
+
+### 4.2 List operations (phase E4, designed 2026-07-02, pending ratification)
+
+This realizes the E4 seam recorded when the backend shipped (section 4): a list capability's output is an array whose items are the element schema. When the IR grows `outputMultiple` (Volume 4, section 3.4), the OpenAPI backend renders a list capability as follows, and the rendering is mechanical because the honesty machinery of section 4.1 already handles the element:
+
+1. Path and operation. A list capability has no id input, so its path is the collection path `/<resource>` (the output entity's name, first letter lowercased), with a GET whose `operationId` is the capability name (`listContact`). It has no path parameter and, in E4, no query parameters (paging is unmodeled, section 4.1's honesty rule forbids inventing them).
+2. The 200 response schema is `{type: array, items: <element schema>}`. The element schema is exactly what a singular capability of the same output would produce: for `output ENTITY_REF(E)` it is `{$ref: '#/components/schemas/E'}`, so E's component (with its partiality disclosure per section 4.1, condition 4) is the array's item type. A list of a partial entity is therefore an array whose items disclose their own omitted fields, with no new rule: the E5 rider rides along through the element.
+3. Paged disclosure. When the capability carries the `paged` annotation, the array response additionally carries `x-tibyan-paged: true` and a `description` clause: "The wire response is a page envelope; this schema models the element collection, not the page envelope." The array is not wrapped in a fabricated page object, because the IR does not model the envelope and section 4.1 forbids claiming a shape the IR does not carry. The array itself is never marked closed (`additionalProperties` does not apply to arrays, and the item object stays permissive per section 4.1).
+4. Filtered inputs do not arise. E4 discovers no filtered list read (Volume 5, section 4.10.2), so the backend renders no opaque filter parameters and makes no unverified "filter by X" claim. When filtered reads are modeled in a later phase, how their inputs render (a query parameter with a copied name, and whether the description states the semantics are not verified) is that phase's decision, inheriting this same honesty rule; it is named here, not designed here.
+
+What this will never claim: a page envelope shape the IR does not model (only an array of the element, plus a paged disclosure); a filter parameter the IR does not carry; or, through the array's items, any more than the element schema already honestly claims under section 4.1.
 
 ## 5. Templates and testing
 

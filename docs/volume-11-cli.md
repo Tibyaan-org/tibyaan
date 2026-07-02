@@ -83,6 +83,42 @@ Totals: discovered 16, failed 9 (by cause: NO_BACKING_METHOD 7, NO_IDENTIFIER 1,
 
 The `discovered`, `failed`, `skipped-by-parse`, and `mis-bound` figures keep their historical meaning; `partial` is a new dimension that never inflates discovered and never masks a mis-binding. Absence of a qualifier means the entity's shape is complete.
 
+### 3.3 List capabilities in the survey (phase E4, list reads, pending ratification)
+
+Until E4, an entity yielded at most one capability (a read-by-id), so `discovered` counted both capabilities and discovered entities at once. E4 breaks that one-to-one link: an entity can now yield a read-by-id and a list, a list and no read-by-id (for example when its identifier does not map, so `getEmailTemplate` fails but `listEmailTemplate` is clean), or several list candidates that refuse. The survey extends additively, and `discovered` stays a capability count, now split by kind so historical comparisons still hold:
+
+```text
+$ tibyan scan ./erp-backend
+...
+Discovered (25):
+  by-id (16):
+    + getContact -> ContactServiceImpl#findById (partial: 4 fields skipped)
+    ...
+  list (9):
+    + listContact -> ContactServiceImpl#findAll (paged)
+    + listEmailTemplate -> EmailTemplateServiceImpl#findAll (paged)
+    ...
+Failed (9):
+  - EmailTemplate [NO_IDENTIFIER]: @Id 'type' is an enum, which maps to no bindable primitive.
+  - User [AMBIGUOUS_BINDING]: backed by more than one candidate ...
+  ...
+List-refused (1):
+  - ProductCategory [LIST_AMBIGUOUS]: 2 list-all candidates: ProductCategoryServiceImpl#findAll(), #findAll(Pageable).
+Deferred list reads (not modeled in E4):
+  ~ ProductServiceImpl#findAll(Pageable): filtered or transformed body, deferred (filtered/view list reads).
+  ...
+Totals: discovered 25 (by-id 16, list 9), failed 9 (by cause: NO_BACKING_METHOD 6, NO_IDENTIFIER 1, AMBIGUOUS_BINDING 2), list-refused 1 (LIST_AMBIGUOUS), skipped-by-parse 0, partial 13, mis-bound 0
+```
+
+Note that `EmailTemplate` appears in both `list (9)` and `Failed (9)`: its list-all read is clean, so `listEmailTemplate` is discovered, while its by-id read fails NO_IDENTIFIER. This is exactly the decoupling E4 introduces, and it is why the two ledgers are kept on separate axes.
+
+The contract, stated so it is not a silent redefinition:
+
+- `discovered` remains the count of emitted capabilities. From E4 on it is annotated by kind, `discovered N (by-id A, list B)`, and `A` is directly comparable to the pre-E4 `discovered` figure, so every historical row stays readable. `A` plus `B` equals `N`. The `failed` figure keeps its historical meaning too: it counts failed by-id outcomes at the entity level, so `by-id A` plus `failed` still equals the entity count, and the by-id ledger stays a clean partition of the entities exactly as before E4.
+- A refused list candidate is either its own dimension or a named deferral, and neither disturbs the by-id `failed` count. A `LIST_AMBIGUOUS` (two or more list-all methods for one entity) is reported on a separate `list-refused` line and totalled separately, precisely so an entity that discovers by-id but has an ambiguous list (ProductCategory) is not double-counted against the entity partition. A filtered, view-returning, or transformed list read is out of E4 scope by design, not a failure of it, so it is reported per method under "Deferred list reads", never counted in `failed` or `list-refused` and never counted as a missed capability, exactly as 4.2's non-primary-key reads are named rather than failed.
+- The health metric is unchanged: discovered rising while mis-bound stays zero. `mis-bound` keeps its meaning, extended to lists: a list capability is mis-bound if it is bound to a method returning a collection of the wrong entity, or to a method that presents a filtered subset as the whole collection (Volume 5, section 4.10.9). Both are counted; either one stops all phase work.
+- A list capability may itself be partial, when its element entity is partial (its schema is incomplete). The `partial` dimension counts the entity once, as today; it is orthogonal to whether the entity yielded a by-id capability, a list capability, or both.
+
 Writing an artifact is where strictness returns. With `--out`, the survey prints as above and then the discovered IR is validated before it is written; if it does not validate, nothing is written and the command exits 2, with the survey already shown:
 
 ```text
