@@ -63,9 +63,11 @@ Design finding on the exit criterion, recorded plainly rather than silently edit
 
 Ratified, 2026-07-02: (1) the Volume 5, section 4.2 rule stands as written, conditions 0 through 10, the ENTITY_REF-plus-view-annotation representation, fixtures F1 to F12, and the deferred patterns (P1b, P2, facades, non-pk reads). (2) Sequencing: E3 is designed and built before the E2 build; E2 and E3 are then measured jointly against the benchmark with the shared exit criterion, discovered greater than zero (forecast: Unit and Lease via P1a) and mis-bound exactly zero. (3) E3 is not one lump: it is three separate type-system decisions, associations, enums, and inexact numerics, each with its own design argument before any code (see phase E3 below).
 
-### Phase E3: Type-system decisions (three rules RATIFIED 2026-07-02; build in progress)
+### Phase E3: Type-system decisions (three rules RATIFIED and BUILT 2026-07-02)
 
-Per the ratified decision above, E3 is not one lump: it is three separate type-system decisions, each with its own design argument, rule text, and refusal behavior, designed before any code and ratified 2026-07-02, including the FLOAT growth and the growth bar recorded in Volume 4. They share one build session. The designs are in Volume 5, sections 4.4 to 4.6, from a full field census of the 24 extraction-blocked entities (the census corrected E1's first-cause split: 20 association fields on 15 entities, 21 enum fields on 13, 8 `Double` fields on 7).
+Per the ratified decision above, E3 is not one lump: it is three separate type-system decisions, each with its own design argument, rule text, and refusal behavior, designed before any code and ratified 2026-07-02, including the FLOAT growth and the growth bar recorded in Volume 4. They shared one build session. The designs are in Volume 5, sections 4.4 to 4.6, from a full field census of the 24 extraction-blocked entities (the census corrected E1's first-cause split: 20 association fields on 15 entities, 21 enum fields on 13, 8 `Double` fields on 7).
+
+Build outcome (2026-07-02): all three rules implemented exactly as ratified (FLOAT in `tibyan-core`, associations and enums via a structural `TypeRegistry` in `tibyan-provider-spring`), fixtures A1 to A9, B1 to B5, C1 to C5 green, `mvn clean verify` green across the reactor with the golden manifest byte-identical, and `tibyan-core` still zero-dependency. The benchmark re-run matched the section 8.3 E3-alone forecast on every number: discovered 0, mis-bound 0, skipped 27, failed 43 all NO_BACKING_METHOD, and the IR gained 19 unique MANY_TO_ONE relations, 21 enum value sets, and 8 FLOAT fields (experiment doc, section 8.4). Discovered holds at 0 as forecast; the first rise comes from the E2 build.
 
 | Decision | Rule (designed, pending ratification) | Clears alone | Evidence highlight |
 |---|---|---|---|
@@ -76,8 +78,8 @@ Per the ratified decision above, E3 is not one lump: it is three separate type-s
 | Field | Detail |
 |---|---|
 | Evidence | Trial gap 3 plus the E1 sub-findings, now fully counted (Volume 5, section 4.4.1). All three decisions together clear all 24 UNMAPPED_FIELD_TYPE entities; any subset clears fewer (the census gives the per-combination math) |
-| Exit criterion (E3 build) | All 24 extraction-blocked entities extract on pms-backend with full shapes: 19 unique MANY_TO_ONE relations, enum value sets carried as annotations, FLOAT fields present; every remaining refusal is a located message naming the field and the deferred shape; zero mis-bindings. Discovered stays 0 until E2 lands (forecast: experiment doc, section 8.3) |
-| Joint exit (E3 plus E2, ratified) | Discovered greater than zero (forecast: exactly 2, getUnit and getLease via P1a) and mis-bound exactly 0 (forecast detail: experiment doc, section 8.3) |
+| Exit criterion (E3 build), MET 2026-07-02 | All 24 extraction-blocked entities extract on pms-backend with full shapes: 19 unique MANY_TO_ONE relations, enum value sets carried as annotations, FLOAT fields present; every remaining refusal is a located message naming the field and the deferred shape; zero mis-bindings. Discovered stays 0 until E2 lands. Achieved exactly (experiment doc, section 8.4) |
+| Joint exit (E3 plus E2, ratified), pending the E2 build | Discovered greater than zero (forecast: exactly 2, getUnit and getLease via P1a) and mis-bound exactly 0 (forecast detail: experiment doc, section 8.3) |
 
 ### Phase E4: List, filter, and multi-argument reads
 

@@ -243,6 +243,7 @@ silent wrong result, did not occur.
 |---|---|---|---|---|---|---|
 | 2026-07-02 | MVP plus three hardening steps, unchanged | 0 | 0 | 43 (f2: 31, f1: 7, f3: 4, d: 1) | (n/a, scan aborted) | Baseline. Whole-app scan aborted at the first unparseable file (exit 3); per-entity outcomes are by the wall each module hit first, not a real per-entity classification |
 | 2026-07-02 | E1: Java 17 language level, collect-and-continue, scoped walk | 0 | 0 | 43 per entity (UNMAPPED_FIELD_TYPE 24, NO_BACKING_METHOD 19) | 27 files | Scan completes end to end (exit 0). Every one of the 43 entities gets a located per-entity outcome, and every unparseable file is named with its parse location, instead of a single abort. See the interpretation below |
+| 2026-07-02 | E3 build (associations, enums, FLOAT); E2 not yet built | 0 | 0 | 43 (NO_BACKING_METHOD 43) | 27 files | All 24 formerly UNMAPPED_FIELD_TYPE entities now extract, so every entity reaches binding and fails there. The IR gained the full shapes: 20 ENTITY_REF association fields deduped to 19 MANY_TO_ONE relations, 21 enum fields carrying their value sets, and 8 FLOAT fields. `mvn clean verify` green; golden manifest byte-identical. See section 8.4 |
 
 Each Tier 2 phase (Volume 13, section 3) appends one row after its re-run. A row's totals must
 come from an actual run of the tool as built at that date, never from a projection.
@@ -345,3 +346,15 @@ with the ratified sequencing (E3 built first, then E2, measured jointly):
   FLOAT is ratified. 8.2's E2-alone row predicted COMPOSITE_KEY 2; the joint row predicts 3 because
   E3 surfaces UserRole (previously hidden behind its unmapped `Role` association).
 - The hard bar is unchanged: mis-bound exactly 0 on every run, or everything stops.
+
+### 8.4 Interpretation of the E3 build run (actual versus forecast, 2026-07-02)
+
+The E3 build is done and re-run with the freshly built CLI: `tibyan scan examples/pms-backend`, exit 0.
+
+Actual: discovered 0, mis-bound 0, skipped-by-parse 27, failed 43 all NO_BACKING_METHOD. The IR now holds all 43 entities with full shapes: 20 ENTITY_REF association fields deduped to 19 unique MANY_TO_ONE relations, 21 enum fields each carrying its value set as an annotation, and 8 FLOAT fields. Zero UNMAPPED_FIELD_TYPE remain.
+
+Actual versus forecast: this matches the section 8.3 "E3 build alone" row exactly, on every number: discovered 0, mis-bound 0, skipped 27, failed 43 all NO_BACKING_METHOD, and the model counts (19 relations, 21 enum value sets, 8 FLOAT fields) as predicted. No deviation to explain.
+
+One forecast wording is corrected here rather than massaged. The build instruction's summary line said the E3-alone run should show "COMPOSITE_KEY becomes 3 as UserRole's key surfaces." That conflicts with both the ratified rule text (Volume 5, section 4.4.3, "UserRole moves to the identifier cause once section 4.2 condition 0 is built, and to NO_BACKING_METHOD in the interim") and the section 8.3 E3-alone row (all NO_BACKING_METHOD). The COMPOSITE_KEY cause is section 4.2 condition 0, which is phase E2 and was correctly not built this session, so the actual run shows 43 NO_BACKING_METHOD and zero COMPOSITE_KEY. COMPOSITE_KEY 3 is the joint E3-plus-E2 forecast (section 8.3, second bullet), not the E3-alone one. The E3-alone run is right; the summary line's mention of COMPOSITE_KEY was a slip against the design, resolved in favor of the ratified rule.
+
+The @IdClass join entities behaved as the design predicts for the interim: EventAttendee and GroupMember (two plain `@Id Long` fields) extract and form a half-key read intent on the first `@Id`, which nothing backs, so they are NO_BACKING_METHOD; UserRole extracts (its `@Id @ManyToOne Role` now maps to ENTITY_REF plus a relation, and its first `@Id`, `userId`, is a Long) and is likewise NO_BACKING_METHOD. The half-key intent is harmless here (nothing backs it) and is closed by E2's eligibility condition 0, which moves these three to COMPOSITE_KEY in the joint run.
