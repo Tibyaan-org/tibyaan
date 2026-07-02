@@ -405,6 +405,118 @@ A flagged, deferred concern (stated plainly, not thinned): when a later backend 
 
 Pre-registered fixtures: S1, the survey line for a discovered partial entity carries the `(partial: ...)` qualifier and the entity's IR carries the `partial` annotation naming the skipped fields. S2, a fully-modeled discovered entity carries no `partial` annotation and no qualifier (absence means complete). S3, the survey totals line reports a partial count distinct from discovered and failed.
 
+### 4.10 List reads: the unfiltered list-all capability (phase E4; designed 2026-07-02, pending ratification)
+
+Phase E4 is the trial's fourth-ranked gap: real service APIs are dominated by reads that return many of an entity, and the tool models none of them. This section is that rule, designed before any code exactly as 4.1, 4.2, and E3 to E5 were: it enters the volume in one commit, the code follows only after ratification. It is the largest design surface since 4.2, and its first duty is to draw its own boundary honestly.
+
+#### 4.10.1 Evidence: the list-read census of both benchmarks (read-only, 2026-07-02)
+
+Every `@Service` method returning a collection or page of an entity was traced from source in both benchmarks. The full census, with per-method classification and bodies, is in the experiment logs (docs/experiments/third-app-trial.md, section 12, and docs/experiments/second-app-trial.md, section 8.6). Counts by shape:
+
+| Shape | erp-backend | pms-backend |
+|---|---|---|
+| (a) bare `findAll()` / (b) bare `findAll(Pageable)`, body a verbatim framework pass-through returning a collection of E | 11 methods across 10 entities | 0 |
+| (c) filtered, one or more domain parameters (returns a collection of E or a view) | many (search, category id, supplier id, account type, status, and the multi-field `searchByFields`) | ~35, every one returning a custom `*ResultSet` envelope |
+| (d) view-returning list or projection (`Page<NameIdDTO>`, `List<XxxReadDTO>`, `List<VendorVTO>`) | 8 (projection or stream-and-map) | ~7 `List<VTO>` plus the 35 `*ResultSet` envelopes (all view-shaped) |
+| (e) other or scalar (`List<String>`, mapping helpers, writes returning a list) | several, named | 1 (`extractRoleIds`, a library JWT helper) |
+
+The decisive facts the census establishes:
+
+- erp exposes a clean, structurally verifiable list-all shape: 10 entities have a service method whose body is exactly `return <repo>.findAll();` or `return <repo>.findAll(<pageable>);`, where `<repo>` resolves to a Spring Data repository of the returned element type (for example `ContactRepository extends JpaRepository<Contact, UUID>`, `EmailTemplateRepository extends JpaRepository<EmailTemplate, EmailTemplateType>`). This is the framework by-collection contract, the list analogue of 4.1's by-primary-key contract, and it is provable from the same repository resolution the E2 `RepositoryCatalog` already performs.
+- pms exposes no such shape at all. Every one of pms's ~35 list reads takes domain filter parameters and returns a custom `*ResultSet` view-envelope (`TenantResultSet`, `VendorResultSet`), and its ~7 `List<VTO>` reads each filter by a foreign key (`getVendorsByBuildingId(Long)`, `getDocumentsByLeaseId(Long)`). Not one is an unfiltered, entity-returning `findAll`. pms's entire list API lives in the deferred set below.
+- The most dangerous shape is a method that looks unfiltered but is not: erp's `TransactionServiceImpl#findCompleted()` takes no parameters yet its body is `findAll().stream().filter(status == COMPLETED).toList()`. Binding a `listTransaction` to it would present a filtered subset as the whole collection, a mis-binding by the definition in 4.10.9. The rule must refuse it structurally.
+- List reads are identifier-independent, and this is a genuine coverage gain: `EmailTemplate` fails the by-id read (its `@Id` is an enum, NO_IDENTIFIER, 4.8), yet `listEmailTemplate` is a clean, honest capability, because a list-all needs no bindable id. E4 discovers capabilities on entities where E1 to E5 discover none.
+- Plurality: one entity (`ProductCategory`) declares two qualifying list-all methods, `findAll()` and `findAll(Pageable)`. Because paging is unmodeled (4.10.3), these produce the identical capability and the tool cannot choose between them. This is the structurally-indistinguishable pair, live in the benchmark.
+
+#### 4.10.2 The scoping decision, stated first: model list-all, defer the rest by name
+
+E4 models exactly one list shape: the unfiltered list-all read, where a `@Service` method returns a collection of an entity by delegating verbatim to the framework `findAll` on a Spring Data repository of that entity. It defers, by name and with a loud diagnostic, every other list shape:
+
+- Filtered reads (any domain parameter beyond a lone `Pageable`/`Sort`): deferred to a successor phase (provisionally E6, filtered and multi-argument list reads). A parameter's meaning is a semantic claim the tool cannot verify structurally: a `UUID categoryId`, a `String search`, a `Long tenantId`, and a `Long buildingId` are the same Java shape, and only their names, which carry no evidence weight (4.2.7), suggest what they filter. "Filter by category" in a tool description is a claim an agent will act on, and the tool cannot substantiate it. Copying the parameter name into an input does not neutralize the claim; the name IS the claim. Filtered reads therefore get their own designed honesty rule later, not a thinned rider here.
+- View-returning and projection lists (`Page<NameIdDTO>`, `List<XxxReadDTO>`, mapper-transformed lists): deferred. Unlike 4.2's by-id view rule, these offer no single in-tree mapping step to resolve the element type against the entity; they are Spring Data projections declared on the repository, or stream-and-map transforms in the body. Extending the 4.2 machinery to lists is a separate decision the census does not yet justify (the projection type `NameIdDTO` is even shared across entities, carrying less entity information than pms's per-entity VTOs).
+- Paged-envelope wrapper types (pms's `*ResultSet`): deferred with the filtered reads, since every one is also filtered.
+
+The split is not thinning; it is the honest boundary the census draws. A ratifiable E4 that models list-all and defers filters cleanly is worth more than one that models everything thinly. The consequence, stated as plainly as the E2 sequencing finding was: E4 discovers list capabilities on erp-backend and zero on pms-backend, because pms has no unfiltered entity-returning list read. The Volume 13 exit criterion for E4 ("at least one list or filter read on pms-backend in each module") is therefore not met by this rule and is re-scoped to the honest core (4.10.9 and Volume 13).
+
+#### 4.10.3 The IR representation
+
+The capability's `output` is the element type, `ENTITY_REF(E)`, and its `outputMultiple` flag is true (Volume 4, sections 3.4 and 4). The `inputs` map is empty: a list-all takes no domain input, and a forwarded `Pageable`/`Sort` is not modeled as an input (it is framework paging, not a capability parameter). A read whose terminal is the paged framework `findAll(Pageable)` additionally carries a `paged` annotation (the existing hook, Volume 4, section 3.6), disclosing that the concrete wire is a page envelope rather than a bare array; the modeled output is still the element collection. Ordering and uniqueness are never modeled (Volume 4, section 4). This is the smallest representation that does not lie: it says "this capability returns many E", discloses that a paged wire envelope exists, and claims nothing about order, count, or page shape.
+
+#### 4.10.4 The rule
+
+A `@Service` method M yields the list capability `list<E>` for entity E when ALL of the following hold. Conditions 1 and 2 restate the frame; the rest are the list-all contract.
+
+1. M is declared on a class annotated `@Service`, is `public`, and is not `static`.
+2. M's declared return type is a collection of E: one of `List`, `Set`, `Collection`, `Iterable`, `Page`, or `Slice`, whose single type argument, resolved by simple name in the scanned tree, is a class annotated `@Entity`. That entity is E, the element type. A raw collection, a collection of a primitive, or a collection of a non-entity type (a view, a projection, `String`) does not match this rule.
+3. M declares either no parameters, or exactly one parameter whose type is the framework paging type `Pageable` or `Sort`. Any other parameter, of any type, disqualifies M from this rule (it is a filtered read, deferred; 4.10.6). `Pageable`/`Sort` are recognized structurally as framework types, never by name of the argument.
+4. M's body contains exactly one persistence access, the load, and it is a call to the framework by-collection read `findAll` on a field of M's service whose declared type resolves in-tree to a Spring Data repository of E: an interface extending one of the recognized supertypes (`JpaRepository`, `CrudRepository`, `ListCrudRepository`, `PagingAndSortingRepository`, `ListPagingAndSortingRepository`) whose first type argument is E. The repository's second type argument (the id type) is not consulted: a list-all is independent of the entity's identifier.
+5. If M declares a `Pageable`/`Sort` parameter, the argument to `findAll` is that parameter, verbatim (`findAll(pageable)`); if M declares no parameter, the call is the no-argument `findAll()`. No expression over the parameter, and no manufactured `Pageable`, is accepted.
+6. M's body is exactly one read shape: a single `return` whose expression is the `findAll` call itself, with nothing wrapped around it. No `stream`, no `filter`, no `map`, no `subList`, no `PageImpl` reconstruction, no second call, no local transformation. The returned value is precisely what the framework `findAll` returned. This is the condition that refuses `findCompleted()` (a post-`findAll` `stream().filter(...)`), `ProductServiceImpl#findAll(Pageable)` (a custom-query load plus `convertToFullName` plus a manual `PageImpl`), and `DeliveryServiceImpl#findAll()` (a custom query plus `map`).
+7. No other repository access appears anywhere in M's body: no call on any other repository-typed field, and no mutation call (`save`, `saveAll`, `insert`, `update`, `delete`, `deleteById`, `deleteAll`, `persist`, `merge`, `flush`) anywhere. A list method that writes is not a read.
+
+#### 4.10.5 Naming and pooling
+
+The capability is named `list<E>`, where `<E>` is the entity's simple name (`listContact`, `listTransaction`, `listEmailTemplate`). The name is minted from the entity, never from the method: a method named `findAll`, `getAll`, or anything else yields `list<E>` all the same, because the method name carries no evidence weight. Entity names are unique within the module, so `list<E>` is unique.
+
+E4 models exactly one list-all capability per entity, so its pool is exactly the set of methods on all `@Service` classes that satisfy 4.10.4 for E:
+
+- Exactly one method in the pool: `list<E>` is emitted, bound to `<ServiceClassSimpleName>#<methodName>`.
+- Zero methods: no list capability for E (the entity may still have a by-id capability, or none). This is not a failure; it is the absence of a list-all read.
+- More than one method: LIST_AMBIGUOUS, a new cause, listing every candidate. Because paging is unmodeled, `findAll()` and `findAll(Pageable)` are indistinguishable at the capability level and both fall in this pool; the tool refuses rather than prefer one (preferring the paged overload would be a nominal or heuristic guess, forbidden). `ProductCategory` is the live case.
+
+The list pool and the by-id pools (4.1, 4.2) never intersect: a by-id candidate returns E singular and takes an id, a list candidate returns a collection of E and takes no domain argument. `get<E>` and `list<E>` are different capabilities with different names and coexist freely. E4 is therefore strictly additive to by-id discovery: it cannot move, mask, or perturb any `get<E>` result, and any such movement on re-run is a regression finding (4.10.9). The plurality the roadmap anticipated (findAll, findActive, findByCategory as several list reads of one entity) is real, but findActive and findByCategory are filtered reads, deferred; within E4's scope an entity has at most one list-all, so their naming-apart is a problem for the filtered-reads phase, not this one.
+
+#### 4.10.6 Covered and deferred patterns
+
+Covered: P-List-a, the unfiltered list-all with a framework `findAll` terminal, no-argument or `Pageable`/`Sort`-forwarded, direct on a Spring Data repository of E (erp's `listContact`, `listTruck`, `listAccount`, and so on).
+
+Deferred, each keeping a loud, named diagnostic so an absence of a list capability is never silent:
+
+- P-List-filter: a domain parameter present (erp's `findByCategory(UUID, Pageable)`, `searchByFields(...)`, `findBySupplier`, and all of pms's `*ResultSet` reads). Diagnostic names it a deferred filtered list read. The bulk of both apps' real list API; its own phase.
+- P-List-view: the element type is a view or projection, or the body maps the loaded collection (erp's `getListableContacts` returning `Page<NameIdDTO>`, `QuoteServiceImpl#findAll` returning `List<QuoteReadDTO>`, pms's `List<VendorVTO>` reads). Diagnostic names it a deferred view-returning list read.
+- P-List-derived: the load terminal is not the framework `findAll` but a derived or `@Query` collection method (`findByActiveTrue`, `findAllWithAssociations`). Diagnostic names the non-framework terminal, the list analogue of the 4.2 P1b refusal. This is also the boundary that forbids query-derivation from Spring Data method names: the tool never reads `findActive` or `findByStatus` as "list active" or "filter by status"; that would be nominal inference, refused by principle.
+- P-List-hop: the load delegates one hop through a hand-written repository interface to a Spring Data `findAll`. The 4.2 one-hop trace could extend here, but no benchmark evidence requires it yet (erp calls Spring Data directly; pms's list reads are all filtered), so it is deferred rather than designed on zero evidence.
+
+#### 4.10.7 What this rule will never do
+
+- Never treat a parameter's name as its meaning: it will not read `categoryId`, `status`, or `search` as a filter, and it refuses any read with a domain parameter rather than copying the name into an input.
+- Never derive a query from a Spring Data method name: `findByActiveTrue` is never "list active"; only the framework `findAll` contract counts.
+- Never present a filtered collection as the whole: a body that post-filters, maps, slices, or reconstructs the framework result refuses, so a subset is never bound to `list<E>`.
+- Never model order, uniqueness, or paging as fact: `List` and `Set` are the same "many E", and a page envelope is disclosed, never claimed.
+- Never prefer one indistinguishable method over another: two qualifying list-all methods refuse as LIST_AMBIGUOUS.
+- Never bind a method that writes, or that touches a second repository.
+- Never let a list discovery change a by-id discovery: the pools are disjoint by construction.
+
+#### 4.10.8 Pre-registered fixtures (the build session must include these before the code exists)
+
+Positives:
+
+- L1, bare `findAll()`: a `@Service` method `List<E> findAll()` whose body is `return repo.findAll();`, `repo` declared `extends JpaRepository<E, ID>` in-tree, yields `listE` with `output ENTITY_REF(E)`, `outputMultiple true`, empty inputs, no `paged` annotation. (erp's `listTruck`, `listAccount`, `listTransaction` shape.)
+- L2, paged `findAll(Pageable)`: `Page<E> findAll(Pageable pageable)` whose body is `return repo.findAll(pageable);` yields `listE` with `outputMultiple true`, empty inputs, and a `paged` annotation. (erp's `listContact`, `listContactGroup` shape.)
+- L3, `Set`/`Slice`/`Iterable`/`Collection` element containers each map to the same `outputMultiple` output (container variety does not change the IR).
+- L4, identifier independence: an entity whose `@Id` maps to no bindable primitive (an enum id) still yields `listE` from a clean `findAll(Pageable)`, proving the list rule ignores the id type. (erp's `listEmailTemplate`; the entity's `getE` remains NO_IDENTIFIER, and both outcomes coexist.)
+
+Refusals, each asserting the located diagnostic:
+
+- L5, filtered read: `Page<E> findByCategory(UUID categoryId, Pageable)` refuses with the deferred filtered-list diagnostic and mints no `listE`; the fixture asserts no input named `categoryId` is ever produced (the proof the tool never claims filter semantics).
+- L6, unfiltered-looking but body-filtered: `List<E> findCompleted()` whose body is `return repo.findAll().stream().filter(...).toList();` refuses on condition 6, proving a filtered subset never binds to `listE`.
+- L7, view-returning list: `Page<NameIdDTO> getListable(Pageable)` or a `stream().map(mapper::to).toList()` body refuses with the deferred view-list diagnostic.
+- L8, non-framework terminal: `List<E> findAllActive()` whose body calls `repo.findByActiveTrue()` refuses with the deferred derived-terminal diagnostic (the anti-nominal-inference proof).
+- L9, mutation in body: a collection-returning method that also calls `repo.save(...)` refuses on condition 7.
+- L10, the structurally-indistinguishable pair (coexistence and ambiguity): an entity with both `findAll()` and `findAll(Pageable)`, both clean, refuses as LIST_AMBIGUOUS listing both, minting no `listE`. (erp's `ProductCategory`.)
+- L11, mis-bound guard: an entity with exactly one clean `findAll` on the right repository yields a `listE` bound to exactly that method on that service, and its output element type is exactly E (not a sibling entity). This is the list analogue of the by-id mis-bound guard.
+- L12, coexistence of get and list: an entity with both a by-id `findById` (4.1) and a clean `findAll` yields both `getE` and `listE`, independently, proving the pools are disjoint and E4 is additive.
+
+#### 4.10.9 Benchmark forecast and the split finding
+
+Stated before the build, so the build is measured against a forecast. The number-by-number forecasts are in the experiment logs (erp: docs/experiments/third-app-trial.md, section 12; pms: docs/experiments/second-app-trial.md, section 8.6). In summary:
+
+- erp-backend: 9 new list capabilities (`listContact`, `listContactCategory`, `listContactGroup`, `listAccount`, `listTransaction`, `listTruck`, `listProductGroup`, `listVariationGroup`, `listEmailTemplate`), one of them (`listEmailTemplate`) on an entity with no by-id capability. `ProductCategory` refuses as LIST_AMBIGUOUS (two qualifying methods). `Product` gets no list (its `findAll` is a custom-query transform). The 16 by-id discoveries are unchanged. Mis-bound 0.
+- pms-backend: 0 new list capabilities, because pms has no unfiltered entity-returning list read; all ~42 list reads are deferred as filtered or view-returning, each named in the survey. The existing row (discovered 2, mis-bound 0) is unchanged. This is the split finding made concrete, and it is why E4's exit criterion is re-scoped.
+- The hard bar is unchanged and absolute: mis-bound exactly 0 on both apps, and every existing `get<E>` outcome byte-identical (E4 is additive). A single mis-binding, or any movement in an existing discovery, stops the phase.
+
+Mis-bound for a list capability means either of two things, and both are counted: a `list<E>` bound to a method that returns a collection of the wrong entity (an element-type error), or a filtered method presented as unfiltered (a subset bound to `list<E>`, the `findCompleted()` hazard). The rule refuses both structurally (conditions 2 and 6), and fixtures L6 and L11 guard them.
+
 ## 5. Future providers
 
 | Provider | Source | Why it matters |
