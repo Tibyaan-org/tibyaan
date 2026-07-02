@@ -70,6 +70,18 @@ class McpBackendGoldenTest {
         assertThat(actual).isEqualTo(expected);
     }
 
+    @Test
+    void surfacesTheListShapeOfAListCapability(@TempDir Path outputRoot) throws IOException {
+        new McpBackend().generate(listIr(), new GenerationContext(outputRoot));
+
+        // A list tool carries the additive outputMultiple and paged fields and the honest "List all"
+        // description; a third golden case, so the example-app and view goldens stay byte-identical
+        // (Volume 6 section 3.3).
+        String actual = normalize(Files.readString(outputRoot.resolve("tibyan/capabilities.json")));
+        String expected = normalize(readGolden("/golden/mcp-list/tibyan/capabilities.json"));
+        assertThat(actual).isEqualTo(expected);
+    }
+
     private static void assertMatchesGolden(Path outputRoot, String relativePath) throws IOException {
         String actual = normalize(Files.readString(outputRoot.resolve(relativePath)));
         String expected = normalize(readGolden("/golden/mcp/" + relativePath));
@@ -137,6 +149,7 @@ class McpBackendGoldenTest {
                 CapabilityKind.READ,
                 inputs,
                 Type.entityRef("Unit"),
+                false,
                 true,
                 new BindingRef("UnitServiceImpl#findById"),
                 List.of(new Annotation("view", List.of("UnitVTO"))));
@@ -144,5 +157,26 @@ class McpBackendGoldenTest {
         return new CapabilityModel(
                 "pms-backend", "0.1",
                 List.of(unit), List.of(getUnit), List.of(), Metadata.empty());
+    }
+
+    // A list read discovered from a paged findAll: output stays ENTITY_REF(Contact) with outputMultiple
+    // true and the paged annotation (Volume 5 section 4.10; Volume 6 section 3.3).
+    private static CapabilityModel listIr() {
+        Entity contact = new Entity(
+                "Contact",
+                List.of(Field.of("id", Primitive.UUID, false)),
+                List.of(),
+                Metadata.empty());
+
+        Capability listContact = Capability.readList(
+                "listContact",
+                new LinkedHashMap<>(),
+                Type.entityRef("Contact"),
+                new BindingRef("ContactService#findAll"),
+                List.of(Annotation.flag("paged")));
+
+        return new CapabilityModel(
+                "erp-backend", "0.1",
+                List.of(contact), List.of(listContact), List.of(), Metadata.empty());
     }
 }

@@ -42,6 +42,7 @@ public final class SemanticValidator {
         checkTypeReferences(model, entityNames, errors);
         checkRelations(model, entityNames, errors);
         checkReadOnlyKind(model, errors);
+        checkOutputMultiple(model, errors);
 
         return new ValidationResult(errors);
     }
@@ -134,6 +135,18 @@ public final class SemanticValidator {
             if (capability.readOnly() && capability.kind() != CapabilityKind.READ) {
                 errors.add("capability '" + capability.name() + "' is marked readOnly but has kind "
                         + capability.kind());
+            }
+        }
+    }
+
+    // Rule 6 (Volume 4 section 5): a capability with outputMultiple true must be of kind READ (MVP).
+    // The element type is validated by rule 3 (checkTypeReferences already inspects every output),
+    // and the collection-ness is a marker, not a type, so there is nothing further to check here.
+    private static void checkOutputMultiple(CapabilityModel model, List<String> errors) {
+        for (Capability capability : model.capabilities()) {
+            if (capability.outputMultiple() && capability.kind() != CapabilityKind.READ) {
+                errors.add("capability '" + capability.name() + "' has outputMultiple true but kind "
+                        + capability.kind() + "; a list output is a READ in the MVP");
             }
         }
     }

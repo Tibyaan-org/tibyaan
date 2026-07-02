@@ -23,6 +23,7 @@ import com.tibyaan.plugin.SourceAnalyzer;
 import com.tibyaan.provider.spring.EntityOutcome.Cause;
 import com.tibyaan.provider.spring.extractors.EntityExtractor;
 import com.tibyaan.provider.spring.extractors.ExtractedEntity;
+import com.tibyaan.provider.spring.extractors.ListReadMatcher;
 import com.tibyaan.provider.spring.extractors.MatchResult;
 import com.tibyaan.provider.spring.extractors.ReadIntent;
 import com.tibyaan.provider.spring.extractors.RepositoryCatalog;
@@ -41,10 +42,12 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -148,6 +151,12 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
                     skippedFields);
         }
 
+        // List reads (phase E4, section 4.10): a separate pool over the same service catalog. It appends
+        // list<E> capabilities and reports its own outcomes, disjoint from by-id discovery above (a list
+        // candidate returns a collection of E, a by-id candidate returns E singular), so it cannot move
+        // any get<E> result. Identifier-independent: an entity with no usable id can still yield list<E>.
+        ListReads listReads = discoverListReads(repositories, serviceSources, entities, capabilities);
+
         // Partial-model integrity: close the model (drop references to absent entities, section 4.7),
         // then finalize (mark partial entities and enrich their outcomes, section 4.9). Both run once
         // over the whole model, after every entity has been through tolerant extraction (section 4.8).
@@ -156,7 +165,8 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
         CapabilityModel model = new CapabilityModel(
                 moduleName(sourceRoot), IR_VERSION, finalized.entities(), capabilities,
                 dedupeAndSort(finalized.relations()), Metadata.empty());
-        return new ScanReport(model, finalized.outcomes(), parsed.skips(), finalized.skippedFields());
+        return new ScanReport(model, finalized.outcomes(), parsed.skips(), finalized.skippedFields(),
+                listReads.outcomes(), listReads.deferrals());
     }
 
     // Model closure (section 4.7) plus the partial disclosure (section 4.9), as one pass over the
@@ -358,7 +368,7 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
         }
         // Section 4.2.5: output stays ENTITY_REF(E); the view's concrete shape is recorded as a hint.
         List<Annotation> annotations = List.of(new Annotation("view", List.of(candidate.view())));
-        return new Capability(intent.capabilityName(), CapabilityKind.READ, inputs, output, true,
+        return new Capability(intent.capabilityName(), CapabilityKind.READ, inputs, output, false, true,
                 binding, annotations);
     }
 
@@ -409,6 +419,75 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
                 + "' is backed by more than one candidate: " + labelled
                 + ". The backing method must be unambiguous; the provider will not guess. "
                 + "Disambiguate the service API so exactly one method backs this read.";
+    }
+
+    // List-read discovery (section 4.10): the list pool over the whole service catalog. Each service
+    // method is evaluated once; clean list-all matches are grouped by their element entity, so exactly
+    // one per entity discovers list<E>, two or more refuse as LIST_AMBIGUOUS (paging is unmodeled, so
+    // overloads are indistinguishable), and every collection read the phase does not model is a named
+    // deferral. The pool is disjoint from by-id discovery, so this only ever adds capabilities.
+    private ListReads discoverListReads(RepositoryCatalog repositories,
+                                        List<ServiceMethodSource> serviceSources, List<Entity> entities,
+                                        List<Capability> capabilities) {
+        Set<String> entityNames = new LinkedHashSet<>();
+        for (Entity entity : entities) {
+            entityNames.add(entity.name());
+        }
+        ListReadMatcher matcher = new ListReadMatcher(repositories);
+
+        Map<String, List<ListCandidate>> matchesByEntity = new TreeMap<>();
+        List<DeferredListRead> deferrals = new ArrayList<>();
+        for (ServiceMethodSource source : serviceSources) {
+            ListReadMatcher.Result result = matcher.evaluate(source, entityNames);
+            switch (result.kind()) {
+                case MATCH -> matchesByEntity
+                        .computeIfAbsent(result.entity(), key -> new ArrayList<>())
+                        .add(new ListCandidate(source.method().toBinding(), result.paged()));
+                case DEFERRED -> deferrals.add(
+                        new DeferredListRead(source.method().signature(), result.reason()));
+                case NOT_LIST -> { }
+            }
+        }
+
+        List<ListOutcome> listOutcomes = new ArrayList<>();
+        for (Map.Entry<String, List<ListCandidate>> entry : matchesByEntity.entrySet()) {
+            String entity = entry.getKey();
+            List<ListCandidate> candidates = entry.getValue();
+            if (candidates.size() == 1) {
+                ListCandidate winner = candidates.get(0);
+                Capability capability = buildListCapability(entity, winner);
+                capabilities.add(capability);
+                listOutcomes.add(ListOutcome.discovered(entity, listDiscoveredDetail(capability, winner)));
+            } else {
+                listOutcomes.add(ListOutcome.ambiguous(entity,
+                        candidates.stream().map(ListCandidate::binding).toList()));
+            }
+        }
+        return new ListReads(listOutcomes, deferrals);
+    }
+
+    // Section 4.10.3: output is the element type ENTITY_REF(E), outputMultiple is true, inputs are empty
+    // (a forwarded Pageable is framework paging, not a capability input), and the paged variant carries a
+    // `paged` annotation disclosing the page-envelope wire shape.
+    private static Capability buildListCapability(String entity, ListCandidate candidate) {
+        List<Annotation> annotations = candidate.paged()
+                ? List.of(Annotation.flag("paged"))
+                : List.of();
+        return Capability.readList("list" + entity, Map.of(), Type.entityRef(entity),
+                new BindingRef(candidate.binding()), annotations);
+    }
+
+    private static String listDiscoveredDetail(Capability capability, ListCandidate candidate) {
+        return capability.name() + " -> " + capability.binding().value()
+                + (candidate.paged() ? " (paged)" : "");
+    }
+
+    // A clean list-all candidate: its binding and whether the wire is a page envelope.
+    private record ListCandidate(String binding, boolean paged) {
+    }
+
+    // The result of list discovery: the per-entity list outcomes and the named deferrals.
+    private record ListReads(List<ListOutcome> outcomes, List<DeferredListRead> deferrals) {
     }
 
     // Collect-and-continue (phase E1): parse every walked file at the source's language level; a

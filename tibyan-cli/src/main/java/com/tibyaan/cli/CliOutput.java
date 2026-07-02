@@ -3,8 +3,10 @@ package com.tibyaan.cli;
 import com.tibyaan.core.ir.Capability;
 import com.tibyaan.core.ir.CapabilityModel;
 import com.tibyaan.core.ir.Entity;
+import com.tibyaan.provider.spring.DeferredListRead;
 import com.tibyaan.provider.spring.EntityOutcome;
 import com.tibyaan.provider.spring.EntityOutcome.Cause;
+import com.tibyaan.provider.spring.ListOutcome;
 import com.tibyaan.provider.spring.ParseSkip;
 import com.tibyaan.provider.spring.ScanReport;
 import com.tibyaan.provider.spring.extractors.SkippedField;
@@ -37,12 +39,33 @@ final class CliOutput {
         List<EntityOutcome> failed = report.entityOutcomes().stream()
                 .filter(o -> o.status() == EntityOutcome.Status.FAILED)
                 .collect(Collectors.toList());
+        List<ListOutcome> listDiscovered = report.listOutcomes().stream()
+                .filter(ListOutcome::isDiscovered)
+                .collect(Collectors.toList());
+        List<ListOutcome> listRefused = report.listOutcomes().stream()
+                .filter(o -> !o.isDiscovered())
+                .collect(Collectors.toList());
 
-        if (!discovered.isEmpty()) {
-            System.out.println("Discovered (" + discovered.size() + "):");
-            for (EntityOutcome outcome : discovered) {
-                System.out.println("  + " + outcome.entityName() + ": " + outcome.detail()
-                        + partialQualifier(outcome));
+        // Discovered, split by kind (Volume 11 section 3.3): by-id A stays comparable to every
+        // historical row; the list subsection appears only when there are list discoveries.
+        long total = discovered.size() + listDiscovered.size();
+        if (total > 0) {
+            System.out.println("Discovered (" + total + "):");
+            if (listDiscovered.isEmpty()) {
+                for (EntityOutcome outcome : discovered) {
+                    System.out.println("  + " + outcome.entityName() + ": " + outcome.detail()
+                            + partialQualifier(outcome));
+                }
+            } else {
+                System.out.println("  by-id (" + discovered.size() + "):");
+                for (EntityOutcome outcome : discovered) {
+                    System.out.println("    + " + outcome.entityName() + ": " + outcome.detail()
+                            + partialQualifier(outcome));
+                }
+                System.out.println("  list (" + listDiscovered.size() + "):");
+                for (ListOutcome outcome : listDiscovered) {
+                    System.out.println("    + " + outcome.detail());
+                }
             }
         }
         if (!failed.isEmpty()) {
@@ -50,6 +73,15 @@ final class CliOutput {
             for (EntityOutcome outcome : failed) {
                 System.out.println("  - " + outcome.entityName() + " [" + outcome.cause() + "]: "
                         + firstSentence(outcome.detail()) + partialQualifier(outcome));
+            }
+        }
+        // List-refused is its own line, never folded into the by-id failure ledger, so the entity
+        // partition (by-id discovered plus failed) stays comparable across phases (Volume 11 section 3.3).
+        if (!listRefused.isEmpty()) {
+            System.out.println("List-refused (" + listRefused.size() + "):");
+            for (ListOutcome outcome : listRefused) {
+                System.out.println("  - " + outcome.entityName() + " [" + outcome.status() + "]: "
+                        + firstSentence(outcome.detail()));
             }
         }
         if (!report.parseSkips().isEmpty()) {
@@ -66,9 +98,20 @@ final class CliOutput {
                 System.out.println("  * " + skip.describe());
             }
         }
+        // Deferred list reads (Volume 5 section 4.10.6): collection reads E4 does not model, named with
+        // their reason. They are not failures and never count as missed capabilities; they are the
+        // evidence for the successor filter-semantics phase.
+        if (!report.deferredListReads().isEmpty()) {
+            System.out.println("Deferred list reads (" + report.deferredListReads().size() + "):");
+            for (DeferredListRead deferred : report.deferredListReads()) {
+                System.out.println("  ~ " + deferred.describe());
+            }
+        }
 
-        System.out.println("Totals: discovered " + report.discoveredCount()
+        System.out.println("Totals: discovered " + report.totalDiscoveredCount()
+                + " (by-id " + report.discoveredCount() + ", list " + report.listDiscoveredCount() + ")"
                 + ", failed " + report.failedCount() + byCause(report.failuresByCause())
+                + ", list-refused " + report.listRefusedCount()
                 + ", skipped-by-parse " + report.skippedByParseCount()
                 + ", partial " + report.partialEntityCount()
                 + " (" + report.skippedFieldCount() + " fields skipped)"

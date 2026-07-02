@@ -2,9 +2,20 @@ package com.tibyaan.core.json;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tibyaan.core.SampleModels;
+import com.tibyaan.core.ir.Annotation;
+import com.tibyaan.core.ir.BindingRef;
+import com.tibyaan.core.ir.Capability;
 import com.tibyaan.core.ir.CapabilityModel;
+import com.tibyaan.core.ir.Entity;
+import com.tibyaan.core.ir.Field;
+import com.tibyaan.core.ir.Metadata;
+import com.tibyaan.core.ir.Primitive;
+import com.tibyaan.core.ir.Type;
 import com.tibyaan.core.semantic.SemanticValidator;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -47,5 +58,25 @@ class IrJsonRoundTripTest {
         assertThat(validator.validate(roundTripped).isValid())
                 .as("the round tripped model must still be valid")
                 .isTrue();
+    }
+
+    @Test
+    void listCapabilityWithOutputMultipleValidatesAndRoundTrips() throws Exception {
+        Entity contact = new Entity("Contact",
+                List.of(Field.of("id", Primitive.UUID, false)), List.of(), Metadata.empty());
+        Capability listContact = Capability.readList("listContact", Map.of(), Type.entityRef("Contact"),
+                new BindingRef("ContactService#findAll"), List.of(Annotation.flag("paged")));
+        CapabilityModel original = new CapabilityModel("erp", "0.1",
+                List.of(contact), List.of(listContact), List.of(), Metadata.empty());
+
+        assertThat(validator.validate(original).isValid()).isTrue();
+
+        String json = mapper.writeValueAsString(original);
+        assertThat(json).contains("\"outputMultiple\":true");
+
+        CapabilityModel roundTripped = mapper.readValue(json, CapabilityModel.class);
+        assertThat(roundTripped).isEqualTo(original);
+        assertThat(roundTripped.capabilities().get(0).outputMultiple()).isTrue();
+        assertThat(validator.validate(roundTripped).isValid()).isTrue();
     }
 }

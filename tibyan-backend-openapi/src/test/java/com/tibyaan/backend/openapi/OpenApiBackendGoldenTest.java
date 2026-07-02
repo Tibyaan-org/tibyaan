@@ -61,6 +61,11 @@ class OpenApiBackendGoldenTest {
         assertGoldenAndValid(typesIr(), out, "types.json");
     }
 
+    @Test
+    void listCapabilityRendersAsAnArrayOfTheElement(@TempDir Path out) throws IOException {
+        assertGoldenAndValid(listIr(), out, "list.json");
+    }
+
     private static void assertGoldenAndValid(CapabilityModel ir, Path out, String golden) throws IOException {
         new OpenApiBackend().generate(ir, new GenerationContext(out));
         String actual = normalize(Files.readString(out.resolve("openapi.json")));
@@ -97,7 +102,7 @@ class OpenApiBackendGoldenTest {
         Entity unit = new Entity("Unit", List.of(Field.of("id", Primitive.LONG, false)),
                 List.of(), Metadata.empty());
         Capability getUnit = new Capability("getUnit", CapabilityKind.READ, inputs("id", Primitive.LONG),
-                Type.entityRef("Unit"), true, new BindingRef("UnitServiceImpl#findById"),
+                Type.entityRef("Unit"), false, true, new BindingRef("UnitServiceImpl#findById"),
                 List.of(new Annotation("view", List.of("UnitVTO"))));
         return new CapabilityModel("pms-backend", "0.1",
                 List.of(unit), List.of(getUnit), List.of(), Metadata.empty());
@@ -138,6 +143,20 @@ class OpenApiBackendGoldenTest {
                 Type.entityRef("Sample"), new BindingRef("SampleService#findById"));
         return new CapabilityModel("types", "0.1",
                 List.of(sample, kind), List.of(getSample), List.of(), Metadata.empty());
+    }
+
+    // A paged list read: the 200 response is an array whose items are the element entity's component,
+    // with the x-tibyan-paged disclosure (Volume 6 section 4.2).
+    private static CapabilityModel listIr() {
+        Entity contact = new Entity("Contact", List.of(
+                Field.of("id", Primitive.UUID, false),
+                Field.of("name", Primitive.STRING, false)),
+                List.of(), Metadata.empty());
+        Capability listContact = Capability.readList("listContact", new LinkedHashMap<>(),
+                Type.entityRef("Contact"), new BindingRef("ContactService#findAll"),
+                List.of(new Annotation("paged", List.of())));
+        return new CapabilityModel("erp-backend", "0.1",
+                List.of(contact), List.of(listContact), List.of(), Metadata.empty());
     }
 
     private static Map<String, Type> inputs(String name, Type type) {

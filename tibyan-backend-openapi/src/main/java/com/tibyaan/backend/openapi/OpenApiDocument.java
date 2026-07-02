@@ -31,6 +31,7 @@ final class OpenApiDocument {
     private static final String OPENAPI_VERSION = "3.0.3";
     private static final String VIEW_ANNOTATION = "view";
     private static final String PARTIAL_ANNOTATION = "partial";
+    private static final String PAGED_ANNOTATION = "paged";
     private static final String SCHEMAS_REF = "#/components/schemas/";
 
     private final CapabilityModel ir;
@@ -80,7 +81,12 @@ final class OpenApiDocument {
         return paths;
     }
 
+    // A list read has no id input, so its path is the collection path with no path parameter
+    // (Volume 6 section 4.2); a by-id read keeps the item path with the single id parameter.
     private String pathOf(Capability capability) {
+        if (capability.outputMultiple()) {
+            return "/" + lowerFirst(entityName(capability));
+        }
         return "/" + lowerFirst(entityName(capability)) + "/{" + inputName(capability) + "}";
     }
 
@@ -88,7 +94,9 @@ final class OpenApiDocument {
         Map<String, Object> operation = new LinkedHashMap<>();
         operation.put("operationId", capability.name());
         operation.put("summary", description(capability));
-        operation.put("parameters", List.of(pathParameter(capability)));
+        if (!capability.outputMultiple()) {
+            operation.put("parameters", List.of(pathParameter(capability)));
+        }
         operation.put("responses", responses(capability));
 
         Map<String, Object> item = new LinkedHashMap<>();
@@ -113,7 +121,7 @@ final class OpenApiDocument {
         content.put("application/json", mediaType);
 
         Map<String, Object> ok = new LinkedHashMap<>();
-        ok.put("description", "The " + entityName(capability) + " read by " + inputName(capability) + ".");
+        ok.put("description", okDescription(capability));
         ok.put("content", content);
 
         Map<String, Object> responses = new LinkedHashMap<>();
@@ -121,14 +129,41 @@ final class OpenApiDocument {
         return responses;
     }
 
+    private String okDescription(Capability capability) {
+        if (capability.outputMultiple()) {
+            return "A list of " + entityName(capability) + ".";
+        }
+        return "The " + entityName(capability) + " read by " + inputName(capability) + ".";
+    }
+
     // Condition 2 and 3: entity-returning references the entity component; view-returning is a
-    // standalone permissive object that declines to enumerate the view's fields.
+    // standalone permissive object that declines to enumerate the view's fields. A list read (Volume 6
+    // section 4.2) is an array whose items are the element schema, with the paged envelope disclosed.
     private Map<String, Object> responseSchema(Capability capability) {
+        if (capability.outputMultiple()) {
+            return listSchema(capability);
+        }
         Optional<String> view = viewOf(capability);
         if (view.isPresent()) {
             return viewSchema(entityName(capability), view.get());
         }
         return ref(entityName(capability));
+    }
+
+    // An array of the element schema. E4 list reads are entity-returning, so the items are a $ref to the
+    // element entity's component (with its own partiality disclosure, section 4.1). A paged read carries
+    // x-tibyan-paged and a prose disclosure: the wire is a page envelope, but only the element collection
+    // is modeled, never a fabricated page object (Volume 6 section 4.2).
+    private Map<String, Object> listSchema(Capability capability) {
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "array");
+        schema.put("items", ref(entityName(capability)));
+        if (hasAnnotation(capability, PAGED_ANNOTATION)) {
+            schema.put("description", "The wire response is a page envelope; this schema models the "
+                    + "element collection, not the page envelope.");
+            schema.put("x-tibyan-paged", Boolean.TRUE);
+        }
+        return schema;
     }
 
     private static Map<String, Object> viewSchema(String entity, String view) {
@@ -270,14 +305,29 @@ final class OpenApiDocument {
         return reference;
     }
 
-    // The synthesized operation description, mirroring the MCP backend's (Volume 6 section 3.1).
+    // The synthesized operation description, mirroring the MCP backend's (Volume 6 sections 3.1, 3.3).
     private String description(Capability capability) {
+        if (capability.outputMultiple()) {
+            String base = "List all " + entityName(capability) + ".";
+            return hasAnnotation(capability, PAGED_ANNOTATION)
+                    ? base + " Returns a page of results; the total count and page envelope are not modeled."
+                    : base;
+        }
         List<String> inputs = new ArrayList<>(new TreeMap<>(capability.inputs()).keySet());
         String base = "Read " + entityName(capability)
                 + (inputs.isEmpty() ? "." : " by " + String.join(", ", inputs) + ".");
         return viewOf(capability)
                 .map(view -> base + " Returns the " + view + " view of " + entityName(capability) + ".")
                 .orElse(base);
+    }
+
+    private static boolean hasAnnotation(Capability capability, String key) {
+        for (Annotation annotation : capability.annotations()) {
+            if (annotation.key().equals(key)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String entityName(Capability capability) {

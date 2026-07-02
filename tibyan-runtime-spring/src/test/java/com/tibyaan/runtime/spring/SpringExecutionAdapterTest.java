@@ -24,6 +24,10 @@ class SpringExecutionAdapterTest {
         public Product findById(Long id) {
             return new Product(id, "Wireless Mouse");
         }
+
+        public List<Product> findAll() {
+            return List.of(new Product(1L, "Wireless Mouse"), new Product(2L, "Keyboard"));
+        }
     }
 
     public record Product(Long id, String name) {
@@ -51,6 +55,29 @@ class SpringExecutionAdapterTest {
 
             assertThat(result).isInstanceOf(Product.class);
             assertThat((Product) result).isEqualTo(new Product(5L, "Wireless Mouse"));
+        }
+    }
+
+    @Test
+    void invokesANoArgumentListReadAndReturnsTheCollection() {
+        // A list-all capability has no inputs (Volume 5 section 4.10.3), so the adapter invokes the
+        // no-argument method and returns the collection result end to end (Volume 6 section 3.3). The
+        // additive outputMultiple manifest field is tolerated by the loader and not acted on here.
+        CapabilitiesManifest manifest = new CapabilitiesManifest("legacy-spring-app", "0.1", List.of(
+                new CapabilityDescriptor("listProduct", "List all Product.",
+                        "ProductService#findAll", "ENTITY_REF(Product)", List.of())));
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.registerBean("productService", ProductService.class);
+            context.refresh();
+
+            SpringExecutionAdapter adapter = new SpringExecutionAdapter(context, manifest);
+            Object result = adapter.invoke(new CapabilityRef("listProduct"), Map.of());
+
+            assertThat(result).isInstanceOf(List.class);
+            @SuppressWarnings("unchecked")
+            List<Product> products = (List<Product>) result;
+            assertThat(products)
+                    .containsExactly(new Product(1L, "Wireless Mouse"), new Product(2L, "Keyboard"));
         }
     }
 

@@ -22,6 +22,10 @@ final class ManifestWriter {
     // the concrete view type a read returns, recorded by the provider (Volume 5 section 4.2.5).
     private static final String VIEW_ANNOTATION = "view";
 
+    // The disclosure that a list read's wire is a page envelope (Volume 6 section 3.3; the provider
+    // records it on the paged findAll(Pageable) variant, Volume 5 section 4.10.3).
+    private static final String PAGED_ANNOTATION = "paged";
+
     private ManifestWriter() {
     }
 
@@ -51,6 +55,15 @@ final class ManifestWriter {
         out.append("      \"description\": ").append(quote(description(capability))).append(",\n");
         out.append("      \"binding\": ").append(quote(capability.binding().value())).append(",\n");
         out.append("      \"output\": ").append(quote(capability.output().canonical())).append(",\n");
+        // A list read refines the output: outputMultiple says the tool returns a collection of the
+        // element type, and paged discloses a page-envelope wire (Volume 6 section 3.3). Both are
+        // additive and present only for a list read, so every singular capability stays byte-identical.
+        if (capability.outputMultiple()) {
+            out.append("      \"outputMultiple\": true,\n");
+            if (hasAnnotation(capability, PAGED_ANNOTATION)) {
+                out.append("      \"paged\": true,\n");
+            }
+        }
         // The view refines the output: present only when the read returns a named view of the
         // entity (Volume 6 section 3.1). Absent otherwise, so unviewed capabilities are unchanged.
         viewOf(capability).ifPresent(view ->
@@ -80,6 +93,14 @@ final class ManifestWriter {
         String entity = capability.output() instanceof EntityRef ref
                 ? ref.entityName()
                 : capability.output().canonical();
+        // A list read (Volume 6 section 3.3): "List all Entity.", with a page-envelope disclosure when
+        // the read is paged, since the description is the surface most MCP clients show an agent.
+        if (capability.outputMultiple()) {
+            String base = "List all " + entity + ".";
+            return hasAnnotation(capability, PAGED_ANNOTATION)
+                    ? base + " Returns a page of results; the total count and page envelope are not modeled."
+                    : base;
+        }
         String base = capability.inputs().isEmpty()
                 ? "Read " + entity + "."
                 : "Read " + entity + " by " + String.join(", ", capability.inputs().keySet()) + ".";
@@ -96,6 +117,15 @@ final class ManifestWriter {
             }
         }
         return Optional.empty();
+    }
+
+    private static boolean hasAnnotation(Capability capability, String key) {
+        for (Annotation annotation : capability.annotations()) {
+            if (annotation.key().equals(key)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static String quote(String value) {

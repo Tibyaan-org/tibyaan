@@ -20,17 +20,27 @@ import java.util.TreeMap;
  * the health metric (Volume 13 section 5); a mis-binding would be a wrong capability in
  * {@link #model}, which the strict discovery rule (Volume 5 section 4.1) is designed never to emit.
  *
- * @param model         the IR holding only successfully discovered entities and capabilities
- * @param entityOutcomes one verdict per entity the scan parsed, never null
- * @param parseSkips    one entry per file the scan could not parse, never null
- * @param skippedFields one entry per field skipped by tolerance or dropped by closure, never null
- *                      (Volume 5 sections 4.8, 4.7)
+ * <p>Phase E4 adds the list dimension (Volume 5 section 4.10): {@link #listOutcomes} carries one entry
+ * per entity that has at least one list-all candidate (discovered, or refused as LIST_AMBIGUOUS), and
+ * {@link #deferredListReads} names every collection read the phase does not model (filtered, view, or a
+ * non-framework terminal). Both are additive and orthogonal to {@link #entityOutcomes}, which keeps its
+ * historical by-id meaning so the entity partition stays comparable across phases (Volume 11 section 3.3).
+ *
+ * @param model            the IR holding the discovered entities and capabilities (by-id and list)
+ * @param entityOutcomes   one by-id verdict per entity the scan parsed, never null
+ * @param parseSkips       one entry per file the scan could not parse, never null
+ * @param skippedFields    one entry per field skipped by tolerance or dropped by closure, never null
+ *                         (Volume 5 sections 4.8, 4.7)
+ * @param listOutcomes     one entry per entity with a list-all candidate (discovered or ambiguous), never null
+ * @param deferredListReads one entry per collection read E4 does not model, never null
  */
 public record ScanReport(
         CapabilityModel model,
         List<EntityOutcome> entityOutcomes,
         List<ParseSkip> parseSkips,
-        List<SkippedField> skippedFields) {
+        List<SkippedField> skippedFields,
+        List<ListOutcome> listOutcomes,
+        List<DeferredListRead> deferredListReads) {
 
     public ScanReport {
         if (model == null) {
@@ -39,11 +49,28 @@ public record ScanReport(
         entityOutcomes = entityOutcomes == null ? List.of() : List.copyOf(entityOutcomes);
         parseSkips = parseSkips == null ? List.of() : List.copyOf(parseSkips);
         skippedFields = skippedFields == null ? List.of() : List.copyOf(skippedFields);
+        listOutcomes = listOutcomes == null ? List.of() : List.copyOf(listOutcomes);
+        deferredListReads = deferredListReads == null ? List.of() : List.copyOf(deferredListReads);
     }
 
-    /** The number of entities for which a capability was discovered. */
+    /** The number of entities for which a by-id capability was discovered. */
     public long discoveredCount() {
         return entityOutcomes.stream().filter(EntityOutcome::isDiscovered).count();
+    }
+
+    /** The number of list capabilities discovered (Volume 5 section 4.10). */
+    public long listDiscoveredCount() {
+        return listOutcomes.stream().filter(ListOutcome::isDiscovered).count();
+    }
+
+    /** The number of list-all candidates refused as ambiguous (LIST_AMBIGUOUS). */
+    public long listRefusedCount() {
+        return listOutcomes.stream().filter(o -> !o.isDiscovered()).count();
+    }
+
+    /** Total discovered capabilities across both kinds: {@code by-id + list}. */
+    public long totalDiscoveredCount() {
+        return discoveredCount() + listDiscoveredCount();
     }
 
     /** The number of entities that failed, across all causes. */
