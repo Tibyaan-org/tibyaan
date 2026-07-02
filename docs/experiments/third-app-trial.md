@@ -566,3 +566,46 @@ description `List all Contact. Returns a page of results; the total count and pa
 modeled.`, and in OpenAPI as a GET on `/contact` whose 200 schema is `{"type": "array", "items":
 {"$ref": "#/components/schemas/Contact"}, "x-tibyan-paged": true}` with the page-envelope disclosure.
 The Contact component still discloses its partiality (the E5 rider rides through the element schema).
+
+---
+
+## 14. P1b census and forecast (custom-query by-pk terminal, erp-backend, read-only, 2026-07-02)
+
+The design half of P1b (Volume 5 section 4.2.10, pending ratification) needs the custom-query by-id read
+inventory. This is erp-backend's, traced from source, read only, no tool change. The pms-backend census
+is in docs/experiments/second-app-trial.md, section 8.8.
+
+Census. erp uses a `findByIdWith*` `@Query` idiom widely, all direct on Spring Data repositories, all
+clean by-primary-key selects (`SELECT [DISTINCT] <alias> FROM <E> <alias> LEFT JOIN FETCH ... WHERE
+<alias>.id = :id`, named parameter). Classified by what consumes each, since condition 4 (and P1b) is
+only consulted for a view-returning service read:
+
+| Repository `@Query` method | JPQL (WHERE) | Consumed by service `findById` returning | P1b relevance |
+|---|---|---|---|
+| `DeliveryRepository#findByIdWithRelationships` | `... WHERE d.id = :id` | `DeliveryReadDTO` (view) | P1b clears the load; the mapper still refuses (below) |
+| `ProductRepository#findByIdWithAssociations` | `... WHERE p.id = :id` | `Product` (entity) | 4.1 already; body never read |
+| `ContactRepository#findByIdWithAssociations` | `... WHERE c.id = :id` | `Contact` (entity) | 4.1 already |
+| `ContactGroupRepository#findByIdWithContacts` | `... WHERE ...id = :id` | `ContactGroup` (entity) | 4.1 already |
+| `TicketRepository#findByIdWithAssociations` | `... WHERE ...id = :id` | `Ticket` (entity) | 4.1 already |
+| (framework `findById`, not a `@Query`) | n/a | `QuoteServiceImpl#getInvoice -> byte[]` (view) | P1a already; Quote AMBIGUOUS today |
+
+Filtered custom queries, refused and structurally distinct (not by-primary-key): `DeliveryRepository#searchByFields`
+(`WHERE (:search IS NULL OR ...) AND (:status IS NULL OR d.status = :status) AND ...`, eight parameters),
+`ProductRepository#findProducts`, `EmailTemplateRepository#searchByFields`. These are multi-parameter, so
+condition 2 already refuses them; they are the live proof that the by-id `@Query` shape and the filtered
+`@Query` shape are structurally separable in this app, not merely name-separable.
+
+The two questions the task posed, answered from source:
+
+- Delivery: `DeliveryServiceImpl#findById` returns `DeliveryReadDTO`, loads `deliveryRepository.findByIdWithRelationships(id).orElseThrow(...)` (the clean by-pk `@Query`, direct), then maps `mapToDTO(delivery)`. `mapToDTO` is a private method on the service itself, called with no receiver (implicit `this`). Under condition 9 this does not resolve to a mapper on a field, a static factory, a constructor, or a method reference, so Delivery has TWO independent refusals today: the P1b load (which P1b clears) and the implicit-this mapper (which P1b does not touch). P1b alone does not unlock Delivery.
+- Quote: `QuoteServiceImpl#getInvoice(UUID)` returns `byte[]` and loads via the framework `quoteRepository.findById(id)` (verified at source), maps `reportGenerationService.generateInvoice(quote)`. Its load is framework, not custom, so getInvoice is already a P1a 4.2 match today, competing with the entity-returning `findById` (getQuote via 4.1). Quote is therefore AMBIGUOUS today, and P1b does not change its pool: getInvoice was never a P1b near-miss.
+- Ticket: `TicketServiceImpl#findById` returns `Ticket` (entity), so it is a section 4.1 discovery already; 4.1 binds on the return shape and never reads the body, so the fact that Ticket's body loads via `findByIdWithAssociations` (a custom query) is irrelevant. P1b's design does not touch already-discovered capabilities, verified here on Ticket, Product, Contact, and ContactGroup.
+
+Forecast (after the P1b build): byte-identical to the current erp row. Delivery stays refused (its
+mapper), Quote stays AMBIGUOUS (its framework load), the four entity-returning reads are untouched
+(4.1). The only visible change is Delivery's near-miss message shifting from the load terminal to the
+same-service mapper. Row (projected): discovered 25 (by-id 16, list 9), list-refused 1, failed 9
+(NO_BACKING_METHOD 6, NO_IDENTIFIER 1, AMBIGUOUS_BINDING 2), skipped-by-parse 0, partial 13, mis-bound 0.
+This makes erp the honest negative control for P1b: a benchmark that has the clean by-pk `@Query` shape in
+abundance yet gains no discovery from it, because the one view-returning consumer is blocked by an
+unrelated mapper rule. The unlock is pms Tenant alone.

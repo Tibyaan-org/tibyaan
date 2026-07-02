@@ -514,3 +514,37 @@ recognizes as a list read; an opaque envelope return is not one. This is correct
 discovered is 0, mis-bound is 0, and every by-id row is byte-identical, which are the properties that
 matter. It sharpens the case for E6: pms's list API is not just filtered, it is hidden behind opaque
 envelope types that a filter-semantics phase must decide whether and how to see.
+
+### 8.8 P1b census and forecast (custom-query by-pk terminal, pms-backend, read-only, 2026-07-02)
+
+The design half of P1b (Volume 5 section 4.2.10, pending ratification) needs the custom-query by-id read
+inventory. This is pms-backend's, traced from source, read only, no tool change. The erp-backend census
+is in docs/experiments/third-app-trial.md, section 14.
+
+Census. pms-backend has exactly one custom-query by-primary-key terminal, Tenant, and it is a one-hop
+hand-written case:
+
+| Chain | Text | Ties to E and id |
+|---|---|---|
+| `TenantServiceImpl#findById` returns `TenantVTO` (view); body loads `tenantRepository.selectById(id).orElseThrow(...)`, maps `propertyMgtMapper.toTenantVTO(tenant)` | two-statement 4.2 shape | mapper resolves in-tree, `PropertyMgtMapper#toTenantVTO(Tenant) : TenantVTO` |
+| `TenantRepository#selectById` (hand-written interface); its single `@Repository` impl `TenantRepositoryImpl#selectById` body is `return tenantJpaRepository.findByIdWithRelations(id);` | one-hop delegation, verbatim `id` | delegate is the `@Query` terminal |
+| `TenantJpaRepository extends JpaRepository<Tenant, Long>`, `findByIdWithRelations` carries `@Query("SELECT t FROM Tenant t JOIN FETCH t.user LEFT JOIN FETCH t.unit un LEFT JOIN FETCH un.building b LEFT JOIN FETCH b.property WHERE t.id = :id")`, `@Param("id") Long id` | `SELECT t` (root), fetch joins only, `WHERE t.id = :id` | selects Tenant by its `@Id` field `id`, named parameter |
+
+Every other pms hand-written repository (`Vendor`, `Lease`, `LeaseDocument`, `Unit`, `Admin`) delegates
+`selectById` to the framework `findById` (P1a, already handled), so Tenant is the sole P1b occurrence, as
+the E2 census recorded. The Tenant query is a clean by-primary-key select: the WHERE is exactly the id
+equality, and the four `JOIN FETCH` clauses are eager loads, not filters, so P4 and P5 hold.
+
+Forecast (after the P1b build):
+
+- Discovered: 2 to 3. getUnit and getLease are unchanged; getTenant flips from NO_BACKING_METHOD (its
+  named P1b near-miss) to DISCOVERED, bound to `TenantServiceImpl#findById`, view `TenantVTO`, through the
+  one-hop `@Query` terminal. Tenant's pool has exactly one candidate (no competing Tenant-returning or
+  Tenant-view by-id method), so it is not ambiguous.
+- Failed: NO_BACKING_METHOD 38 to 37; COMPOSITE_KEY 3 unchanged. Skipped-by-parse 27 unchanged. List 0
+  unchanged. Mis-bound 0.
+- Row (projected, not a run row until the build): discovered 3 (by-id 3, list 0), failed 40
+  (NO_BACKING_METHOD 37, COMPOSITE_KEY 3), skipped-by-parse 27, mis-bound 0.
+- Named uncertainty: whether Tenant carries a `partial` annotation (a skipped field) is a build-time
+  detail that does not change its discovery or the mis-bound bar. The discovered count 2 to 3 is firm from
+  the source trace above.

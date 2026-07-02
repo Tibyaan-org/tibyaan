@@ -206,6 +206,83 @@ The sequencing finding, plainly: phase E2's exit criterion as written in Volume 
 
 Ratification (2026-07-02): this rule is ratified as written, conditions 0 through 10, the ENTITY_REF-plus-view-annotation representation, fixtures F1 to F12, and the deferred patterns. Sequencing was decided: E3 is designed and built before the E2 build, and E2 plus E3 are measured jointly against the benchmark with the shared exit criterion, discovered greater than zero (forecast: Unit and Lease via P1a) and mis-bound exactly zero. The E2 build session follows the E3 build.
 
+#### 4.2.10 P1b: the custom-query by-primary-key terminal (designed 2026-07-02, pending ratification)
+
+This is the deferred half of condition 4 (patterns 4.2.6). Today the load evidence must be a framework by-primary-key read (`findById`, `getById`, `getReferenceById`) on a Spring Data repository of E, reached directly (4a) or as the single delegate of the one-hop hand-written trace (4b). P1b answers the deferred question: when may a custom `@Query` method serve as that same load evidence? It is the only deferred pattern with occurrences on both benchmarks, in different repository idioms, which is why it earned a design step. The bar is unchanged: structural proof of the by-primary-key claim, or refusal. Names carry no weight; the JPQL text is read, never the method name.
+
+##### 4.2.10.1 Evidence (read-only, both apps)
+
+Every custom-query by-id read was traced to source. The full census is in the experiment ledgers (docs/experiments/second-app-trial.md, section 8.8; docs/experiments/third-app-trial.md, section 14). What it establishes:
+
+- The clean by-primary-key `@Query` shape is real and common: six methods across the two apps, all of the form `SELECT [DISTINCT] <alias> FROM <E> <alias> [LEFT|INNER] JOIN FETCH ... WHERE <alias>.id = :id`, with a named parameter. Two examples verbatim: pms `TenantJpaRepository#findByIdWithRelations`, `"SELECT t FROM Tenant t JOIN FETCH t.user LEFT JOIN FETCH t.unit un LEFT JOIN FETCH un.building b LEFT JOIN FETCH b.property WHERE t.id = :id"`; erp `DeliveryRepository#findByIdWithRelationships`, `"SELECT d FROM Delivery d LEFT JOIN FETCH d.truck LEFT JOIN FETCH d.driver LEFT JOIN FETCH d.transaction t LEFT JOIN FETCH t.customer LEFT JOIN FETCH t.supplier WHERE d.id = :id"`.
+- Of the six, only two feed a view-returning service read, the only place condition 4 (and therefore P1b) is consulted: pms Tenant (`TenantServiceImpl#findById -> TenantVTO`, via the one-hop `TenantRepository#selectById` whose implementation delegates to the `@Query` method) and erp Delivery (`DeliveryServiceImpl#findById -> DeliveryReadDTO`, direct on the Spring Data repository). The other four (erp Product, Contact, ContactGroup, Ticket) feed a service `findById` that returns the entity, so they are section 4.1 discoveries already; 4.1 binds on the return shape and never reads the body, so P1b does not touch them. This is verified, and it answers the Ticket question directly: `TicketServiceImpl#findById` returns Ticket, so its custom-query body is irrelevant to its existing 4.1 discovery.
+- The contrast is structurally clear, not a matter of naming: the filtered custom queries in these apps (erp `DeliveryRepository#searchByFields`, `ProductRepository#findProducts`) are multi-parameter and carry `AND`/`OR`/`LIKE` predicates. They are already refused (condition 2 requires exactly one parameter), and the single-parameter filtered case is refused by P5 below. So P1b is not surveying a mess of filtered where-clauses; the by-primary-key custom queries are a clean, distinct shape.
+
+##### 4.2.10.2 The decision: when a custom `@Query` is a by-primary-key load of E
+
+Condition 4's terminal set is amended. The load in 4a (the direct call), and the single delegate call in the 4b one-hop implementation body, may now be, in addition to a framework by-primary-key read, a repository method annotated `@Query` that is a VERIFIED by-primary-key select of E. Nothing else in rule 4.2 changes: conditions 5 to 9 (the verbatim argument, the single-access body, the two read shapes, the one resolvable mapping step) still apply to the service method exactly as written.
+
+A `@Query` method is a verified by-primary-key select of E when ALL of the following hold:
+
+- P1. It is declared on a Spring Data repository of E (an interface extending a recognized supertype whose first type argument is E), reached directly or as the 4b one-hop delegate terminal. P1b adds no new repository resolution; it reuses 4a and 4b's scoping exactly.
+- P2. It carries a `@Query` annotation with a literal string value, and that value is JPQL. A `@Query(nativeQuery = true)` does not qualify: native SQL references tables and columns the tool has not mapped to E and its identifier, so the structural link to E is unprovable. A `@Query` referencing a named query by name only (its text defined elsewhere, for example a `@NamedQuery` or an XML mapping), or a repository method with no `@Query` at all, does not qualify: the query text must be present and readable in the annotation. Unlocatable text is a refusal, never an assumption.
+- P3. The JPQL, read as a narrow token template (not interpreted), is a single-entity select of the root: `SELECT [DISTINCT] <alias> FROM <E> <alias> <fetch clauses> WHERE <predicate>`, where `<alias>` is the sole select item and is exactly the FROM alias, and `<E>` by simple name is E. A projection (`SELECT new <Dto>(...)`, `SELECT <alias>.<field>`, `SELECT COUNT(...)`, or more than one select item) does not qualify: its result is not E, so it is not a load of E.
+- P4. Every clause between FROM and WHERE is a `JOIN FETCH` (optionally `LEFT` or `INNER`). A fetch join is an eager-load directive: it adds related data to the returned object graph and never removes rows, so it does not change the by-primary-key claim. A plain `JOIN` carrying an `ON` or `WITH` condition, or any join that is not a fetch, does not qualify.
+- P5. The WHERE clause is EXACTLY one equality between E's identifier and the method's single parameter: one operand is `<alias>.<idField>`, where `<idField>` is E's `@Id` field name (not the literal token "id" assumed, but the actual identifier field the entity declares), and the other operand is the method's single parameter, referenced as a named parameter (`:name`, bound to the parameter by `@Param("name")` or the parameter's own name) or the positional `?1`. There is no other predicate: no `AND`, no `OR`, no second comparison, no function applied to the identifier or the parameter.
+- P6. The parameter binding is verbatim, extending condition 5's discipline to the query: the WHERE's parameter reference resolves to the method's single parameter (condition 2's id parameter). A WHERE that binds a literal, or references a parameter the method does not declare, does not qualify.
+
+The tool reads a bounded JPQL subset: it locates the `SELECT`, `FROM`, `JOIN FETCH`, and `WHERE` tokens, the alias, and the single equality; it does not evaluate expressions, resolve JPQL functions, or model the query language. Any query that does not fit the template refuses. This keeps the tool a structural matcher, not a JPQL interpreter (section 4.2.10.4).
+
+##### 4.2.10.3 The honesty argument, and the filtered-WHERE refusal stated verbatim
+
+P5 is the heart of P1b, and the reason the phase is safe. A by-primary-key load returns exactly one row: the entity with that id, or nothing. The moment the WHERE carries a second conjunct, the query returns a filtered subset, and the read is no longer "E by its id" but "E by its id, if it also satisfies X." Binding such a method as `get<E>` would tell an agent, in the tool description it acts on, that the capability reads E by id, when it reads only the rows that also pass a hidden filter. That is a filtered read wearing a by-id read's clothes, and emitting it would be the project's first semantic lie. The rule therefore refuses it, structurally and by name:
+
+> Filtered-WHERE refusal (P1b, verbatim): a `@Query` whose WHERE clause is anything other than the single equality of P5, in particular any WHERE containing a further predicate joined by `AND` or `OR` (for example `WHERE e.id = :id AND e.status = 'ACTIVE'`), is NOT a by-primary-key load. It is refused with a located message, "custom query on <Repo>#<method> filters beyond the primary key (WHERE has more than the id equality); it is a filtered read, not a by-id load, and is deferred, not bound as get<E> (Volume 5 section 4.2.10, P5)." The provider never treats a filtered query as a by-id load, whatever its method name.
+
+Fetch joins are the deliberate counterpoint and are argued structurally, not by assumption: a `JOIN FETCH` appears before the WHERE and changes which associated data is materialized on the returned E, never which E rows are returned. The row set is still "E with that id." So P4 admits fetch joins without weakening the by-primary-key claim, while P5 admits nothing into the WHERE but the id equality.
+
+##### 4.2.10.4 What P1b will never do
+
+- Never read query semantics beyond the by-primary-key claim: it verifies the SELECT is of E, the joins are fetches, and the WHERE is exactly the id equality, and nothing more. It does not evaluate, optimize, or interpret the query.
+- Never accept native SQL (`nativeQuery = true`): the structural tie to E and its `@Id` is through JPQL entity and field names, which native SQL does not use.
+- Never accept a query it cannot locate as literal text (a named or externally-defined query): unlocatable evidence is a refusal.
+- Never infer from a method name: `findByIdWithRelations` and `findByIdWithRelationships` are trusted for their read JPQL, not their names; a method named `findById` with a filtered `@Query` would still refuse on P5, and a method named `searchStuff` with a clean by-pk `@Query` would still qualify.
+- Never relax conditions 5 to 9: the verbatim argument, the single-access body, and the one resolvable mapping step are unchanged. P1b only widens what counts as the load terminal.
+
+##### 4.2.10.5 Pooling impact (per affected entity)
+
+P1b terminals join the 4.2 candidate pool with no precedence, exactly as 4.1 and 4.2 pool today (condition 10). The per-entity outcomes, from the census:
+
+- pms Tenant: DISCOVERS. Its only refusal today is the P1b load terminal; the mapping step (`propertyMgtMapper.toTenantVTO(tenant)`, a resolvable mapper field) already satisfies conditions 8 and 9. With P1b, the one-hop `selectById` delegating to the `@Query findByIdWithRelations` is verified by-primary-key, the pool has exactly one candidate, and getTenant is emitted (view TenantVTO). Not ambiguous: no competing Tenant-returning or Tenant-view by-id method exists.
+- erp Delivery: STAYS REFUSED. P1b clears the load terminal (`findByIdWithRelationships` is a verified by-primary-key `@Query`), but `DeliveryServiceImpl#findById` maps via `mapToDTO(delivery)`, an implicit-this call with no receiver, which does not resolve to a mapper on a field, a static factory, a constructor, or a method reference, so it still refuses at condition 9. P1b alone does not unlock Delivery; the diagnostic moves from the load to the same-service mapper, but the outcome is unchanged. Extending the mapping rule to an implicit-this method is a separate decision, not P1b.
+- erp Quote: UNCHANGED, stays AMBIGUOUS. `getInvoice` loads via the framework `quoteRepository.findById(id)` (already a P1a match today, competing with the entity-returning `findById` as `getQuote`), so its load never depended on P1b. P1b does not add getInvoice to the pool because it is already in it, and it does not change Quote's composition.
+- erp Product, Contact, Ticket, ContactGroup: UNCHANGED. Each service `findById` returns the entity, so each is a section 4.1 discovery whose body 4.1 never reads. P1b does not evaluate their custom-query loads at all.
+
+##### 4.2.10.6 Pre-registered fixtures (the build session must include these before the code exists)
+
+Positives:
+
+- P1b-1: direct Spring Data, clean by-pk `@Query`: a view-returning service method whose body is `V m = repo.findByIdX(id).orElseThrow(...); return mapper.toV(m);`, where `repo` is `extends JpaRepository<E, Id>` and `findByIdX` carries `@Query("SELECT e FROM E e WHERE e.id = :id")`. Discovers.
+- P1b-2: one-hop hand-written to a `@Query` terminal (the Tenant shape): a hand-written interface whose single `@Repository` implementation delegates in one return statement to a Spring Data `@Query` by-pk method. Discovers.
+- P1b-3: JOIN FETCH positive: the same as P1b-1 but the `@Query` is `"SELECT e FROM E e LEFT JOIN FETCH e.child WHERE e.id = :id"`. Discovers (fetch joins do not change the claim).
+- P1b-4 (the semantic-lie guard, the most important fixture): filtered WHERE: the `@Query` is `"SELECT e FROM E e WHERE e.id = :id AND e.status = 'ACTIVE'"`, single id parameter. Must REFUSE with the verbatim P5 message; getE is not emitted. This is the fixture that proves the tool never binds a filtered read as a by-id read.
+- P1b-5: multi-parameter refusal: a `@Query` by-pk-looking method with a second parameter beyond the id. Refuses (condition 2 already, restated for the query).
+- P1b-6: native query refusal: `@Query(value = "SELECT * FROM e_table WHERE id = :id", nativeQuery = true)`. Must refuse on P2.
+- P1b-7: unlocatable query refusal: a repository method whose `@Query` references a named query by name (no literal JPQL), or a `@NamedQuery` defined on the entity. Must refuse on P2.
+- P1b-8: projection refusal: `@Query("SELECT new com.x.EDto(e.id, e.name) FROM E e WHERE e.id = :id")`. Must refuse on P3 (the result is not E).
+- P1b-9 (pooling): an entity with both a framework-loaded view read and a P1b-loaded view read, both clean, for the same E. Must refuse as AMBIGUOUS_BINDING, listing both (P1b joins the pool with no precedence).
+- P1b-10 (mis-bound guard): the P1b-1 entity's discovered binding is exactly the service method whose custom-query load and mapping were verified, and its output is ENTITY_REF(E) with the view annotation; a sibling entity's by-pk query is never bound to it.
+
+##### 4.2.10.7 Forecast
+
+Stated before the build (full number-by-number in the ledgers: pms docs/experiments/second-app-trial.md section 8.8; erp docs/experiments/third-app-trial.md section 14):
+
+- pms: discovered 2 to 3. getTenant flips from NO_BACKING_METHOD (its P1b near-miss) to DISCOVERED (view TenantVTO, via the one-hop `@Query` terminal). NO_BACKING_METHOD 38 to 37; every other row byte-identical; mis-bound 0.
+- erp: byte-identical. Delivery stays refused (the implicit-this mapper), Quote stays AMBIGUOUS (framework load), the four entity-returning 4.1 discoveries are untouched. Delivery's near-miss message shifts from the load terminal to the mapper, the only visible change; discovered 25, failed 9, mis-bound 0, all unchanged.
+- Named uncertainty: whether Tenant carries a `partial` annotation (a skipped field) is a build-time detail that does not affect its discovery or the mis-bound bar; the discovered count 2 to 3 is firm from source. P1b is additive to the load-evidence rule, not a change to any existing match, so any movement in an existing discovered row on either app is a regression finding.
+
+P1b is not E6, and the census shows why: E6 is the filter-semantics problem (representing a read whose WHERE filters); P1b's defining refusal (P5) is precisely the absence of any filter in the WHERE. They meet at the boundary and never overlap, so P1b stands as its own small, honest unlock (one entity) rather than folding into E6.
+
 ### 4.3 Scan resilience: two entry points, the language level, collect-and-continue, and the walk rule (phase E1)
 
 Reading a large, messy, real app is not the same job as producing an artifact from a clean one, so the provider has two entry points, and they behave differently on purpose:
