@@ -3,6 +3,7 @@ package com.tibyaan.provider.spring;
 import com.tibyaan.core.ir.CapabilityModel;
 import com.tibyaan.provider.spring.EntityOutcome.Cause;
 import com.tibyaan.provider.spring.EntityOutcome.Status;
+import com.tibyaan.provider.spring.extractors.SkippedField;
 
 import java.util.List;
 import java.util.Map;
@@ -22,11 +23,14 @@ import java.util.TreeMap;
  * @param model         the IR holding only successfully discovered entities and capabilities
  * @param entityOutcomes one verdict per entity the scan parsed, never null
  * @param parseSkips    one entry per file the scan could not parse, never null
+ * @param skippedFields one entry per field skipped by tolerance or dropped by closure, never null
+ *                      (Volume 5 sections 4.8, 4.7)
  */
 public record ScanReport(
         CapabilityModel model,
         List<EntityOutcome> entityOutcomes,
-        List<ParseSkip> parseSkips) {
+        List<ParseSkip> parseSkips,
+        List<SkippedField> skippedFields) {
 
     public ScanReport {
         if (model == null) {
@@ -34,6 +38,7 @@ public record ScanReport(
         }
         entityOutcomes = entityOutcomes == null ? List.of() : List.copyOf(entityOutcomes);
         parseSkips = parseSkips == null ? List.of() : List.copyOf(parseSkips);
+        skippedFields = skippedFields == null ? List.of() : List.copyOf(skippedFields);
     }
 
     /** The number of entities for which a capability was discovered. */
@@ -49,6 +54,16 @@ public record ScanReport(
     /** The number of files that could not be parsed and were skipped. */
     public long skippedByParseCount() {
         return parseSkips.size();
+    }
+
+    /** The number of entities whose shape is partial: they lost at least one field (section 4.9). */
+    public long partialEntityCount() {
+        return entityOutcomes.stream().filter(EntityOutcome::isPartial).count();
+    }
+
+    /** The total number of fields skipped by tolerance or dropped by closure across all entities. */
+    public long skippedFieldCount() {
+        return skippedFields.size();
     }
 
     /** Failed entity counts grouped by cause, in a stable order, omitting causes with no failures. */

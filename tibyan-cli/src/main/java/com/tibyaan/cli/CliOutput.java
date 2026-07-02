@@ -7,6 +7,7 @@ import com.tibyaan.provider.spring.EntityOutcome;
 import com.tibyaan.provider.spring.EntityOutcome.Cause;
 import com.tibyaan.provider.spring.ParseSkip;
 import com.tibyaan.provider.spring.ScanReport;
+import com.tibyaan.provider.spring.extractors.SkippedField;
 
 import java.util.List;
 import java.util.Map;
@@ -40,14 +41,15 @@ final class CliOutput {
         if (!discovered.isEmpty()) {
             System.out.println("Discovered (" + discovered.size() + "):");
             for (EntityOutcome outcome : discovered) {
-                System.out.println("  + " + outcome.entityName() + ": " + outcome.detail());
+                System.out.println("  + " + outcome.entityName() + ": " + outcome.detail()
+                        + partialQualifier(outcome));
             }
         }
         if (!failed.isEmpty()) {
             System.out.println("Failed (" + failed.size() + "):");
             for (EntityOutcome outcome : failed) {
                 System.out.println("  - " + outcome.entityName() + " [" + outcome.cause() + "]: "
-                        + firstSentence(outcome.detail()));
+                        + firstSentence(outcome.detail()) + partialQualifier(outcome));
             }
         }
         if (!report.parseSkips().isEmpty()) {
@@ -56,11 +58,30 @@ final class CliOutput {
                 System.out.println("  ~ " + skip.describe());
             }
         }
+        // Partial-model integrity (Volume 5 section 4.9): every field skipped by tolerance or dropped
+        // by closure is disclosed here with its located note; the entity extracted without it.
+        if (!report.skippedFields().isEmpty()) {
+            System.out.println("Skipped fields (" + report.skippedFieldCount() + "):");
+            for (SkippedField skip : report.skippedFields()) {
+                System.out.println("  * " + skip.describe());
+            }
+        }
 
         System.out.println("Totals: discovered " + report.discoveredCount()
                 + ", failed " + report.failedCount() + byCause(report.failuresByCause())
                 + ", skipped-by-parse " + report.skippedByParseCount()
+                + ", partial " + report.partialEntityCount()
+                + " (" + report.skippedFieldCount() + " fields skipped)"
                 + ", mis-bound 0");
+    }
+
+    // The partial qualifier on a discovered or failed line (Volume 5 section 4.9): the entity
+    // extracted but its shape is incomplete. Absent when the entity is complete.
+    private static String partialQualifier(EntityOutcome outcome) {
+        if (!outcome.isPartial()) {
+            return "";
+        }
+        return " (partial: " + outcome.partialFields().size() + " fields skipped)";
     }
 
     private static String byCause(Map<Cause, Long> failuresByCause) {

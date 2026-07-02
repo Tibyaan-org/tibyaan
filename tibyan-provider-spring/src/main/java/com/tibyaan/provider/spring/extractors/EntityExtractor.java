@@ -17,7 +17,6 @@ import com.tibyaan.core.ir.Relation;
 import com.tibyaan.core.ir.RelationKind;
 import com.tibyaan.core.ir.Type;
 import com.tibyaan.provider.spring.JavaTypeMapper;
-import com.tibyaan.provider.spring.ProviderException;
 import com.tibyaan.provider.spring.extractors.TypeRegistry.Kind;
 
 import java.util.ArrayList;
@@ -73,86 +72,104 @@ public final class EntityExtractor {
     }
 
     /**
-     * Reads one entity into IR together with the relations its associations contribute, or fails
-     * loudly if a field's type has no equivalent. The registry resolves association and enum types
-     * structurally (sections 4.4, 4.5).
+     * Reads one entity into IR together with the relations its associations contribute and the
+     * fields tolerance skipped. Extraction no longer fails on an unmappable field (partial-model
+     * integrity, Volume 5 section 4.8): a field the closed set and the association and enum rules
+     * cannot map is skipped with a located note and the entity extracts without it. The registry
+     * resolves association and enum types structurally (sections 4.4, 4.5).
      */
     public ExtractedEntity extractEntity(ClassOrInterfaceDeclaration type, TypeRegistry registry) {
         String entityName = type.getNameAsString();
         List<Field> fields = new ArrayList<>();
         List<Relation> relations = new ArrayList<>();
+        List<SkippedField> skipped = new ArrayList<>();
         for (FieldDeclaration declaration : type.getFields()) {
             if (isSkipped(declaration)) {
                 continue;
             }
             boolean nullable = isNullable(declaration);
             for (VariableDeclarator variable : declaration.getVariables()) {
-                fields.add(toField(entityName, declaration, variable, nullable, registry, relations));
+                toField(entityName, declaration, variable, nullable, registry, fields, relations, skipped);
             }
         }
-        return new ExtractedEntity(new Entity(entityName, fields, List.of(), Metadata.empty()), relations);
+        return new ExtractedEntity(
+                new Entity(entityName, fields, List.of(), Metadata.empty()), relations, skipped);
     }
 
-    // One field to IR (sections 4.4, 4.5, 4.6). Order: primitive first (the closed set, FLOAT
-    // included); then the collection refusal (a to-many shape is deferred); then structural
-    // resolution of the declared type in-tree, which decides association, enum, or a located
-    // refusal. Nothing is decided by a type's name resemblance.
-    private Field toField(String entityName, FieldDeclaration declaration, VariableDeclarator variable,
-                          boolean nullable, TypeRegistry registry, List<Relation> relations) {
+    // One field to IR (sections 4.4, 4.5, 4.6), or a skip with a located note (section 4.8). Order:
+    // primitive first (the closed set, FLOAT included); then the to-many and binary/array skip; then
+    // structural resolution of the declared type in-tree, which decides association, enum, or a
+    // skip. Nothing is decided by a type's name resemblance, and nothing vetoes the entity: a field
+    // the rules cannot map is recorded as a skipped field and the entity extracts without it.
+    private void toField(String entityName, FieldDeclaration declaration, VariableDeclarator variable,
+                         boolean nullable, TypeRegistry registry, List<Field> fields,
+                         List<Relation> relations, List<SkippedField> skipped) {
         String fieldName = variable.getNameAsString();
         String javaType = variable.getTypeAsString();
 
         Optional<Type> primitive = typeMapper.map(javaType);
         if (primitive.isPresent()) {
-            return new Field(fieldName, primitive.get(), nullable, List.of());
+            fields.add(new Field(fieldName, primitive.get(), nullable, List.of()));
+            return;
         }
 
-        if (isCollectionOrArray(javaType)) {
-            throw new ProviderException(
-                    "collection field '" + entityName + "." + fieldName + "' of type '" + javaType
-                            + "' is a to-many shape, deferred to the list-modeling phase (Volume 5 "
-                            + "section 4.4); it is not mapped as a single reference.");
+        // Section 4.8, rule 2: byte[] and other scalar arrays are binary blobs, not to-many shapes.
+        if (isArray(javaType)) {
+            skipped.add(new SkippedField(entityName, fieldName, "binary or array field of type '"
+                    + javaType + "' has no scalar mapping in the closed set (Volume 5 section 4.8); "
+                    + "skipped, not modeled as a value."));
+            return;
+        }
+        // Section 4.8, rule 1: a to-many collection is deferred to the list phase, skipped here.
+        if (isCollection(javaType)) {
+            skipped.add(new SkippedField(entityName, fieldName, "to-many field of type '" + javaType
+                    + "' deferred to the list-modeling phase (E4, Volume 5 section 4.8); skipped, "
+                    + "not modeled."));
+            return;
         }
 
         String simpleName = lastSegment(javaType);
         Optional<Kind> kind = registry.kindOf(simpleName);
         if (kind.isEmpty()) {
-            throw new ProviderException(
-                    "unresolved type '" + javaType + "' on field '" + entityName + "." + fieldName
-                            + "'. It is neither a closed primitive nor a type declared in the scanned "
-                            + "source tree; resolution is structural (Volume 5 sections 4.4, 4.5), so "
-                            + "a type that only looks like an entity or enum name does not map.");
+            // Section 4.8, rule 4: a type not in the scanned tree (a library type) is skipped.
+            skipped.add(new SkippedField(entityName, fieldName, "type '" + javaType + "' is not "
+                    + "resolvable in the scanned source tree (Volume 5 section 4.8); skipped."));
+            return;
         }
         switch (kind.get()) {
             case ENTITY:
-                return toAssociationField(entityName, declaration, fieldName, simpleName, nullable, relations);
+                toAssociationField(entityName, declaration, fieldName, simpleName, nullable, fields,
+                        relations, skipped);
+                return;
             case ENUM:
-                return toEnumField(fieldName, simpleName, nullable, registry);
+                fields.add(toEnumField(fieldName, simpleName, nullable, registry));
+                return;
             case CLASS:
             default:
-                throw new ProviderException(
-                        "unmapped type '" + javaType + "' on field '" + entityName + "." + fieldName
-                                + "'. It resolves in-tree to a class that is neither an @Entity nor an "
-                                + "enum (Volume 5 sections 4.4, 4.5); it has no place in the closed type "
-                                + "set and is not coerced.");
+                // Section 4.8, rule 3: an in-tree value type (for example @Embeddable) is skipped.
+                String embeddable = registry.isEmbeddable(simpleName) ? " (an @Embeddable)" : "";
+                skipped.add(new SkippedField(entityName, fieldName, "in-tree value type '" + javaType
+                        + "'" + embeddable + ", neither an @Entity nor an enum (Volume 5 section 4.8); "
+                        + "skipped."));
         }
     }
 
     // Section 4.4: an entity-typed field maps to ENTITY_REF plus a Relation only when the source
     // itself declares the relationship with @ManyToOne or @OneToOne. The kind is read from that
-    // annotation, never inferred. An @Id association still maps here; read eligibility is separate.
-    private Field toAssociationField(String entityName, FieldDeclaration declaration, String fieldName,
-                                     String target, boolean nullable, List<Relation> relations) {
+    // annotation, never inferred. Section 4.8, rule 5: an entity-typed field with no declared
+    // relationship is skipped rather than inferred, and the entity extracts without it.
+    private void toAssociationField(String entityName, FieldDeclaration declaration, String fieldName,
+                                    String target, boolean nullable, List<Field> fields,
+                                    List<Relation> relations, List<SkippedField> skipped) {
         Optional<RelationKind> relationKind = declaredRelationKind(declaration);
         if (relationKind.isEmpty()) {
-            throw new ProviderException(
-                    "entity-typed field '" + entityName + "." + fieldName + "' references entity '"
-                            + target + "' but declares no @ManyToOne or @OneToOne; the relationship "
-                            + "is not stated in the source and the provider will not infer one "
-                            + "(Volume 5 section 4.4).");
+            skipped.add(new SkippedField(entityName, fieldName, "entity-typed field referencing '"
+                    + target + "' declares no @ManyToOne or @OneToOne (Volume 5 sections 4.4, 4.8); "
+                    + "the relationship is not stated in the source, so it is skipped, not inferred."));
+            return;
         }
         relations.add(new Relation(entityName, target, relationKind.get()));
-        return new Field(fieldName, Type.entityRef(target), nullable, List.of());
+        fields.add(new Field(fieldName, Type.entityRef(target), nullable, List.of()));
     }
 
     // Section 4.5: an enum-typed field maps to STRING and carries the closed value set as an
@@ -274,9 +291,12 @@ public final class EntityExtractor {
         return Optional.empty();
     }
 
-    private static boolean isCollectionOrArray(String javaType) {
-        return javaType.contains("<") || javaType.contains("[")
-                || COLLECTION_TYPES.contains(lastSegment(javaType));
+    private static boolean isArray(String javaType) {
+        return javaType.contains("[");
+    }
+
+    private static boolean isCollection(String javaType) {
+        return javaType.contains("<") || COLLECTION_TYPES.contains(lastSegment(javaType));
     }
 
     private static boolean isSkipped(FieldDeclaration declaration) {

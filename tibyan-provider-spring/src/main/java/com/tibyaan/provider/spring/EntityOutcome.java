@@ -1,5 +1,7 @@
 package com.tibyaan.provider.spring;
 
+import java.util.List;
+
 /**
  * The verdict for one entity a scan found (Volume 5 section 4, phase E1). A resilient scan accounts
  * for every {@code @Entity} it could parse with exactly one of these, so the survey is complete and
@@ -10,13 +12,19 @@ package com.tibyaan.provider.spring;
  * strict provider raises; the only difference is that a survey records it and moves on instead of
  * aborting. The strict {@code provide} path still refuses the whole scan on any hard failure.
  *
- * @param entityName the entity the outcome is about, for example {@code Product}
- * @param status     whether a capability was discovered for it
- * @param cause      why it failed, or {@link Cause#NONE} when discovered
- * @param detail     for a discovered entity, the capability and its binding; for a failed entity,
- *                   the located reason
+ * <p>An outcome, discovered or failed, may also be partial: the entity extracted but lost fields to
+ * tolerance or closure (Volume 5 sections 4.8, 4.7). {@link #partialFields} names them; it is
+ * orthogonal to the discovery verdict and never changes it (section 4.9).
+ *
+ * @param entityName    the entity the outcome is about, for example {@code Product}
+ * @param status        whether a capability was discovered for it
+ * @param cause         why it failed, or {@link Cause#NONE} when discovered
+ * @param detail        for a discovered entity, the capability and its binding; for a failed entity,
+ *                      the located reason
+ * @param partialFields the field names skipped or dropped from this entity's shape, empty when complete
  */
-public record EntityOutcome(String entityName, Status status, Cause cause, String detail) {
+public record EntityOutcome(
+        String entityName, Status status, Cause cause, String detail, List<String> partialFields) {
 
     /** Whether a read capability was discovered for the entity. */
     public enum Status {
@@ -56,17 +64,27 @@ public record EntityOutcome(String entityName, Status status, Cause cause, Strin
         }
         cause = cause == null ? Cause.NONE : cause;
         detail = detail == null ? "" : detail;
+        partialFields = partialFields == null ? List.of() : List.copyOf(partialFields);
     }
 
     static EntityOutcome discovered(String entityName, String detail) {
-        return new EntityOutcome(entityName, Status.DISCOVERED, Cause.NONE, detail);
+        return new EntityOutcome(entityName, Status.DISCOVERED, Cause.NONE, detail, List.of());
     }
 
     static EntityOutcome failed(String entityName, Cause cause, String reason) {
-        return new EntityOutcome(entityName, Status.FAILED, cause, reason);
+        return new EntityOutcome(entityName, Status.FAILED, cause, reason, List.of());
+    }
+
+    /** The same outcome, marked partial with the fields it lost (Volume 5 section 4.9). */
+    EntityOutcome withPartialFields(List<String> fields) {
+        return new EntityOutcome(entityName, status, cause, detail, fields);
     }
 
     public boolean isDiscovered() {
         return status == Status.DISCOVERED;
+    }
+
+    public boolean isPartial() {
+        return !partialFields.isEmpty();
     }
 }

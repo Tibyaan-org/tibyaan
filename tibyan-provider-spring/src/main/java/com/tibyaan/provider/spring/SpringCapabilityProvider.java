@@ -13,6 +13,8 @@ import com.tibyaan.core.ir.Capability;
 import com.tibyaan.core.ir.CapabilityKind;
 import com.tibyaan.core.ir.CapabilityModel;
 import com.tibyaan.core.ir.Entity;
+import com.tibyaan.core.ir.EntityRef;
+import com.tibyaan.core.ir.Field;
 import com.tibyaan.core.ir.Metadata;
 import com.tibyaan.core.ir.Relation;
 import com.tibyaan.core.ir.Type;
@@ -27,6 +29,7 @@ import com.tibyaan.provider.spring.extractors.RepositoryCatalog;
 import com.tibyaan.provider.spring.extractors.ServiceExtractor;
 import com.tibyaan.provider.spring.extractors.ServiceMethod;
 import com.tibyaan.provider.spring.extractors.ServiceMethodSource;
+import com.tibyaan.provider.spring.extractors.SkippedField;
 import com.tibyaan.provider.spring.extractors.TypeRegistry;
 import com.tibyaan.provider.spring.extractors.ViewReadMatcher;
 
@@ -36,6 +39,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -136,16 +140,90 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
         List<Capability> capabilities = new ArrayList<>();
         List<EntityOutcome> outcomes = new ArrayList<>();
         List<Relation> relations = new ArrayList<>();
+        List<SkippedField> skippedFields = new ArrayList<>();
 
         Discovery discovery = new Discovery(serviceSources, viewMatcher, skipCount);
         for (ClassOrInterfaceDeclaration type : entityExtractor.entityTypes(parsed.units())) {
-            classifyEntity(type, registry, discovery, entities, capabilities, relations, outcomes);
+            classifyEntity(type, registry, discovery, entities, capabilities, relations, outcomes,
+                    skippedFields);
         }
 
+        // Partial-model integrity: close the model (drop references to absent entities, section 4.7),
+        // then finalize (mark partial entities and enrich their outcomes, section 4.9). Both run once
+        // over the whole model, after every entity has been through tolerant extraction (section 4.8).
+        Finalized finalized = closeAndFinalize(entities, relations, outcomes, skippedFields);
+
         CapabilityModel model = new CapabilityModel(
-                moduleName(sourceRoot), IR_VERSION, entities, capabilities, dedupeAndSort(relations),
-                Metadata.empty());
-        return new ScanReport(model, outcomes, parsed.skips());
+                moduleName(sourceRoot), IR_VERSION, finalized.entities(), capabilities,
+                dedupeAndSort(finalized.relations()), Metadata.empty());
+        return new ScanReport(model, finalized.outcomes(), parsed.skips(), finalized.skippedFields());
+    }
+
+    // Model closure (section 4.7) plus the partial disclosure (section 4.9), as one pass over the
+    // extracted model. Every ENTITY_REF field and Relation targeting an entity absent from the model
+    // is dropped and disclosed, so validation rules 3 and 4 hold by construction and the model is
+    // producible. Every entity that lost a field (to tolerance or to closure) is marked partial with
+    // a `partial` annotation naming those fields, and its outcome is enriched with them.
+    //
+    // Package-private for a direct unit test: given tolerance (section 4.8) every scanned @Entity
+    // extracts, and an ENTITY_REF is only emitted for a present @Entity, so the scan path never
+    // produces an absent target and closure never drops anything on real input (a recorded finding,
+    // Volume 5 section 4.7). Closure is retained as the standing invariant guarantee and is exercised
+    // in isolation on a synthetic model.
+    static Finalized closeAndFinalize(List<Entity> entities, List<Relation> relations,
+                                      List<EntityOutcome> outcomes, List<SkippedField> toleranceSkips) {
+        Set<String> present = new HashSet<>();
+        for (Entity entity : entities) {
+            present.add(entity.name());
+        }
+
+        List<SkippedField> allSkips = new ArrayList<>(toleranceSkips);
+        Map<String, List<String>> partialByEntity = new LinkedHashMap<>();
+        for (SkippedField skip : toleranceSkips) {
+            partialByEntity.computeIfAbsent(skip.entity(), k -> new ArrayList<>()).add(skip.field());
+        }
+
+        List<Entity> closedEntities = new ArrayList<>();
+        for (Entity entity : entities) {
+            List<Field> keptFields = new ArrayList<>();
+            for (Field field : entity.fields()) {
+                if (field.type() instanceof EntityRef ref && !present.contains(ref.entityName())) {
+                    allSkips.add(new SkippedField(entity.name(), field.name(),
+                            "reference to entity '" + ref.entityName() + "' dropped: the target is not "
+                                    + "in the model (Volume 5 section 4.7, model closure)."));
+                    partialByEntity.computeIfAbsent(entity.name(), k -> new ArrayList<>())
+                            .add(field.name());
+                } else {
+                    keptFields.add(field);
+                }
+            }
+            List<String> partialFields = partialByEntity.getOrDefault(entity.name(), List.of());
+            List<Annotation> annotations = partialFields.isEmpty()
+                    ? List.of()
+                    : List.of(new Annotation("partial", partialFields));
+            closedEntities.add(new Entity(entity.name(), keptFields, annotations, entity.metadata()));
+        }
+
+        List<Relation> closedRelations = new ArrayList<>();
+        for (Relation relation : relations) {
+            if (present.contains(relation.from()) && present.contains(relation.to())) {
+                closedRelations.add(relation);
+            }
+        }
+
+        List<EntityOutcome> enrichedOutcomes = new ArrayList<>();
+        for (EntityOutcome outcome : outcomes) {
+            List<String> partialFields = partialByEntity.get(outcome.entityName());
+            enrichedOutcomes.add(partialFields == null ? outcome : outcome.withPartialFields(partialFields));
+        }
+
+        return new Finalized(closedEntities, closedRelations, enrichedOutcomes, allSkips);
+    }
+
+    // The result of the closure and finalize pass: the closed entities and relations, the outcomes
+    // enriched with partial fields, and every skip and drop for the survey.
+    record Finalized(List<Entity> entities, List<Relation> relations,
+                     List<EntityOutcome> outcomes, List<SkippedField> skippedFields) {
     }
 
     // Relations are the entity-level summary (Volume 5 section 4.4, rule 5): identical (from, to,
@@ -170,18 +248,17 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
             List<Entity> entities,
             List<Capability> capabilities,
             List<Relation> relations,
-            List<EntityOutcome> outcomes) {
+            List<EntityOutcome> outcomes,
+            List<SkippedField> skippedFields) {
         String entityName = type.getNameAsString();
 
-        ExtractedEntity extracted;
-        try {
-            extracted = entityExtractor.extractEntity(type, registry);
-        } catch (ProviderException e) {
-            outcomes.add(EntityOutcome.failed(entityName, Cause.UNMAPPED_FIELD_TYPE, e.getMessage()));
-            return;
-        }
+        // Extraction no longer vetoes the entity on an unmappable field (section 4.8): it always
+        // produces an entity, with the fields it could not map recorded as skips. The entity is
+        // partial, never absent, so the discovery decisions below are byte-for-byte unchanged.
+        ExtractedEntity extracted = entityExtractor.extractEntity(type, registry);
         entities.add(extracted.entity());
         relations.addAll(extracted.relations());
+        skippedFields.addAll(extracted.skipped());
 
         // Condition 0: a composite key forms no read intent and is never read by part of its key.
         if (entityExtractor.hasCompositeKey(type)) {

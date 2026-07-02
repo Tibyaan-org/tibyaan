@@ -8,10 +8,12 @@ import com.github.javaparser.ast.nodeTypes.NodeWithAnnotations;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * What the scanned source declares, indexed by simple type name (Volume 5 sections 4.4 and 4.5).
@@ -39,14 +41,18 @@ public final class TypeRegistry {
     }
 
     private static final String ENTITY_ANNOTATION = "Entity";
+    private static final String EMBEDDABLE_ANNOTATION = "Embeddable";
 
     private final Map<String, Kind> kindBySimpleName;
     private final Map<String, List<String>> enumConstantsBySimpleName;
+    private final Set<String> embeddableSimpleNames;
 
     private TypeRegistry(Map<String, Kind> kindBySimpleName,
-                         Map<String, List<String>> enumConstantsBySimpleName) {
+                         Map<String, List<String>> enumConstantsBySimpleName,
+                         Set<String> embeddableSimpleNames) {
         this.kindBySimpleName = kindBySimpleName;
         this.enumConstantsBySimpleName = enumConstantsBySimpleName;
+        this.embeddableSimpleNames = embeddableSimpleNames;
     }
 
     /** Builds the registry from every type declared across the parsed units. */
@@ -54,6 +60,7 @@ public final class TypeRegistry {
         Map<String, Kind> kinds = new HashMap<>();
         Map<String, Kind> ambiguous = new HashMap<>();
         Map<String, List<String>> enumConstants = new LinkedHashMap<>();
+        Set<String> embeddables = new HashSet<>();
 
         for (CompilationUnit unit : units) {
             for (EnumDeclaration decl : unit.findAll(EnumDeclaration.class)) {
@@ -67,6 +74,9 @@ public final class TypeRegistry {
                 }
                 Kind kind = hasAnnotation(decl, ENTITY_ANNOTATION) ? Kind.ENTITY : Kind.CLASS;
                 record(kinds, ambiguous, decl.getNameAsString(), kind);
+                if (hasAnnotation(decl, EMBEDDABLE_ANNOTATION)) {
+                    embeddables.add(decl.getNameAsString());
+                }
             }
         }
 
@@ -75,12 +85,17 @@ public final class TypeRegistry {
             kinds.remove(name);
             enumConstants.remove(name);
         }
-        return new TypeRegistry(kinds, enumConstants);
+        return new TypeRegistry(kinds, enumConstants, embeddables);
     }
 
     /** The kind of the type with this simple name, or empty when it is not declared or is ambiguous. */
     public Optional<Kind> kindOf(String simpleName) {
         return Optional.ofNullable(kindBySimpleName.get(simpleName));
+    }
+
+    /** Whether the type with this simple name is a class annotated {@code @Embeddable}, for a clearer skip note. */
+    public boolean isEmbeddable(String simpleName) {
+        return embeddableSimpleNames.contains(simpleName);
     }
 
     /**
