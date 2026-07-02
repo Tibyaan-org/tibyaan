@@ -71,23 +71,24 @@ class ScanResilienceTest {
 
     @Test
     void scanClassifiesEveryEntityByCause() {
-        // Every entity the scan parses gets exactly one outcome: one discovered, and one failure of
-        // each of the three loud causes reachable without a parse skip.
+        // Every entity the scan parses gets exactly one outcome. Under E5 tolerance (Volume 5
+        // section 4.8), Beta's undeclared-relationship field is skipped and Beta now extracts
+        // partial, so it is in the model and its outcome is NO_BACKING_METHOD, not UNMAPPED.
         ScanReport report = provider.scan(new ProviderInput(FIXTURES.resolve("mixed")));
 
         assertThat(report.discoveredCount()).isEqualTo(1);
         assertThat(report.failedCount()).isEqualTo(3);
         assertThat(report.skippedByParseCount()).isZero();
         assertThat(report.failuresByCause()).containsOnly(
-                entry(Cause.UNMAPPED_FIELD_TYPE, 1L),
-                entry(Cause.NO_BACKING_METHOD, 1L),
+                entry(Cause.NO_BACKING_METHOD, 2L),
                 entry(Cause.NO_IDENTIFIER, 1L));
 
-        // Beta failed extraction (association field), so it is not in the IR; the three that
-        // extracted are, and only Alpha yields a capability.
+        // All four entities extract now (Beta partial, its 'owner' field skipped); only Alpha yields
+        // a capability.
         assertThat(report.model().entities()).extracting(Entity::name)
-                .containsExactlyInAnyOrder("Alpha", "Gamma", "Delta");
+                .containsExactlyInAnyOrder("Alpha", "Beta", "Gamma", "Delta");
         assertThat(report.model().capabilities()).extracting(Capability::name).containsExactly("getAlpha");
+        assertThat(outcome(report, "Beta").partialFields()).containsExactly("owner");
     }
 
     @Test
@@ -114,5 +115,12 @@ class ScanResilienceTest {
         assertThat(SpringCapabilityProvider.isExcludedFromWalk(Path.of("m", ".idea", "W.java"))).isTrue();
 
         assertThat(SpringCapabilityProvider.isExcludedFromWalk(Path.of("src", "main", "java", "com", "A.java"))).isFalse();
+    }
+
+    private static EntityOutcome outcome(ScanReport report, String entityName) {
+        return report.entityOutcomes().stream()
+                .filter(o -> o.entityName().equals(entityName))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no outcome for " + entityName));
     }
 }

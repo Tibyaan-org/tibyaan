@@ -57,30 +57,38 @@ class TypeMappingTest {
                 .containsExactly(new Relation("Friendship", "Person", RelationKind.MANY_TO_ONE));
     }
 
+    // E5 (section 4.8) changed a4, a5, a6, a8, b4 from a veto to a skip: the unmappable field is
+    // skipped with a note and the entity extracts partial rather than being excluded. These tests
+    // now assert the ratified tolerance behavior; the field is absent, the entity is present and
+    // partial, and its outcome is NO_BACKING_METHOD (these fixtures have a @Id but no service).
+
     @Test
-    void a4_entityTypedFieldWithNoRelationshipAnnotationRefuses() {
+    void a4_entityTypedFieldWithNoRelationshipAnnotationSkips() {
         ScanReport report = provider.scan(new ProviderInput(FIXTURES.resolve("assoc")));
+        assertThat(entityNames(report)).contains("Sponsorship");
+        assertThat(fieldNames(report, "Sponsorship")).doesNotContain("sponsor");
         EntityOutcome outcome = outcome(report, "Sponsorship");
-        assertThat(outcome.status()).isEqualTo(Status.FAILED);
-        assertThat(outcome.cause()).isEqualTo(Cause.UNMAPPED_FIELD_TYPE);
-        assertThat(outcome.detail()).contains("sponsor").contains("no @ManyToOne or @OneToOne");
-        assertThat(entityNames(report)).doesNotContain("Sponsorship");
+        assertThat(outcome.partialFields()).containsExactly("sponsor");
+        assertThat(skippedNote(report, "Sponsorship", "sponsor")).contains("no @ManyToOne or @OneToOne");
+        assertThat(outcome.cause()).isEqualTo(Cause.NO_BACKING_METHOD);
     }
 
     @Test
-    void a5_collectionFieldRefusesAsDeferred() {
+    void a5_collectionFieldSkipsAsDeferred() {
         ScanReport report = provider.scan(new ProviderInput(FIXTURES.resolve("assoc")));
-        EntityOutcome outcome = outcome(report, "Team");
-        assertThat(outcome.status()).isEqualTo(Status.FAILED);
-        assertThat(outcome.detail()).contains("members").contains("to-many").contains("deferred");
+        assertThat(entityNames(report)).contains("Team");
+        assertThat(fieldNames(report, "Team")).doesNotContain("members");
+        assertThat(outcome(report, "Team").partialFields()).containsExactly("members");
+        assertThat(skippedNote(report, "Team", "members")).contains("to-many").contains("deferred");
     }
 
     @Test
-    void a6_inTreeNonEntityClassFieldRefuses() {
+    void a6_inTreeNonEntityClassFieldSkips() {
         ScanReport report = provider.scan(new ProviderInput(FIXTURES.resolve("assoc")));
-        EntityOutcome outcome = outcome(report, "Account");
-        assertThat(outcome.status()).isEqualTo(Status.FAILED);
-        assertThat(outcome.detail()).contains("balance").contains("neither an @Entity nor an enum");
+        assertThat(entityNames(report)).contains("Account");
+        assertThat(fieldNames(report, "Account")).doesNotContain("balance");
+        assertThat(outcome(report, "Account").partialFields()).containsExactly("balance");
+        assertThat(skippedNote(report, "Account", "balance")).contains("neither an @Entity nor an enum");
     }
 
     @Test
@@ -92,11 +100,12 @@ class TypeMappingTest {
     }
 
     @Test
-    void a8_nameTrapUnresolvedTypeRefuses() {
+    void a8_nameTrapUnresolvedTypeSkips() {
         ScanReport report = provider.scan(new ProviderInput(FIXTURES.resolve("assoc")));
-        EntityOutcome outcome = outcome(report, "Ghost");
-        assertThat(outcome.status()).isEqualTo(Status.FAILED);
-        assertThat(outcome.detail()).contains("Phantom").contains("unresolved");
+        assertThat(entityNames(report)).contains("Ghost");
+        assertThat(fieldNames(report, "Ghost")).doesNotContain("ref");
+        assertThat(outcome(report, "Ghost").partialFields()).containsExactly("ref");
+        assertThat(skippedNote(report, "Ghost", "ref")).contains("Phantom").contains("not resolvable");
     }
 
     @Test
@@ -137,11 +146,13 @@ class TypeMappingTest {
     }
 
     @Test
-    void b4_unresolvableTypeRefuses() {
+    void b4_unresolvableTypeSkips() {
         ScanReport report = provider.scan(new ProviderInput(FIXTURES.resolve("enums")));
+        assertThat(entityNames(report)).contains("Thing");
         EntityOutcome outcome = outcome(report, "Thing");
-        assertThat(outcome.status()).isEqualTo(Status.FAILED);
-        assertThat(outcome.detail()).contains("Mystery").contains("unresolved");
+        assertThat(outcome.isPartial()).isTrue();
+        assertThat(skippedNote(report, "Thing", outcome.partialFields().get(0)))
+                .contains("Mystery").contains("not resolvable");
     }
 
     @Test
@@ -216,6 +227,18 @@ class TypeMappingTest {
 
     private static List<String> entityNames(ScanReport report) {
         return report.model().entities().stream().map(Entity::name).toList();
+    }
+
+    private static List<String> fieldNames(ScanReport report, String entityName) {
+        return entity(report, entityName).fields().stream().map(Field::name).toList();
+    }
+
+    private static String skippedNote(ScanReport report, String entityName, String fieldName) {
+        return report.skippedFields().stream()
+                .filter(s -> s.entity().equals(entityName) && s.field().equals(fieldName))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no skipped field " + entityName + "." + fieldName))
+                .note();
     }
 
     private static EntityOutcome outcome(ScanReport report, String entityName) {
