@@ -152,6 +152,17 @@ The former P4 to P7 ambitions, now direction, each conditional on the semantic c
 - Database provider (was P6). Proves the IR accepts a non-code source. Also the fallback path for systems whose source is unreadable. Its open question, how much business meaning a schema alone can recover, is exactly the kind of question the benchmark discipline should answer before a build.
 - .NET provider (was P7). Proves the platform crosses ecosystems. The largest and most conditional item: it multiplies every provider-side lesson from Tier 2 into a second language, so it comes last and only after the Java provider has stopped teaching new lessons.
 
+### 4.1 Release engineering (v1): the active phase (decisions recorded 2026-07-02)
+
+With all Tier 2 semantic phases built (E1 to E5) and the tool discovering 27 capabilities across two real benchmarks with zero mis-bindings, the semantic core is proven enough on real apps that the next phase is not another discovery rule but making the tool adoptable by a stranger. This pulls the "Versioning and release", "Adoptable documentation", and "Security posture" rows of the Tier 3 checklist to the front. It changes no discovery, backend, runtime, or CLI behavior; it is metadata, documentation, and mechanics. The full mechanics live in docs/RELEASING.md; the decisions are recorded here first, per rule 12.
+
+- License: Apache-2.0 (`LICENSE`, `NOTICE`). Permissive so an adopter can embed the starter and the Maven plugin in a proprietary build without friction, with an explicit patent grant that protects adopters and contributors of a tool that generates and executes code paths into a host system. Rationale in docs/RELEASING.md section 1.
+- Version: 0.1.0 (the reactor moves off `-SNAPSHOT` for the release commit). Pre-1.0 discipline: patch is docs and metadata and non-behavioral fixes; minor is a new phase or rule or IR growth or any behavior change, and pre-1.0 minor bumps may break; 1.0.0 is the first stability commitment, not yet claimed. The plugin API is the compatibility boundary (Volume 10 section 6).
+- Publishing target: Maven Central under the `com.tibyaan` groupId, with GitHub Packages permitted only as an explicitly-labeled interim. The POM carries all Central-required metadata and a `release` profile (source and javadoc jars, GPG signing wired to external credentials, the central-publishing plugin), verifiable locally with `mvn -Prelease verify` and no keys. What cannot be done without a person (namespace verification, key ceremony, account creation) is enumerated as exact human steps in docs/RELEASING.md section 4, never faked.
+- The adoption surface: the root README is rewritten for adopters (honest expectations, the refusals-are-the-product framing, a verified quickstart), a security posture is stated (docs/SECURITY.md), and CONTRIBUTING.md records the design-before-code and benchmark disciplines.
+
+The two benchmark apps stay private and uncommitted (section 5); the ledgers are the published evidence, so a stranger can read the numbers without the source.
+
 ## 5. The standing measure: two benchmarks (pms-backend and erp-backend)
 
 The trial targets become the project's standing benchmarks:
