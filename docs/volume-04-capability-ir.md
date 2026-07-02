@@ -88,12 +88,15 @@ The type system is closed. A type is either one of these primitives or a referen
 | LONG | 64-bit integer; common for identifiers |
 | INTEGER | 32-bit integer |
 | DECIMAL | Exact decimal, for money and quantities |
+| FLOAT | 64-bit binary floating point; inexact by declaration, for measurements, rates, and quantities the source declares as floating point. Deliberate growth, designed 2026-07-02, pending ratification; enters with the E3 build (see the growth note below and Volume 5, section 4.6) |
 | BOOLEAN | True or false |
 | UUID | Universally unique identifier |
 | TIMESTAMP | A point in time |
 | ENTITY_REF(name) | A reference to another entity in the model |
 
 A closed set is chosen on purpose: it forces providers to map source types into a small, well-understood vocabulary, which keeps backends simple and the IR portable.
+
+Growth note on FLOAT, recorded per section 7 discipline: the set originally refused inexact numerics by design, and that refusal was correct until evidence priced it. The benchmark's full field census (Volume 5, section 4.4.1) found 8 `Double` fields across 7 of the 24 extraction-blocked entities, gating both entities forecast to produce the first discovered capabilities. FLOAT states what such a source declares, an inexact numeric; the exact-inexact line stays hard (no coercion in either direction, `BigDecimal` remains DECIMAL), and a FLOAT identifier forms no read intent. The rule, alternatives argued, and fixtures are in Volume 5, section 4.6.
 
 ## 5. Validation rules
 
@@ -154,10 +157,12 @@ These are the north star from Volume 1, section 9.1. They are specified here onl
 
 > Discipline note: adding any of these to the core model is a deliberate, validated step with its own validators and tests. Until a phase needs an element, it stays out, so the MVP IR remains small and provable.
 
-### 7.1 Evidence-backed growth pressure (from the second-app trial)
+### 7.1 Evidence-backed growth pressure (from the second-app trial), and how each item resolved
 
-The pms-backend trial (docs/experiments/second-app-trial.md) produced the first concrete, counted pressure on this model, recorded here so growth stays deliberate:
+The pms-backend trial (docs/experiments/second-app-trial.md) produced the first concrete, counted pressure on this model, recorded here so growth stays deliberate. Updated 2026-07-02 with the E3 design outcomes:
 
-- Collection outputs. List, filter, and paged reads dominate that app's real read API, and the type system has no collection shape for a capability's output. Modeling them is Volume 13, Tier 2, phase E4, and it enters through this section's discipline: a designed change with validators and golden tests, not a silent extension.
-- Associations. Entity-typed fields blocked four entities in the trial, but the IR already has the vocabulary for them: `ENTITY_REF` (section 4) and `Relation` (section 3.5). The open decision is the provider's mapping rule, not new IR (Volume 13, Tier 2, phase E3).
-- Multi-argument reads. The `inputs` map (section 3.4) already holds multiple named inputs, so these likely need a discovery rule, not an IR change; that is decided in phase E4's design step.
+- Collection outputs. List, filter, and paged reads dominate that app's real read API, and the type system has no collection shape for a capability's output. Modeling them is Volume 13, Tier 2, phase E4, and it enters through this section's discipline: a designed change with validators and golden tests, not a silent extension. Still open.
+- Associations. Resolved with no IR growth (E3 decision a, Volume 5, section 4.4): the vocabulary already existed here, `ENTITY_REF` (section 4) and `Relation` (section 3.5), and the E3 design confirmed a pure provider mapping rule suffices. To-many collections stay deferred (zero exist in the benchmark).
+- Enums. Resolved with no IR growth (E3 decision b, Volume 5, section 4.5): STRING plus an `enum` annotation carrying the closed value set, using the Annotation hook exactly as section 3.6 intends. A first-class ENUM primitive remains a deferred candidate, to be reopened only if enums are needed as capability inputs.
+- Inexact numerics. Resolved as deliberate growth (E3 decision c, Volume 5, section 4.6): FLOAT enters the closed set, pending ratification, on the census evidence (8 fields, 7 of 24 blocked entities, both joint-exit targets). See the growth note in section 4.
+- Multi-argument reads. The `inputs` map (section 3.4) already holds multiple named inputs, so these likely need a discovery rule, not an IR change; that is decided in phase E4's design step. Still open.
