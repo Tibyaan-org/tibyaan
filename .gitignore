@@ -30,3 +30,4 @@ Thumbs.db
 *.mv.db
 *.trace.db
 /examples/pms-backend
+/examples/erp-backend

@@ -245,9 +245,15 @@ silent wrong result, did not occur.
 | 2026-07-02 | E1: Java 17 language level, collect-and-continue, scoped walk | 0 | 0 | 43 per entity (UNMAPPED_FIELD_TYPE 24, NO_BACKING_METHOD 19) | 27 files | Scan completes end to end (exit 0). Every one of the 43 entities gets a located per-entity outcome, and every unparseable file is named with its parse location, instead of a single abort. See the interpretation below |
 | 2026-07-02 | E3 build (associations, enums, FLOAT); E2 not yet built | 0 | 0 | 43 (NO_BACKING_METHOD 43) | 27 files | All 24 formerly UNMAPPED_FIELD_TYPE entities now extract, so every entity reaches binding and fails there. The IR gained the full shapes: 20 ENTITY_REF association fields deduped to 19 MANY_TO_ONE relations, 21 enum fields carrying their value sets, and 8 FLOAT fields. `mvn clean verify` green; golden manifest byte-identical. See section 8.4 |
 | 2026-07-02 | E3 plus E2 build (the joint measurement) | 2 | 0 | 41 (NO_BACKING_METHOD 38, COMPOSITE_KEY 3) | 27 files | getUnit bound to UnitServiceImpl#findById (view UnitVTO) and getLease bound to LeaseServiceImpl#findById (view LeaseVTO), both through pattern P1a one-hop. The ratified joint exit: discovered greater than zero with mis-bound 0. `mvn clean verify` green; golden manifest byte-identical. See section 8.5 |
+| 2026-07-02 | Third app added: erp-backend, tool unchanged (post-E2, post-view) | 7 | 0 | 18 (UNMAPPED_FIELD_TYPE 13, NO_BACKING_METHOD 4, AMBIGUOUS_BINDING 1) | 0 files | A second standing benchmark now exists at examples/erp-backend (25 entities, UUID ids, entity-returning reads). Baseline: all 7 discoveries via rule 4.1; rule 4.2 fired zero times; mis-bound 0. Full generalization writeup: docs/experiments/third-app-trial.md |
 
 Each Tier 2 phase (Volume 13, section 3) appends one row after its re-run. A row's totals must
 come from an actual run of the tool as built at that date, never from a projection.
+
+pms-backend remains the primary benchmark for the Tier 2 phases (its view-returning idiom exercises
+rule 4.2). erp-backend is the second standing benchmark: its entity-returning idiom exercises rule
+4.1, and together the two apps stop any single phase from being tuned to one codebase. The health
+metric is unchanged: discovered rising while mis-bound stays exactly zero, on both apps.
 
 ### 8.1 Interpretation of the E1 run (2026-07-02)
 

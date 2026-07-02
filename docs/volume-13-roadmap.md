@@ -120,18 +120,19 @@ The former P4 to P7 ambitions, now direction, each conditional on the semantic c
 - Database provider (was P6). Proves the IR accepts a non-code source. Also the fallback path for systems whose source is unreadable. Its open question, how much business meaning a schema alone can recover, is exactly the kind of question the benchmark discipline should answer before a build.
 - .NET provider (was P7). Proves the platform crosses ecosystems. The largest and most conditional item: it multiplies every provider-side lesson from Tier 2 into a second language, so it comes last and only after the Java provider has stopped teaching new lessons.
 
-## 5. The standing measure: the pms-backend benchmark
+## 5. The standing measure: two benchmarks (pms-backend and erp-backend)
 
-The trial target becomes the project's standing benchmark:
+The trial targets become the project's standing benchmarks:
 
-- The target is the local, read-only copy at `examples/pms-backend`: 43 entities across 14 domain modules. It is outside the Maven reactor and is not committed to this repository; docs/experiments/second-app-trial.md records its structure so results are interpretable without the source.
-- After each Tier 2 phase, the tool is re-run against it, and the experiment doc gains a dated entry with the new totals: discovered, failed loudly by cause, and mis-bound.
-- The health metric is one line: discovered rising while mis-bound stays zero.
-- Stated plainly: mis-bound greater than zero at any point becomes the top priority over everything. A silent wrong binding is the one failure the tool exists to never produce; if the benchmark ever shows one, all phase work stops until the cause is found and closed.
+- The primary target is the local, read-only copy at `examples/pms-backend`: 43 entities across 14 domain modules, Long/Integer ids, view-returning reads (exercising rule 4.2). It is outside the Maven reactor and is not committed; docs/experiments/second-app-trial.md records its structure so results are interpretable without the source.
+- A second target was added 2026-07-02, `examples/erp-backend`: 25 entities, single module, UUID/String ids, entity-returning reads (exercising rule 4.1), with collection associations and an embeddable value type pms-backend lacks. Same read-only, out-of-reactor, uncommitted status; docs/experiments/third-app-trial.md records it. The generalization finding: the two apps discover through disjoint rules (pms via 4.2, erp via 4.1), so together they keep any single phase from being tuned to one codebase. Coverage is idiom-bound (erp baseline: 7 of 25 discovered, all 4.1), and discovery does not fully compound across apps.
+- After each Tier 2 phase, the tool is re-run against the benchmark(s), and the experiment doc gains a dated entry with the new totals: discovered, failed loudly by cause, and mis-bound.
+- The health metric is one line: discovered rising while mis-bound stays zero, on both apps.
+- Stated plainly: mis-bound greater than zero at any point becomes the top priority over everything. A silent wrong binding is the one failure the tool exists to never produce; if either benchmark ever shows one, all phase work stops until the cause is found and closed.
 
 Baseline, 2026-07-02, tool unchanged since the MVP plus hardening: discovered 0, mis-bound 0, failed loudly 43 (by cause: f2 placeholder tokens 31, f1 language level 7, f3 association field 4, d no backing method 1). The scan aborted at exit 3 on the first unparseable file, so these are proximate module walls, not a per-entity classification.
 
-After E1, 2026-07-02: discovered 0, mis-bound 0, failed 43 per entity (UNMAPPED_FIELD_TYPE 24, NO_BACKING_METHOD 19), skipped-by-parse 27, scan exit 0. Discovered held at 0 as expected (E1 adds no discovery power) and mis-bound held at 0; the gain is that the scan now completes and classifies every entity instead of aborting. The full log is docs/experiments/second-app-trial.md, section 8.
+After E1, 2026-07-02: discovered 0, mis-bound 0, failed 43 per entity (UNMAPPED_FIELD_TYPE 24, NO_BACKING_METHOD 19), skipped-by-parse 27, scan exit 0. Discovered held at 0 as expected (E1 adds no discovery power) and mis-bound held at 0; the gain is that the scan now completes and classifies every entity instead of aborting. The full log is docs/experiments/second-app-trial.md, section 8, which now also carries the joint E3-plus-E2 row (discovered 2) and the erp-backend baseline row (discovered 7, all rule 4.1, mis-bound 0).
 
 ## 6. What each step proves about the architecture
 
