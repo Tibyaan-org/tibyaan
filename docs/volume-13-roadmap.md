@@ -50,7 +50,7 @@ After every phase in this tier, the benchmark is re-run and the experiment doc g
 
 A discipline note, because this phase is the one most easily misread as a license to soften: collect-and-continue does not weaken fail-loud. It relocates the loudness from "abort everything on the first bad file" to "name every bad file and keep going". A silent skip is still forbidden. The scan's result must state exactly which files were not read and why, so an empty or partial result can never masquerade as a complete one. Two evidence notes for later phases surfaced only because E1 now reaches every entity: enum-typed and `Double`-typed fields are unmapped alongside true associations (weigh in E3 or a type-mapping step), and the composite-key join entities fail earlier on an unmapped embedded-id type, so cause c stays latent behind UNMAPPED_FIELD_TYPE.
 
-### Phase E2: DTO-aware read discovery (design half done 2026-07-02; build pending ratification)
+### Phase E2: DTO-aware read discovery (rule RATIFIED 2026-07-02; build resequenced after E3)
 
 | Field | Detail |
 |---|---|
@@ -59,7 +59,9 @@ A discipline note, because this phase is the one most easily misread as a licens
 | Exit criterion | Discovered capabilities greater than zero on pms-backend with zero mis-bindings. Every discovered capability names the real method it is bound to; any case the written rule does not decide unambiguously still fails loudly |
 | Design status | The rule is written and pre-registered in Volume 5, section 4.2 (conditions, explanation format, refusals, IR representation, fixtures F1 to F12, benchmark forecast). It anchors on structural evidence only: a by-primary-key load of the entity proven by the framework contract, one traceable mapping step, in-tree resolution, names carrying no weight. It awaits ratification; no code exists |
 
-Design finding on the exit criterion, recorded plainly rather than silently edited: the evidence study (Volume 5, section 4.2.1) shows the criterion as written cannot be met by the E2 build alone on this benchmark. None of the 19 blocked entities has any single-id read in a parseable service; the only reads the rule can discover belong to entities still blocked at extraction (E3's causes). The first rise in discovered therefore comes from E2 and E3 together (forecast: up to 2, Unit and Lease). Ratification must choose: build E2 now, measured against the diagnostic and cause-shift forecast in the experiment doc section 8.2, with discovered greater than zero becoming the joint E2 plus E3 exit; or design and build E3 first and measure jointly. Until that choice is made, neither build starts.
+Design finding on the exit criterion, recorded plainly rather than silently edited: the evidence study (Volume 5, section 4.2.1) shows the criterion as written cannot be met by the E2 build alone on this benchmark. None of the 19 blocked entities has any single-id read in a parseable service; the only reads the rule can discover belong to entities still blocked at extraction (E3's causes). The first rise in discovered therefore comes from E2 and E3 together (forecast: up to 2, Unit and Lease).
+
+Ratified, 2026-07-02: (1) the Volume 5, section 4.2 rule stands as written, conditions 0 through 10, the ENTITY_REF-plus-view-annotation representation, fixtures F1 to F12, and the deferred patterns (P1b, P2, facades, non-pk reads). (2) Sequencing: E3 is designed and built before the E2 build; E2 and E3 are then measured jointly against the benchmark with the shared exit criterion, discovered greater than zero (forecast: Unit and Lease via P1a) and mis-bound exactly zero. (3) E3 is not one lump: it is three separate type-system decisions, associations, enums, and inexact numerics, each with its own design argument before any code (see phase E3 below).
 
 ### Phase E3: Associations (entity-typed fields)
 
