@@ -1,5 +1,6 @@
 package com.tibyaan.backend.mcp;
 
+import com.tibyaan.core.ir.Annotation;
 import com.tibyaan.core.ir.Capability;
 import com.tibyaan.core.ir.CapabilityModel;
 import com.tibyaan.core.ir.EntityRef;
@@ -7,6 +8,7 @@ import com.tibyaan.core.ir.Type;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Writes the capabilities manifest the runtime reads: a small, stable JSON describing each
@@ -15,6 +17,10 @@ import java.util.Map;
  * exact. The runtime parses this manifest to register tools without ever seeing the source.
  */
 final class ManifestWriter {
+
+    // The one capability annotation the MCP backend knows how to surface (Volume 6 section 3.1):
+    // the concrete view type a read returns, recorded by the provider (Volume 5 section 4.2.5).
+    private static final String VIEW_ANNOTATION = "view";
 
     private ManifestWriter() {
     }
@@ -45,6 +51,10 @@ final class ManifestWriter {
         out.append("      \"description\": ").append(quote(description(capability))).append(",\n");
         out.append("      \"binding\": ").append(quote(capability.binding().value())).append(",\n");
         out.append("      \"output\": ").append(quote(capability.output().canonical())).append(",\n");
+        // The view refines the output: present only when the read returns a named view of the
+        // entity (Volume 6 section 3.1). Absent otherwise, so unviewed capabilities are unchanged.
+        viewOf(capability).ifPresent(view ->
+                out.append("      \"view\": ").append(quote(view)).append(",\n"));
         Map<String, Type> inputs = capability.inputs();
         if (inputs.isEmpty()) {
             out.append("      \"inputs\": []\n");
@@ -64,14 +74,28 @@ final class ManifestWriter {
     }
 
     // The IR has no description field, so the backend synthesizes one from the capability's shape.
+    // When the read returns a named view, the description says so, since the description is the
+    // surface most MCP clients show an agent directly (Volume 6 section 3.1).
     private static String description(Capability capability) {
         String entity = capability.output() instanceof EntityRef ref
                 ? ref.entityName()
                 : capability.output().canonical();
-        if (capability.inputs().isEmpty()) {
-            return "Read " + entity + ".";
+        String base = capability.inputs().isEmpty()
+                ? "Read " + entity + "."
+                : "Read " + entity + " by " + String.join(", ", capability.inputs().keySet()) + ".";
+        return viewOf(capability)
+                .map(view -> base + " Returns the " + view + " view of " + entity + ".")
+                .orElse(base);
+    }
+
+    // The view type simple name, when the capability carries the backend's one known annotation.
+    private static Optional<String> viewOf(Capability capability) {
+        for (Annotation annotation : capability.annotations()) {
+            if (annotation.key().equals(VIEW_ANNOTATION) && !annotation.values().isEmpty()) {
+                return Optional.of(annotation.values().get(0));
+            }
         }
-        return "Read " + entity + " by " + String.join(", ", capability.inputs().keySet()) + ".";
+        return Optional.empty();
     }
 
     private static String quote(String value) {

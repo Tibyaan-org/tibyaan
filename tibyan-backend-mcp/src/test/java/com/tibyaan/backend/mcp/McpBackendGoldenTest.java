@@ -1,7 +1,9 @@
 package com.tibyaan.backend.mcp;
 
+import com.tibyaan.core.ir.Annotation;
 import com.tibyaan.core.ir.BindingRef;
 import com.tibyaan.core.ir.Capability;
+import com.tibyaan.core.ir.CapabilityKind;
 import com.tibyaan.core.ir.CapabilityModel;
 import com.tibyaan.core.ir.Entity;
 import com.tibyaan.core.ir.Field;
@@ -57,6 +59,17 @@ class McpBackendGoldenTest {
                 .doesNotContain("jakarta");
     }
 
+    @Test
+    void surfacesTheViewOfAViewReturningCapability(@TempDir Path outputRoot) throws IOException {
+        new McpBackend().generate(viewIr(), new GenerationContext(outputRoot));
+
+        // The manifest carries the view field and a description clause; a second golden case, kept
+        // separate so the example-app golden above stays byte-identical (Volume 6 section 3.1).
+        String actual = normalize(Files.readString(outputRoot.resolve("tibyan/capabilities.json")));
+        String expected = normalize(readGolden("/golden/mcp-view/tibyan/capabilities.json"));
+        assertThat(actual).isEqualTo(expected);
+    }
+
     private static void assertMatchesGolden(Path outputRoot, String relativePath) throws IOException {
         String actual = normalize(Files.readString(outputRoot.resolve(relativePath)));
         String expected = normalize(readGolden("/golden/mcp/" + relativePath));
@@ -105,5 +118,31 @@ class McpBackendGoldenTest {
         return new CapabilityModel(
                 "legacy-spring-app", "0.1",
                 List.of(product), List.of(getProduct), List.of(), Metadata.empty());
+    }
+
+    // A read discovered from a view-returning service method: output stays ENTITY_REF(Unit), and the
+    // capability carries the view annotation the provider attaches (Volume 5 section 4.2.5).
+    private static CapabilityModel viewIr() {
+        Entity unit = new Entity(
+                "Unit",
+                List.of(Field.of("id", Primitive.LONG, false)),
+                List.of(),
+                Metadata.empty());
+
+        Map<String, Type> inputs = new LinkedHashMap<>();
+        inputs.put("id", Primitive.LONG);
+
+        Capability getUnit = new Capability(
+                "getUnit",
+                CapabilityKind.READ,
+                inputs,
+                Type.entityRef("Unit"),
+                true,
+                new BindingRef("UnitServiceImpl#findById"),
+                List.of(new Annotation("view", List.of("UnitVTO"))));
+
+        return new CapabilityModel(
+                "pms-backend", "0.1",
+                List.of(unit), List.of(getUnit), List.of(), Metadata.empty());
     }
 }
