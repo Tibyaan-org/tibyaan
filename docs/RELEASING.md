@@ -109,3 +109,11 @@ expect it to behave differently on a clean runner; but if it proves environment-
 documented fallback is to scope the workflow to the unit and golden modules (`mvn -B -pl '!tibyan-it'
 clean verify`) and keep the end-to-end test as a local-only gate. This is recorded rather than hidden: a
 documented gap is preferred over a green-looking claim about a run that did not happen here.
+
+On its first run, this workflow immediately earned its place by catching a real fresh-checkout defect that
+every local build had masked: an unanchored `.gitignore` rule (`generated/`) had excluded a committed
+golden fixture (`tibyan-backend-mcp/.../com/tibyaan/generated/mcp/GetProductTool.java`) from git, because
+its path contains a `generated` segment. Local builds passed because the file was present on disk; a clean
+clone failed because it was never tracked. The fix anchored the rule to the repository root (`/generated/`)
+and committed the missing golden. This is exactly the value of running the build from a clean checkout,
+and the reason CI is part of release engineering rather than an afterthought.
