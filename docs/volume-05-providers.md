@@ -684,6 +684,57 @@ The question is reopened, as its own designed phase with ratification records fi
 
 Until one of these triggers, E6 stands as DESIGNED, DEFERRED WITH A DOCUMENTED CEILING. No fixtures and no forecast are pre-registered, because no buildable discovery rule is recommended; the deliverable is this ceiling and these triggers.
 
+#### 4.11.7 E6a: the envelope transparency rule (visibility, not discovery; designed 2026-07-02, pending ratification then build)
+
+E6a is the first half of the ratified E6 split: it makes a read that hides behind a wrapper or envelope return type VISIBLE AND CLASSIFIED, so it can pass through the existing rules and be counted, rather than being skipped unseen at the return-type gate. The framing is the whole point and is stated first: E6a changes a read from invisible to visible and classified; it does NOT grant discovery. Once a read is visible, it still passes through 4.1, 4.2, 4.10, and P1b, and the E6b-pending filter refusal, exactly as any other read. A filtered read seen through a wrapper is still refused as filtered, now visibly and countably instead of hidden. The expected outcome is therefore many newly visible reads, mostly refused as filtered, few or zero new discoveries, and a failure ledger that becomes complete. E6a is not designed toward discoveries.
+
+##### 4.11.7.1 The transparency census (read-only, both apps)
+
+Full counts in the ledgers (pms docs/experiments/second-app-trial.md section 8.10; erp docs/experiments/third-app-trial.md section 16). What it establishes:
+
+- pms wraps almost every list read in a per-entity `*ResultSet` type (`TenantResultSet`, `RentalPaymentResultSet`, and roughly thirty more), OpenAPI-generated, each declaring one collection field (`List<VTO> data`) and a `Long total`. None is generic (there is a single generic `ListResultSet<T>` in the common library, but no read returns it). Every such read builds the wrapper in its body from a persistence access on a repository of the entity that returns a collection of it: `List<Tenant> tenants = tenantRepository.selectAllByFilters(filter); ... return mapper.toTenantResultSet(tenants, count);`. So the read of E is provable from the body's repository access, not from the wrapper. Every one of these reads is filtered (`selectAllByFilters(filter)` with domain parameters).
+- erp uses no wrapper types: its reads return `Page<E>`, `List<E>`, or `Page<NameIdDTO>` directly, all already recognized (or deferred by name) by 4.10. E6a is inert on erp.
+
+##### 4.11.7.2 The rule
+
+A method whose declared return type W is not already recognized (not E, not a view under 4.2, not a recognized collection container under 4.10) is made visible as a read of E, and handed to the existing rules, when transparency holds. Transparency is one of two structural ties to E, and nothing else:
+
+- T1, generic tie: W is a generic type and one of its type arguments is E (an in-tree `@Entity`) or a view of E (a type that resolves to E through the 4.2 view machinery). The wrapper's payload is E, provable from the type argument alone, without reading W's fields. This covers `Wrapper<E>` and `ListResultSet<TenantVTO>`.
+- T2, body tie: the method body contains exactly one persistence access on a repository-typed field (the 4.2 repository resolution), and that access's declared return type is E, `Optional<E>`, or a collection of E (`List<E>`, `Set<E>`, and so on). The read of E is proven by the repository access's return type, without reading W's fields. This covers the pms `getAllByFilter`/`selectAllByFilters` pattern.
+
+When T1 or T2 holds, the method is visible as a read of E and is routed to the existing rules unchanged (condition V below). When neither holds, the wrapper is opaque and the read is refused (condition O below).
+
+- V, visibility is not discovery (the crucial non-grant). Once transparent, the read is classified by the existing rules with no modification and no precedence: if the tie is to a collection of E, the method is a list-read candidate and 4.10's conditions apply in full, so a filtered or transformed body (which every pms wrapper read has) is deferred as filtered exactly as any other list read; if the tie is to a single E, the method is a by-id candidate and 4.1, 4.2, and P1b apply unchanged. E6a adds no discovery rule and bypasses no honesty rule. The only thing E6a changes is that the read is now seen and counted; whether it discovers is decided entirely by the rules it is handed to, and for a filtered read the answer is refusal.
+- O, opaque refusal. A wrapper return type for which neither T1 nor T2 holds, its tie to E not structurally provable, is refused with a located cause, `OPAQUE_WRAPPER`, naming the wrapper type and stating that the read's existence cannot be proven without reading the wrapper's internals or trusting its name. This covers a wrapper built from a service-to-service proxy call whose delegate is unparseable or returns a proxy type with no repository-of-E tie. The read stays invisible-by-refusal: counted, never guessed.
+
+##### 4.11.7.3 What E6a will never do
+
+- Never read the wrapper's fields or interpret its contents or semantics. The tie to E is the type argument (T1) or the repository access's return type (T2), never the wrapper's internal shape.
+- Never assume a wrapper wraps E from its name: `TenantResultSet` is not trusted to wrap Tenant by its name; the tie must be T1 or T2. A `TenantResultSet` whose body reads a repository of Building is a read of Building, not Tenant.
+- Never unwrap a wrapper whose tie to E is not structurally provable: that is `OPAQUE_WRAPPER`, a refusal.
+- Never grant discovery or bypass a filter refusal. Visibility is not discovery; a filtered read seen through a wrapper is still refused (filtered).
+- Never make a read of the wrong entity visible: T1 and T2 tie to exactly the E proven by the type argument or the repository access, so a wrong-entity mis-classification cannot occur.
+
+Collections through wrappers (a wrapper of a list of E) are in E6a scope via T1 or T2 (the dominant pms shape). A wrapper of a wrapper, or one whose payload resolves to E only through several hops, is a named deferral, out of E6a scope, decided by the census if it ever appears.
+
+##### 4.11.7.4 Pre-registered fixtures (for the eventual build)
+
+- E6a-1 (transparent generic that then discovers): a method returning `Box<E>` (generic, E the type argument) whose body is a clean framework `findAll` of E. Unwraps via T1 to a list read and discovers `list<E>`. This proves visibility can lead to discovery when the underlying read is clean; the benchmarks contain no such case, which the forecast states.
+- E6a-2 (transparent body, filtered, still refused, the common case): a method returning `EResultSet` (non-generic) whose body is `List<E> xs = eRepo.selectAllByFilters(filter); return map(xs);` with domain parameters. Visible via T2, then refused as a filtered list read (4.10 condition 3). This is the fixture that proves visibility without discovery.
+- E6a-3 (opaque, refused): a method returning `EResultSet` whose body has no provable repository-of-E access (built from a proxy call to an unresolvable delegate). Must refuse with `OPAQUE_WRAPPER`.
+- E6a-4 (name trap): a method returning `TenantResultSet` whose single persistence access is on a repository of Building. The tie is to Building, never to Tenant; the wrapper name carries nothing. Must classify as a read of Building (and then refuse it if filtered), never Tenant.
+- E6a-5 (mis-classification guard): a transparent wrapper read is classified as a read of exactly the entity its type argument or repository access proves, never a sibling; and a transparent-but-filtered read never appears as a discovery.
+
+##### 4.11.7.5 Forecast (visibility gained, not discoveries gained)
+
+Stated before the build, framed as visibility, not discovery (full number-by-number in the ledgers):
+
+- pms: roughly 12 `*ResultSet` reads move from invisible to visible, the ones in the three parseable modules (property, lease, billing). Every one is filtered, so all roughly 12 become VISIBLE-BUT-REFUSED-FILTERED, named deferrals in the survey. New discoveries: 0. The other roughly 23 `*ResultSet` reads sit in the ten unparseable placeholder-file modules (vendor, user, staff, notification, maintenance, inspection, file, community, chat, admin); they stay invisible by parse skip, which is not E6a's scope but the residue of the genuinely invalid source E1 already accounts for. The existing discoveries (getUnit, getLease) are byte-identical; mis-bound 0. Named uncertainty: the roughly 12 depends on how many `*ResultSet` reads sit in parseable service files; it is bounded by the property, lease, and billing modules.
+- erp: byte-identical. No wrapper return types exist, so E6a recognizes nothing new; discovered 25, mis-bound 0, unchanged.
+- The headline is visibility gained (roughly 12 on pms), discoveries gained 0. The failure and deferral ledger becomes more complete: pms's hidden wrapper reads are now counted as filtered deferrals rather than silently unseen, which is the correct and honest result. E6a confirms structurally what the E6 census asserted, that pms's wrapper reads are all filtered, which is exactly why E6b's filter decision is the one that matters, and E6a on its own moves no discovery number.
+
+This is the honest close of E6a's design: it is a visibility phase whose expected and correct benchmark result is many newly visible reads, all refused as filtered, and zero new discoveries. It feeds the E6b, human-attested case directly: where a wrapper is opaque and the tool cannot even prove a read exists, a human could assert what it returns, which the tool cannot.
+
 ## 5. Future providers
 
 | Provider | Source | Why it matters |

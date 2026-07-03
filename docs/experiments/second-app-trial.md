@@ -590,3 +590,43 @@ The decisive facts for the design:
 So on pms there is no structural way to know any filter's meaning, and no honest way to represent one.
 This is the evidence behind the E6 recommendation to REFUSE for v1 with a documented ceiling: pms's
 ceiling is essentially its entire read API beyond getUnit and getLease (Volume 5 section 4.11.5).
+
+### 8.10 E6a transparency census (envelope visibility, pms-backend, read-only, 2026-07-02)
+
+The E6a design (Volume 5 section 4.11.7) needs the wrapper-transparency inventory: for each wrapper
+return type, can the tool prove a read of E exists behind it without reading the wrapper's internals?
+
+Wrapper types in use: roughly thirty-plus per-entity `*ResultSet` classes (`TenantResultSet`,
+`VendorResultSet`, `RentalPaymentResultSet`, `TicketResultSet`, `LeaseResultSet`, and so on),
+OpenAPI-generated, each declaring one collection field `List<VTO> data` and a `Long total`. None is
+generic. A single generic `ListResultSet<T>` exists in the common library but no read returns it, so the
+generic tie (T1) is inert on pms in practice.
+
+Transparency classification:
+
+| Class | Count | Basis |
+|---|---|---|
+| TRANSPARENT via T2 (body has a repository-of-E access returning a collection of E) | roughly 12, in the parseable modules (property, lease, billing) | `getAllByFilter`, `findAllByProperty`, `getAllByProperty`, `getPaymentsByBuilding`, `getMyPayments`, `getMyInvoices`, `getInvoicesByBuilding`, `getCostsByBuilding`, `getMyTimeEntries`, each body `List<E> xs = eRepo.selectAllByFilters(filter); return mapper.toEResultSet(xs, count);` |
+| Not reached by E6a: return a `*ResultSet` but sit in unparseable placeholder-file modules | roughly 23 | vendor, user, staff, notification, maintenance, inspection, file, community, chat, admin; invisible by parse skip, not by wrapper (an E1 residue, genuinely invalid `$IMPORT` source) |
+| OPAQUE (no provable repository-of-E tie) | the proxy reads | `PropertyMgtProxyInternalServiceImpl#findPropertiesByBuildingIds` returns `List<PropertyProxyResult>` from a proxy service call, not a repository of an entity; refused `OPAQUE_WRAPPER` |
+
+The decisive facts:
+
+- Every transparent wrapper read on pms is filtered. Each body calls `eRepository.selectAllByFilters(filter)`
+  (a hand-written query builder) with domain parameters. So T2 makes them visible, and 4.10 then refuses
+  them as filtered. Zero of them discover.
+- The generic tie (T1) matters for generality and for a future app, but is inert here, so pms transparency
+  rests entirely on the body tie (T2).
+
+Forecast (build deferred; framed as visibility, not discovery):
+
+- Visibility gained: roughly 12 reads move from invisible to visible-and-classified, all in property,
+  lease, and billing. All roughly 12 are VISIBLE-BUT-REFUSED-FILTERED (named deferrals); new discoveries 0.
+- The roughly 23 `*ResultSet` reads in the ten unparseable modules stay parse-skipped; E6a does not reach
+  them.
+- Row (projected, build deferred): discovered 2 (by-id 2, list 0), UNCHANGED; visibility gained roughly 12
+  (all filtered deferrals); mis-bound 0; getUnit and getLease byte-identical. The headline is visibility,
+  not discovery: the deferral ledger becomes complete for the parseable modules, and it confirms
+  structurally that pms's wrapper reads are all filtered, feeding the E6b decision.
+- Named uncertainty: the roughly 12 is bounded by how many `*ResultSet` reads sit in parseable service
+  files (property, lease, billing); firm at build time.

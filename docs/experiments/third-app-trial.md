@@ -646,3 +646,17 @@ that the majority of filtered reads have no structural representation. This supp
 to defer with a documented ceiling (Volume 5 section 4.11.4): erp's ceiling is roughly 44 deferred reads
 beyond its 25 discoveries, of which only the derived-query subset is even a candidate for a future narrow
 structural rule.
+
+---
+
+## 16. E6a transparency census (envelope visibility, erp-backend, read-only, 2026-07-02)
+
+The E6a design (Volume 5 section 4.11.7) makes wrapper-hidden reads visible. erp uses no wrapper or
+envelope return types: every read returns `Page<E>`, `List<E>`, `Set<E>`, or a directly typed view
+collection (`Page<NameIdDTO>`, `List<XxxReadDTO>`), all of which 4.10 already recognizes (and defers by
+name when filtered or view-returning). There is no `*ResultSet`-style wrapper anywhere in erp.
+
+So E6a is inert on erp: there is no unrecognized wrapper return type for it to make transparent, and it
+recognizes nothing new. Forecast (build deferred): byte-identical. Discovered 25 (by-id 16, list 9),
+mis-bound 0, unchanged; visibility gained 0. erp confirms E6a is a pms-idiom phase: it addresses the
+envelope-wrapping style pms uses and erp does not.
