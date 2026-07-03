@@ -532,19 +532,30 @@ hand-written case:
 
 Every other pms hand-written repository (`Vendor`, `Lease`, `LeaseDocument`, `Unit`, `Admin`) delegates
 `selectById` to the framework `findById` (P1a, already handled), so Tenant is the sole P1b occurrence, as
-the E2 census recorded. The Tenant query is a clean by-primary-key select: the WHERE is exactly the id
-equality, and the four `JOIN FETCH` clauses are eager loads, not filters, so P4 and P5 hold.
+the E2 census recorded.
 
-Forecast (after the P1b build):
+The decisive finding (design-closure, 2026-07-02), the number that decides the phase. Applying the
+strict rule (Volume 5 section 4.2.10, ratified) to Tenant's query verbatim: the WHERE, `WHERE t.id = :id`,
+is a single equality between the id property and the method's single parameter and NOTHING ELSE, so it
+PASSES P5. But the first fetch, `JOIN FETCH t.user`, is an INNER join fetch (written without `LEFT`), and
+`Tenant.user` is a nullable `@ManyToOne` (`@ManyToOne @JoinColumn(name = "user_id")`, no `optional = false`,
+no `nullable = false`, so nullable by JPA default). An inner join fetch on a nullable association drops the
+Tenant when its user is null: this query returns nothing for a Tenant that exists but has no user, so it
+is not equivalent to a by-primary-key load. It carries a hidden existence filter and FAILS the strict rule
+at P4. Verdict: FAIL. getTenant is not discovered. The first-draft forecast (discovered 2 to 3) was wrong
+because it read the WHERE alone and waved the fetch joins through; reading the join semantics flips it.
 
-- Discovered: 2 to 3. getUnit and getLease are unchanged; getTenant flips from NO_BACKING_METHOD (its
-  named P1b near-miss) to DISCOVERED, bound to `TenantServiceImpl#findById`, view `TenantVTO`, through the
-  one-hop `@Query` terminal. Tenant's pool has exactly one candidate (no competing Tenant-returning or
-  Tenant-view by-id method), so it is not ambiguous.
-- Failed: NO_BACKING_METHOD 38 to 37; COMPOSITE_KEY 3 unchanged. Skipped-by-parse 27 unchanged. List 0
-  unchanged. Mis-bound 0.
-- Row (projected, not a run row until the build): discovered 3 (by-id 3, list 0), failed 40
-  (NO_BACKING_METHOD 37, COMPOSITE_KEY 3), skipped-by-parse 27, mis-bound 0.
-- Named uncertainty: whether Tenant carries a `partial` annotation (a skipped field) is a build-time
-  detail that does not change its discovery or the mis-bound bar. The discovered count 2 to 3 is firm from
-  the source trace above.
+Forecast (build deferred; a target for the eventual build):
+
+- Discovered: 2, UNCHANGED. getUnit and getLease are the only discoveries; getTenant stays
+  NO_BACKING_METHOD, its near-miss message changing from the generic custom-query note to the inner-fetch
+  refusal (Volume 5 section 4.2.10.3), the counts unmoved.
+- Failed: NO_BACKING_METHOD 38 unchanged; COMPOSITE_KEY 3 unchanged. Skipped-by-parse 27 unchanged. List 0
+  unchanged. Mis-bound 0, and never at risk since the rule emits nothing.
+- Row (projected forecast, build deferred, not a run row): discovered 2 (by-id 2, list 0), failed 41
+  (NO_BACKING_METHOD 38, COMPOSITE_KEY 3), skipped-by-parse 27, mis-bound 0. Byte-identical to the current
+  pms row.
+
+pms is therefore not the one-entity unlock the first draft claimed; it is a refusal, and P1b discovers
+zero here. The rule's value on pms is that it names Tenant's inner-fetch filter honestly rather than
+binding a filtered query as getTenant.

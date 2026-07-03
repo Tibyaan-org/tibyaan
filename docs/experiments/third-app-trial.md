@@ -601,11 +601,20 @@ The two questions the task posed, answered from source:
 - Quote: `QuoteServiceImpl#getInvoice(UUID)` returns `byte[]` and loads via the framework `quoteRepository.findById(id)` (verified at source), maps `reportGenerationService.generateInvoice(quote)`. Its load is framework, not custom, so getInvoice is already a P1a 4.2 match today, competing with the entity-returning `findById` (getQuote via 4.1). Quote is therefore AMBIGUOUS today, and P1b does not change its pool: getInvoice was never a P1b near-miss.
 - Ticket: `TicketServiceImpl#findById` returns `Ticket` (entity), so it is a section 4.1 discovery already; 4.1 binds on the return shape and never reads the body, so the fact that Ticket's body loads via `findByIdWithAssociations` (a custom query) is irrelevant. P1b's design does not touch already-discovered capabilities, verified here on Ticket, Product, Contact, and ContactGroup.
 
-Forecast (after the P1b build): byte-identical to the current erp row. Delivery stays refused (its
+Delivery's query itself, checked against the strict rule (design-closure, 2026-07-02): its five fetches
+are all `LEFT JOIN FETCH` and its WHERE is the single id equality, so the query PASSES the strict rule
+(unlike pms Tenant, whose query fails on an inner `JOIN FETCH t.user`; second-app-trial.md section 8.8).
+Delivery is refused only at the mapper, not the load.
+
+Forecast (build deferred; a target for the eventual build): byte-identical to the current erp row. Delivery stays refused (its
 mapper), Quote stays AMBIGUOUS (its framework load), the four entity-returning reads are untouched
 (4.1). The only visible change is Delivery's near-miss message shifting from the load terminal to the
 same-service mapper. Row (projected): discovered 25 (by-id 16, list 9), list-refused 1, failed 9
 (NO_BACKING_METHOD 6, NO_IDENTIFIER 1, AMBIGUOUS_BINDING 2), skipped-by-parse 0, partial 13, mis-bound 0.
 This makes erp the honest negative control for P1b: a benchmark that has the clean by-pk `@Query` shape in
 abundance yet gains no discovery from it, because the one view-returning consumer is blocked by an
-unrelated mapper rule. The unlock is pms Tenant alone.
+unrelated mapper rule. Combined with the design-closure finding on pms (Tenant's query fails the strict
+rule on an inner-fetch existence filter, section 8.8), P1b discovers ZERO across both benchmarks. There is
+no one-entity unlock; the strict rule refuses everything it surveyed, which is the correct behavior. P1b
+is ratified as the by-primary-key floor E6 builds on (Volume 5 section 4.2.10.6), and its standalone build
+is deferred (section 4.2.10.7).
