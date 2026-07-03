@@ -559,3 +559,34 @@ Forecast (build deferred; a target for the eventual build):
 pms is therefore not the one-entity unlock the first draft claimed; it is a refusal, and P1b discovers
 zero here. The rule's value on pms is that it names Tenant's inner-fetch filter honestly rather than
 binding a filtered query as getTenant.
+
+### 8.9 E6 filtered-read census (filter-semantics-plus-envelope, pms-backend, read-only, 2026-07-02)
+
+The E6 design (Volume 5 section 4.11) needs the filtered-read inventory. This is pms-backend's, from
+source. pms is the E6 benchmark because its entire read API is filtered and envelope-shaped. Counts:
+
+| Shape | Count | Note |
+|---|---|---|
+| (a)/(b)/(c) filtered reads (single, multi, and filter-plus-paging), returning a `*ResultSet` envelope | ~35 | `getAllByFilter` (Tenant, Property, Lease), `getMy*`/`getBuilding*`, `getStaffList`, `getChatRooms`, and the rest of section 8.6 shape (c) |
+| (d) projection or view-returning `List<VTO>` filtered by a foreign key | ~7 | section 8.6 shape (d) |
+| (e) envelope-wrapped, existence hidden by an opaque wrapper | ~35 | the `*ResultSet` types; the same reads as (a) to (c), counted here for the visibility half |
+| (f) collection filters returning a collection | folded into (a) to (d) | |
+
+The decisive facts for the design:
+
+- Visibility: roughly 35 reads are invisible to the tool today because their return type is an opaque
+  `*ResultSet` wrapper, not a recognized container (E4 saw only 3 deferrals for this reason, section 8.7).
+  The wrapper is structurally unwrappable: `TenantResultSet` declares one collection field,
+  `List<TenantVTO> data`, plus a `Long total`, so the tool could resolve the class, read the element view,
+  and tie it back to Tenant through the 4.2 view machinery. But every such read is filtered, so unwrapping
+  lands at the filter wall and yields no capability.
+- Filter semantics: pms hides them in imperative code, not in any query text.
+  `getAllByFilter(fullName, email, orderBy, orderDir, pageNum, pageSize, pageOffset)` builds a
+  `TenantSearchFilter` and calls `tenantRepository.selectAllByFilters(filter)`, which a hand-written
+  `TenantQueryBuilder` executes. What `fullName` and `email` filter, and how, is nowhere readable; it is in
+  the query builder's Java. pms has zero Spring Data derived-query filters and zero readable filter
+  predicates.
+
+So on pms there is no structural way to know any filter's meaning, and no honest way to represent one.
+This is the evidence behind the E6 recommendation to REFUSE for v1 with a documented ceiling: pms's
+ceiling is essentially its entire read API beyond getUnit and getLease (Volume 5 section 4.11.5).

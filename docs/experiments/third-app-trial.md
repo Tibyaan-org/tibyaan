@@ -618,3 +618,31 @@ rule on an inner-fetch existence filter, section 8.8), P1b discovers ZERO across
 no one-entity unlock; the strict rule refuses everything it surveyed, which is the correct behavior. P1b
 is ratified as the by-primary-key floor E6 builds on (Volume 5 section 4.2.10.6), and its standalone build
 is deferred (section 4.2.10.7).
+
+---
+
+## 15. E6 filtered-read census (filter-semantics-plus-envelope, erp-backend, read-only, 2026-07-02)
+
+The E6 design (Volume 5 section 4.11) needs the filtered-read inventory. This is erp-backend's, from
+source. Unlike pms, erp's filters are directly typed (no envelope wrappers) and its filters live in the
+query, so erp has no visibility half; its interest is the semantics half and the derived-query exception.
+Counts:
+
+| Shape | Count | Note |
+|---|---|---|
+| (a)/(b)/(c) filtered reads, returning `Page<E>` or `List<E>` directly | ~30 | section 12 shape (c): `searchByFields`, `findAll(String search, Pageable)`, `findByCategory`, `findBySupplier`, `findByParentId`, and the rest |
+| (d) projection or view-returning list | ~9 | section 12 shape (d): `Page<NameIdDTO>`, `List<XxxReadDTO>` |
+| transformed body | 5 | section 12 |
+| (e) envelope-wrapped, existence hidden | 0 | erp uses no `*ResultSet` wrappers; its reads are directly typed and already visible (E4 deferred them by name) |
+
+The split within erp's filters, which is the whole reason erp matters to E6:
+
+- Spring Data derived-query filters: many, and their meaning is framework-defined. `findByNameContainingIgnoreCase(String name, Pageable)`, `findByParentId(UUID parentId, Pageable)`, `findByProductCategoryId`, `findByAccountType(AccountType, Pageable)`, `findByMethod`, `findByTransactionId`, `findByAccountIdAndStatus`, `findByTypeAndStatus`. The framework parses the method name against the entity's properties and generates the predicate deterministically; reading it is reading a framework contract, not nominal inference. This is the one structural avenue for a verified filter (Volume 5 section 4.11.3).
+- Custom `@Query` filters: `searchByFields` (`WHERE (:search IS NULL OR ...) AND ...`), `findProducts`, `findContacts`. Arbitrary JPQL, meaning in the text, not derivable from the name; structurally as opaque as pms's query builders once the WHERE is more than the id equality.
+
+erp is therefore the negative-plus-partial control for E6: it shows the one honest structural avenue
+exists (derived-query filters) but is a minority mixed with unreadable `@Query` filters, and it confirms
+that the majority of filtered reads have no structural representation. This supports the E6 recommendation
+to defer with a documented ceiling (Volume 5 section 4.11.4): erp's ceiling is roughly 44 deferred reads
+beyond its 25 discoveries, of which only the derived-query subset is even a candidate for a future narrow
+structural rule.
