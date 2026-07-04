@@ -684,7 +684,7 @@ The question is reopened, as its own designed phase with ratification records fi
 
 Until one of these triggers, E6 stands as DESIGNED, DEFERRED WITH A DOCUMENTED CEILING. No fixtures and no forecast are pre-registered, because no buildable discovery rule is recommended; the deliverable is this ceiling and these triggers.
 
-#### 4.11.7 E6a: the envelope transparency rule (visibility, not discovery; designed 2026-07-02, pending ratification then build)
+#### 4.11.7 E6a: the envelope transparency rule (visibility, not discovery; designed 2026-07-02; CONSOLIDATED into the post-v1 Attestation phase, Volume 13)
 
 E6a is the first half of the ratified E6 split: it makes a read that hides behind a wrapper or envelope return type VISIBLE AND CLASSIFIED, so it can pass through the existing rules and be counted, rather than being skipped unseen at the return-type gate. The framing is the whole point and is stated first: E6a changes a read from invisible to visible and classified; it does NOT grant discovery. Once a read is visible, it still passes through 4.1, 4.2, 4.10, and P1b, and the E6b-pending filter refusal, exactly as any other read. A filtered read seen through a wrapper is still refused as filtered, now visibly and countably instead of hidden. The expected outcome is therefore many newly visible reads, mostly refused as filtered, few or zero new discoveries, and a failure ledger that becomes complete. E6a is not designed toward discoveries.
 

@@ -102,11 +102,11 @@ You can also generate an OpenAPI 3.0 document from the same model: `tibyan gener
 
 ## What it does not do yet, and why
 
-Every one of these is a deliberate refusal-over-guessing boundary, not an oversight. The roadmap is [Volume 13](docs/volume-13-roadmap.md).
+Every one of these is a deliberate refusal-over-guessing boundary, not an oversight. The boundary itself is evidence-proven and recorded as a first-class fact, "The structural ceiling", in [Volume 13](docs/volume-13-roadmap.md): what is structurally provable is discovered and has never been wrong; what would require reading business semantics is refused, and is reachable in the future only through explicitly human-attested knowledge (the designed-and-waiting Attestation phase), never through guessing.
 
 - **Write and action capabilities.** Only reads are discovered. Writes are refused at the discovery level because exposing them safely needs a policy gate that does not exist yet; see [docs/SECURITY.md](docs/SECURITY.md).
-- **Filtered reads** (`findByCategory`, `search`, and similar). Refused. A parameter's meaning is a claim Tibyan cannot verify from structure alone, and "filter by X" in a tool description is a claim an agent would act on. Naming filters honestly is a future phase (E6).
-- **List envelopes** (custom paged result-set wrapper types). Not yet seen through; the unfiltered `findAll` list is modeled, the wrapped variants are deferred with the same future phase.
+- **Filtered reads** (`findByCategory`, `search`, and similar). Refused. A parameter's meaning is a claim Tibyan cannot verify from structure alone, and "filter by X" in a tool description is a claim an agent would act on. Carrying filters honestly (as human-attested, never as verified) is the Attestation phase, post-v1.
+- **List envelopes** (custom paged result-set wrapper types). Not yet seen through; the unfiltered `findAll` list is modeled, the wrapped variants are consolidated into the same Attestation phase.
 - **Non-Spring stacks.** The Capability model is framework-neutral by design, but only the Spring source provider exists today. Other providers (database, OpenAPI import, .NET) are direction, not built.
 
 ---
