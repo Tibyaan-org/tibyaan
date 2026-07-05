@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.tibyaan</groupId>
+        <groupId>io.github.tibyaan-org</groupId>
         <artifactId>tibyaan</artifactId>
         <version>0.1.0</version>
     </parent>
@@ -28,22 +28,22 @@
     -->
     <dependencies>
         <dependency>
-            <groupId>com.tibyaan</groupId>
+            <groupId>io.github.tibyaan-org</groupId>
             <artifactId>tibyan-pipeline</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.tibyaan</groupId>
+            <groupId>io.github.tibyaan-org</groupId>
             <artifactId>tibyan-provider-spring</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.tibyaan</groupId>
+            <groupId>io.github.tibyaan-org</groupId>
             <artifactId>tibyan-backend-mcp</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.tibyaan</groupId>
+            <groupId>io.github.tibyaan-org</groupId>
             <artifactId>tibyan-backend-openapi</artifactId>
             <version>${project.version}</version>
         </dependency>

@@ -53,7 +53,7 @@ mvn -DskipTests install
 
 ```xml
 <dependency>
-  <groupId>com.tibyaan</groupId>
+  <groupId>io.github.tibyaan-org</groupId>
   <artifactId>tibyan-runtime-spring</artifactId>
   <version>0.1.0</version>
 </dependency>
@@ -63,7 +63,7 @@ mvn -DskipTests install
 
 ```xml
 <plugin>
-  <groupId>com.tibyaan</groupId>
+  <groupId>io.github.tibyaan-org</groupId>
   <artifactId>tibyan-maven-plugin</artifactId>
   <version>0.1.0</version>
   <executions>
