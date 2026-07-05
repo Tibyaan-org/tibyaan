@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>io.github.tibyaan-org</groupId>
+        <groupId>io.github.tibyaan.org</groupId>
         <artifactId>tibyaan</artifactId>
         <version>0.1.0</version>
         <relativePath>../../pom.xml</relativePath>
@@ -43,7 +43,7 @@
 
         <!-- The one dependency that modernizes this app -->
         <dependency>
-            <groupId>io.github.tibyaan-org</groupId>
+            <groupId>io.github.tibyaan.org</groupId>
             <artifactId>tibyan-runtime-spring</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -58,7 +58,7 @@
               does, so the output matches `tibyan generate` byte for byte.
             -->
             <plugin>
-                <groupId>io.github.tibyaan-org</groupId>
+                <groupId>io.github.tibyaan.org</groupId>
                 <artifactId>tibyan-maven-plugin</artifactId>
                 <version>${project.version}</version>
                 <executions>

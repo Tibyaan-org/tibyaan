@@ -4,7 +4,7 @@ This document records the release decisions for v1 and the exact steps to publis
 that the parts a machine cannot do (accounts, key ceremonies, external verification) are enumerated as
 human steps, never faked. Everything preparable in the repository is prepared and verifiable locally.
 
-Status at the time of writing: the reactor is at version `0.1.0` and groupId `io.github.tibyaan-org`,
+Status at the time of writing: the reactor is at version `0.1.0` and groupId `io.github.tibyaan.org`,
 with full Central-required POM metadata and a `release` profile, and `mvn -Prelease verify` is green
 locally without any signing keys. The signing step has additionally been proven to run against a
 throwaway key (real `.asc` signatures were produced for a published module, then discarded along with
@@ -77,7 +77,7 @@ on are the human steps in section 4.
 
 ## 4. Human-required steps (accounts, keys, verification): what only a person can do
 
-The published coordinates are groupId `io.github.tibyaan-org`, version `0.1.0`. The Java package root
+The published coordinates are groupId `io.github.tibyaan.org`, version `0.1.0`. The Java package root
 stays `com.tibyaan` regardless: that is a source convention (CLAUDE.md rule 8), independent of the Maven
 coordinates, and it does not change. None of the steps below can be done inside an automated session;
 each is written as an exact step, in order. They are the only work between the current commit and the
@@ -85,24 +85,23 @@ artifacts being publicly consumable. Steps marked ONE-TIME are done once for the
 PER-RELEASE are repeated for every version.
 
 What the preparation session already did, so it is not repeated below: set the groupId to
-`io.github.tibyaan-org` across the reactor and confirmed the reactor builds green; confirmed
+`io.github.tibyaan.org` across the reactor and confirmed the reactor builds green; confirmed
 `mvn -Prelease verify` produces the main, `-sources`, and `-javadoc` jars for all nine published modules
 and no `-sources`/`-javadoc` jars for the two non-published modules; and proved the GPG signing step
 runs by signing a published module with a throwaway key (real `.asc` files were produced, then discarded
 with the key). Only the real key, the accounts, and the external verification remain.
 
-1. (ONE-TIME) Verify the namespace on the Sonatype Central Portal. The groupId `io.github.tibyaan-org`
-   is verified through ownership of the GitHub organization `Tibyaan-org`, not through a domain, so no
-   DNS record and no domain purchase is needed.
-   a. Sign in to https://central.sonatype.com with the GitHub account that owns the `Tibyaan-org`
-      organization.
-   b. Open Namespaces and add the namespace `io.github.tibyaan-org`.
-   c. Central shows a verification code and asks you to prove control of the organization. Create a new
-      PUBLIC GitHub repository inside the `Tibyaan-org` organization whose name is exactly that
-      verification code.
-   d. Back in the Central Portal, click Verify. Central checks that the code-named repository exists
-      under `Tibyaan-org`, confirming you control the organization, and marks the namespace verified.
-   e. Once verified, the temporary repository can be deleted; the namespace stays verified permanently.
+1. (ONE-TIME) Verify the namespace `io.github.tibyaan.org` on the Sonatype Central Portal (it currently
+   shows Verification Pending). An `io.github` namespace is verified by proving control of the GitHub
+   account named by the segment right after `io.github`, here the user account `tibyaan`, so no domain
+   and no DNS record is needed. The code repository stays under the `Tibyaan-org` organization; Central
+   does not require the publishing account and the code host to be the same account.
+   a. Sign in to https://central.sonatype.com as the owner of the `tibyaan` GitHub account.
+   b. Under Namespaces, open the pending `io.github.tibyaan.org` entry to see its verification code.
+   c. Do exactly what the portal instructs for that code: create the public GitHub repository it names,
+      named with the verification code, under the account it names (the `tibyaan` account), then click
+      Verify.
+   d. Once verified, the temporary repository can be deleted; the namespace stays verified permanently.
 
 2. (ONE-TIME) Create the Central publishing token. At https://central.sonatype.com, under your account,
    generate a user token (a username and password pair). Add it to `~/.m2/settings.xml` under a server
