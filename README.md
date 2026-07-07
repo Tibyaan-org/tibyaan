@@ -106,7 +106,7 @@ Then run your app as usual. The runtime finds the manifest on the classpath auto
 java -jar target/your-app.jar
 ```
 
-The MCP server is served at `http://localhost:8080/sse`. Point an MCP client that speaks the HTTP+SSE transport at it, and your discovered capabilities appear as tools that call your real service methods. Verifying the exact client configuration end to end (including clients that need a stdio-to-SSE bridge) is tracked as follow-up work; treat the in-process protocol test as the current proof and your own client as the thing to confirm.
+The MCP server is served at `http://localhost:8080/sse`. Point an MCP client that speaks the HTTP+SSE transport at it, and your discovered capabilities appear as tools that call your real service methods. This is verified end to end: an out-of-process client run against the example app completes `initialize`, `tools/list`, and `tools/call getProduct(5)`, and gets the real product back over the network. For the exact steps, a one-line curl smoke test, a scripted check, and how to connect a stdio-only client like Claude Desktop through a bridge, see [Connecting an MCP client](docs/CONNECTING-AN-MCP-CLIENT.md).
 
 ---
 
