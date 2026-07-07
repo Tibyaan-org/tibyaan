@@ -49,6 +49,20 @@ class TibyanCliTest {
     }
 
     @Test
+    void scanWritesAMarkdownReport(@TempDir Path dir) throws IOException {
+        Path reportFile = dir.resolve("survey.md");
+
+        int code = run("scan", EXAMPLE_APP.toString(), "--report", reportFile.toString());
+
+        assertThat(code).isEqualTo(0);
+        assertThat(Files.exists(reportFile)).isTrue();
+        String md = Files.readString(reportFile);
+        assertThat(md).contains("# Tibyaan capability survey: legacy-spring-app");
+        assertThat(md).contains("getProduct -> ProductService#findById");
+        assertThat(md).contains("| Wrong bindings (mis-bound) | 0 |");
+    }
+
+    @Test
     void generateProducesAManifestByteIdenticalToTheBackend(@TempDir Path dir) throws IOException {
         Path irFile = dir.resolve("legacy.ir.json");
         Path cliOut = dir.resolve("cli-mcp");

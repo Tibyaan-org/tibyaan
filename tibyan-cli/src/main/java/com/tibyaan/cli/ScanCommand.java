@@ -12,6 +12,8 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 
@@ -34,6 +36,10 @@ final class ScanCommand implements Callable<Integer> {
     @Option(names = "--out", paramLabel = "<ir.json>", description = "Write the discovered IR JSON to this file.")
     Path out;
 
+    @Option(names = "--report", paramLabel = "<report.md>",
+            description = "Write a human-readable Markdown survey report to this file (Volume 11 section 3.4).")
+    Path reportFile;
+
     private final TibyanCompiler compiler = new TibyanCompiler();
 
     @Override
@@ -48,6 +54,19 @@ final class ScanCommand implements Callable<Integer> {
         }
 
         CliOutput.printScanReport(report);
+
+        // The Markdown report is read-only and orthogonal to --out: it renders the same survey as a
+        // shareable map (Volume 11 section 3.4). Write it whether or not an IR file was requested.
+        if (reportFile != null) {
+            String appName = path.getFileName() != null ? path.getFileName().toString() : path.toString();
+            try {
+                Files.writeString(reportFile, MarkdownReport.render(report, appName));
+            } catch (IOException e) {
+                System.err.println("Failed to write report to " + reportFile + ": " + e.getMessage());
+                return 3;
+            }
+            System.out.println("Wrote report to " + reportFile);
+        }
 
         if (out == null) {
             return 0;
