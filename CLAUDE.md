@@ -22,13 +22,17 @@ The spike precedent stands: when a future step rests on an unknown that big, spi
 
 ---
 
-## Current status (MVP complete, hardened, and benchmarked)
+## Current status (v1 implementation complete, publish-gated)
 
-All MVP phases are complete on the main branch: -1 (Spike), P0 (Core and IR), P1 (Spring provider), P2 (MCP backend and runtime), and P3 (CLI and pipeline), plus three hardening steps: the binding is discovered from the real service method (Volume 5, section 4.1); a truly untouched app needs only the one dependency, with the MCP server auto-configured and the manifest discovered from the classpath (Volume 7, sections 4 and 8); and the manifest is generated at build time by the `tibyan-maven-plugin`, which runs the same pipeline as the CLI, so nothing is copied by hand (Volume 11). The MVP works end to end: `mvn clean verify` is green, and the flow (build generates the manifest onto the classpath, launch the app with no launch property, live MCP getProduct) is verified.
+`docs/STATUS.md` is the authoritative resume point; read it first. This section is a summary and must not drift from it.
 
-After the MVP, the unchanged tool was run against a second, large real app (pms-backend, 43 entities). It discovered 0 capabilities, mis-bound 0, and failed loudly on all 43, and the gaps were ranked by counted evidence (docs/experiments/second-app-trial.md). That app is now the standing benchmark (Volume 13, section 5): after each Tier 2 phase it is re-run, and discovered rising while mis-bound stays zero is the health metric. Mis-bound greater than zero becomes the top priority over everything.
+v1 implementation is complete on the main branch (Volume 13, section 4.2). The MVP (Spike, P0 to P3) and three hardening steps (binding discovery, one-dependency adoption, build-time manifest generation) are done, and on top of them every Tier 2 semantic phase is built and benchmarked: E1 (parse resilience), E3 (associations, enums, FLOAT), E2 (DTO-aware read discovery), E5 (partial-model integrity), and E4 (the unfiltered list-all read, the one IR growth, a single `outputMultiple` boolean). A second backend, OpenAPI, is built alongside MCP, proving one IR feeds more than one output. The tool is verified across two hostile real apps with zero wrong bindings: 27 capabilities (erp-backend 25: 16 by-id and 9 list; pms-backend 2). `mvn clean verify` is green, both backends generate, and release engineering is done (version 0.1.0, Apache-2.0, groupId `io.github.tibyaan.org`, CI green from a clean checkout).
 
-The full resume point, with the exact commands that reproduce the MVP, is in `docs/STATUS.md`. Known gaps and deferred work are in Volume 7, section 8; plugin discovery status is in Volume 10, section 2.
+Read the "proven" numbers honestly: they are computed on exactly two apps written by the same author on the same private foundation libraries, so coverage is idiom-bound and does not fully compound (docs/experiments/third-app-trial.md, section 7). Treat "proven on the benchmarks" as "proven on two apps," not "proven in general."
+
+Everything beyond the structural ceiling (the P1b build, the E6a build, and the E6b decision) is consolidated into ONE designed-and-waiting post-v1 phase, Attestation, with a written evidence trigger: a real adopter hitting the filter or wrapper ceiling on a real application, not before (Volume 13, section 3, "Attestation"). Do not start Attestation, and do not start any Tier 3 build, ahead of that external signal.
+
+The next action is human-only: PUBLISH AND GET EXTERNAL SIGNAL (the steps in docs/RELEASING.md section 4). There is nothing left to build before publishing. Known gaps and deferred work are in Volume 7, section 8; plugin discovery status is in Volume 10, section 2.
 
 The one-phase-per-session rule remains in force for any future phase.
 
@@ -40,7 +44,7 @@ The one-phase-per-session rule remains in force for any future phase.
 2. A Backend never knows the source and never calls a framework directly. It reads only the IR and invokes logic through `ExecutionAdapter`.
 3. A Provider only produces IR. It never generates output and never depends on a backend or a runtime.
 4. The Runtime hosts and binds. It contains no IR and no generation logic. It owns the `ExecutionAdapter` for its host. Known MVP runtime gaps and deferred work are listed in Volume 7, section 8.
-5. Keep the IR tiny. MVP IR is entities plus read-only capabilities only. Do NOT add workflows, events, policies, permissions, dependencies, or domain knowledge. Those are future (Volume 4, section 7); they are off limits for the MVP.
+5. Keep the IR tiny. The v1 IR is entities plus read-only capabilities only: read-by-id and the unfiltered list-all (the latter carried by the single `outputMultiple` boolean added in E4, the only IR growth to date). Do NOT add workflows, events, policies, permissions, dependencies, or domain knowledge. Those are future (Volume 4, section 7); they stay off limits until a designed, ratified, golden-tested phase earns them on real evidence.
 6. One plugin per module. A provider, a backend, or a runtime is its own module that depends only on `tibyan-plugin-api` and `tibyan-core`. Never bundle two plugins in one module. Never let one plugin depend on another.
 7. Dependencies point inward, toward the core, never sideways between plugins. See Volume 12, section 5 for the allowed and forbidden edges.
 8. Package root is `com.tibyaan`.
@@ -80,11 +84,11 @@ The author's own Spring systems are still useful here, just on the other side of
 
 The build order lives in Volume 13, the roadmap, in three tiers. Do not re-derive it from this file.
 
-- Tier 1 is complete and is a record, not a plan: the spike, P0 to P3, the three hardening steps, the second-app trial, and phase E1 (parse resilience).
-- Tier 2 is the active plan: evidence-based phases E1 (parse resilience and scan scope, done), E2 (DTO-aware read discovery, design in Volume 5 first, then build), E3 (associations), E4 (list, filter, and multi-argument reads, the first phase that grows the IR). Each has a goal, evidence, and an exit criterion in Volume 13, section 3. Do them in order; re-run the pms-backend benchmark after each and append the dated entry to docs/experiments/second-app-trial.md.
-- Tier 3 is direction only. Do not build Tier 3 items, and do not write detailed plans for them; they are conditional on Tier 2 proving the semantic core on real apps.
+- Tier 1 is complete and is a record, not a plan: the spike, P0 to P3, the three hardening steps, and the second-app trial.
+- Tier 2 is complete and is now a record: E1 (parse resilience), E3 (associations, enums, FLOAT), E2 (DTO-aware read discovery), E5 (partial-model integrity), and E4 (the unfiltered list-all read). Each phase's goal, evidence, exit criterion, and outcome is in Volume 13, section 3. The re-run discipline that produced them still applies to any future build: re-run both benchmarks and append a dated entry to the experiment docs.
+- Tier 3 is direction only. Do not build Tier 3 items, and do not write detailed plans for them; they are conditional on external evidence, not internal consensus.
 
-The next phase is E2, and its rule must be designed into Volume 5, section 4.2 before any code is written, exactly as the binding rule was. One phase per session; a phase is not started until the previous phase meets its exit criterion.
+There is no next build phase pending. v1 implementation is complete and the next action is publish, not code (docs/RELEASING.md section 4, docs/STATUS.md). The one designed-and-waiting phase, Attestation, is trigger-gated on a real adopter hitting the filter or wrapper ceiling; do not start it before that signal. If a build ever resumes, one phase per session, and a phase is not started until its design is ratified (rule 12).
 
 Two disciplines from the spike era survive verbatim into every phase:
 
@@ -97,15 +101,15 @@ Two disciplines from the spike era survive verbatim into every phase:
 
 The biggest failure mode is building the elegant full platform instead of the smallest working slice. Resist it.
 
-Do not, unless the current phase's exit criterion requires it:
-- add IR elements beyond entities and read-only capabilities (phase E4 is the first sanctioned growth, and only through the Volume 4, section 7 discipline: designed, validated, golden-tested),
+Do not, unless a ratified phase's exit criterion requires it:
+- add IR elements beyond entities and read-only capabilities (E4's `outputMultiple` boolean is the only growth so far, and only through the Volume 4, section 7 discipline: designed, validated, golden-tested),
 - implement extractors beyond the enabled Entity and Service extractors (repository, controller, and annotation stay empty placeholders),
-- add backends other than MCP,
+- add backends beyond the built MCP and OpenAPI backends (OpenAPI was the sanctioned second-backend proof of one-IR-many-outputs; a third backend needs its own evidence),
 - add runtimes other than Spring,
 - build the plugin marketplace, governance, workflows, or events,
 - generalize an abstraction before there is a second case that needs it.
 
-Tier 2's detail is not license to build ahead: a phase's exit criterion bounds its scope, and the benchmark, not ambition, decides what is next. When unsure whether something is in scope, it is not. Ask the human.
+Roadmap detail is not license to build ahead: v1 is complete and the next signal comes from real adopters, not ambition. When unsure whether something is in scope, it is not. Ask the human.
 
 ---
 
@@ -113,8 +117,8 @@ Tier 2's detail is not license to build ahead: a phase's exit criterion bounds i
 
 | You are working on | Open |
 |---|---|
-| What to build next, and why | Volume 13 (the tiers), docs/STATUS.md |
-| The benchmark and its evidence | docs/experiments/second-app-trial.md |
+| Current state and the next action | docs/STATUS.md, then Volume 13 (the tiers) |
+| The benchmarks and their evidence | docs/experiments/second-app-trial.md (pms), docs/experiments/third-app-trial.md (erp) |
 | The IR | Volume 4 |
 | A provider | Volume 5 |
 | A backend | Volume 6 |
