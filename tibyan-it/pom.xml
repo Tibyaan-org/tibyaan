@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>io.github.tibyaan.org</groupId>
+        <groupId>io.github.tibyaan-org</groupId>
         <artifactId>tibyaan</artifactId>
         <version>0.1.0</version>
     </parent>
@@ -30,39 +30,39 @@
     -->
     <dependencies>
         <dependency>
-            <groupId>io.github.tibyaan.org</groupId>
+            <groupId>io.github.tibyaan-org</groupId>
             <artifactId>tibyan-core</artifactId>
             <version>${project.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>io.github.tibyaan.org</groupId>
+            <groupId>io.github.tibyaan-org</groupId>
             <artifactId>tibyan-plugin-api</artifactId>
             <version>${project.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>io.github.tibyaan.org</groupId>
+            <groupId>io.github.tibyaan-org</groupId>
             <artifactId>tibyan-provider-spring</artifactId>
             <version>${project.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>io.github.tibyaan.org</groupId>
+            <groupId>io.github.tibyaan-org</groupId>
             <artifactId>tibyan-backend-mcp</artifactId>
             <version>${project.version}</version>
             <scope>test</scope>
         </dependency>
         <!-- The CLI, exercised in process by the end-to-end test to scan and generate. -->
         <dependency>
-            <groupId>io.github.tibyaan.org</groupId>
+            <groupId>io.github.tibyaan-org</groupId>
             <artifactId>tibyan-cli</artifactId>
             <version>${project.version}</version>
             <scope>test</scope>
         </dependency>
         <!-- Brings the MCP client SDK (io.modelcontextprotocol) transitively for the genuine protocol. -->
         <dependency>
-            <groupId>io.github.tibyaan.org</groupId>
+            <groupId>io.github.tibyaan-org</groupId>
             <artifactId>tibyan-runtime-spring</artifactId>
             <version>${project.version}</version>
             <scope>test</scope>

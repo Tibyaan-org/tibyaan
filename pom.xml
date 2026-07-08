@@ -12,7 +12,7 @@
         <relativePath/>
     </parent>
 
-    <groupId>io.github.tibyaan.org</groupId>
+    <groupId>io.github.tibyaan-org</groupId>
     <artifactId>tibyaan</artifactId>
     <version>0.1.0</version>
     <packaging>pom</packaging>

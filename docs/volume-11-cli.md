@@ -158,7 +158,7 @@ Recommended adoption: generate at build time. The `tibyan-maven-plugin` runs the
 
 ```xml
 <plugin>
-  <groupId>io.github.tibyaan.org</groupId>
+  <groupId>io.github.tibyaan-org</groupId>
   <artifactId>tibyan-maven-plugin</artifactId>
   <version>...</version>
   <executions>

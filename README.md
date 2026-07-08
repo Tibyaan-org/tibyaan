@@ -101,7 +101,7 @@ Once the preview convinces you, add two things to your application's `pom.xml`. 
 
 ```xml
 <dependency>
-  <groupId>io.github.tibyaan.org</groupId>
+  <groupId>io.github.tibyaan-org</groupId>
   <artifactId>tibyan-runtime-spring</artifactId>
   <version>0.1.0</version>
 </dependency>
@@ -111,7 +111,7 @@ Then the build plugin, which generates the capability manifest from your source 
 
 ```xml
 <plugin>
-  <groupId>io.github.tibyaan.org</groupId>
+  <groupId>io.github.tibyaan-org</groupId>
   <artifactId>tibyan-maven-plugin</artifactId>
   <version>0.1.0</version>
   <executions>
@@ -153,7 +153,7 @@ Every one of these is a deliberate refusal-over-guessing boundary, not an oversi
 
 ## A note on the name
 
-The project is **Tibyaan** (the organization, the Maven groupId `io.github.tibyaan.org`, and the Java package root `com.tibyaan`). For historical reasons the Maven artifact ids and the CLI command keep the shorter spelling `tibyan` (for example `tibyan-runtime-spring`, `tibyan-maven-plugin`, and the `tibyan` command). They are the same project. A single canonical spelling across artifacts and the CLI is a candidate cleanup for the 1.0 line, where changing coordinates is acceptable.
+The project is **Tibyaan** (the organization, the Maven groupId `io.github.tibyaan-org`, and the Java package root `com.tibyaan`). For historical reasons the Maven artifact ids and the CLI command keep the shorter spelling `tibyan` (for example `tibyan-runtime-spring`, `tibyan-maven-plugin`, and the `tibyan` command). They are the same project. A single canonical spelling across artifacts and the CLI is a candidate cleanup for the 1.0 line, where changing coordinates is acceptable.
 
 ## Where the deep documentation lives
 
