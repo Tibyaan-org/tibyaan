@@ -60,6 +60,11 @@
              without any key material. The release deploy enables it with -Dgpg.skip=false, using an
              external GPG key the publisher supplies (docs/RELEASING.md section 4). -->
         <gpg.skip>true</gpg.skip>
+        <!-- Every module publishes to Central by default. The two non-published modules
+             (the example app and the integration-test harness) set this to true to exclude
+             themselves from the Central bundle. Requires central-publishing-maven-plugin
+             >= 0.9.0, where skipPublishing is honored per module. -->
+        <tibyan.skip.publishing>false</tibyan.skip.publishing>
     </properties>
 
     <modules>
@@ -150,11 +155,12 @@
                     <plugin>
                         <groupId>org.sonatype.central</groupId>
                         <artifactId>central-publishing-maven-plugin</artifactId>
-                        <version>0.6.0</version>
+                        <version>0.11.0</version>
                         <extensions>true</extensions>
                         <configuration>
                             <publishingServerId>central</publishingServerId>
                             <autoPublish>false</autoPublish>
+                            <skipPublishing>${tibyan.skip.publishing}</skipPublishing>
                         </configuration>
                     </plugin>
                 </plugins>
