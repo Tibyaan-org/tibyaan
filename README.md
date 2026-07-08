@@ -116,7 +116,7 @@ Then the build plugin, which generates the capability manifest from your source 
 </plugin>
 ```
 
-> **Build-safety caution.** Unlike the Step 1 preview, the build plugin runs the strict path: if any in-scope source file cannot be parsed at the Java 17 language level (for example newer-than-17 syntax, or a genuinely malformed file), the plugin fails and so does `mvn package`. This does not modify your source, but it can stop your build. Run the Step 1 preview first: it is resilient and names every unparseable file, so you learn of any such file before you wire the plugin in. (Making the plugin resilient by default is tracked as follow-up work.)
+> **Build-safety note.** The build plugin is resilient by default: if an in-scope source file cannot be parsed at the Java 17 language level (for example newer-than-17 syntax, or a genuinely malformed file), the plugin skips and names it at WARN and generates from what it could read, rather than failing your build. It never modifies your source. If you want your build to fail on any unparseable file instead (for example to gate CI), set `<strict>true</strict>` on the plugin, or pass `-Dtibyan.strict=true`. Either way, running the Step 1 preview first shows you exactly what would be discovered and skipped before you wire anything in.
 
 Build, and the plugin writes `tibyan/capabilities.json` onto the classpath (`target/classes/tibyan/capabilities.json`):
 
