@@ -1,8 +1,32 @@
 # Tibyaan
 
-**Tibyaan reads an existing Spring application, builds a verified model of what it can safely expose, and serves that model to AI agents over MCP and as an OpenAPI document, without changing a line of the original system.**
+**The software that runs your business cannot talk to AI. Tibyaan changes that.**
 
-Its defining property is what it refuses to do. Tibyaan only exposes a capability when it can prove, structurally from the source, exactly which real method backs it. When it cannot prove that, it refuses and tells you why, in a located message. It never guesses a binding. That guarantee is measured, not asserted: across two real Spring applications it has never once produced a wrong binding.
+Make the systems you already run understandable and usable by AI agents, without rewriting a line of them. Application modernization, in place.
+
+---
+
+## The problem
+
+Every established business runs on software built years ago. It works, and the business depends on it, but it was never designed for an age where AI agents are expected to read a system, act on it, and get real work done. The obvious fix, rebuilding these systems from scratch, is slow, expensive, and risky. So the systems that matter most stay locked away from the very tools that are reshaping every industry.
+
+## The idea
+
+Tibyaan opens your existing systems to AI without rewriting them. It reads a Spring application you already run, works out what it can safely expose, and serves those abilities to AI agents over MCP and as an OpenAPI document, in place. Its defining principle is trust: it surfaces only what it can prove from your own source, and it tells you plainly what it cannot, so nothing it puts in front of an agent is a guess. Today that means verified, read-only access, with write and action capabilities gated behind a policy layer that comes later. The trust guarantee is the foundation everything else is built on.
+
+## Why it matters
+
+- **Modernize without rewriting.** Keep the systems that already work, and add what the AI era needs on top of them, without touching a line of the original.
+- **AI-ready, in place.** Your existing software becomes something an AI agent can understand and put to work, through a server that runs inside your own application and calls your real methods.
+- **Trustworthy by design.** It never guesses. Across two real applications it has never once produced a wrong binding. What it shows you, you can rely on.
+
+A clear path from the software you already have to the AI-ready business you want, without the cost and risk of starting over.
+
+---
+
+## The evidence
+
+Tibyaan only exposes a capability when it can prove, structurally from the source, exactly which real method backs it. When it cannot prove that, it refuses and tells you why, in a located message. That guarantee is measured, not asserted:
 
 - **27 capabilities discovered across two real, unmodified benchmark apps. 0 wrong bindings.**
 - Evidence, with the full per-entity ledger of what was discovered and what was refused and why: [ERP backend trial](docs/experiments/third-app-trial.md) (25 capabilities) and [PMS backend trial](docs/experiments/second-app-trial.md) (2 capabilities).
