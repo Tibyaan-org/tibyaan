@@ -12,7 +12,7 @@ The CLI binary is `tibyan`. It exposes a small set of commands that map directly
 
 | Command | Purpose | Key options |
 |---|---|---|
-| tibyan scan | Survey a system into IR, resiliently (Volume 5 section 4.3) | path (positional), --out (write the discovered IR JSON) |
+| tibyan scan | Survey a system into IR, resiliently (Volume 5 section 4.3) | path (positional), --out (write the discovered IR JSON), --report (write a Markdown survey report, section 3.4) |
 | tibyan generate | Generate a backend from IR | --backend (for example mcp), --ir (IR file) or path, --out (output dir) |
 | tibyan validate | Validate an IR without generating | --ir (IR file) |
 | tibyan version | Print the tool and IR schema versions | none |
@@ -131,6 +131,24 @@ Exit code 2
 ```
 
 With model closure (Volume 5, section 4.7) a partial model is always valid, so `--out` writes it and generation succeeds even when the app extracted only in part; the exit-2 validation failure above is reserved for a genuinely malformed discovered IR, which closure makes far rarer.
+
+### 3.4 The survey report (`--report`), a shareable map of AI-operability (RATIFIED 2026-07-07)
+
+The console survey (sections 3.1 to 3.3) is written for a terminal: it scrolls past, and it is not something an adopter can hand to a colleague or keep as a record. A first-time user's honest result is often mostly refusals, and a wall of console text reads as failure unless the reader already holds the refusals-are-the-product frame. So `tibyan scan` gains an optional `--report <file.md>` that writes the same survey as a human-readable Markdown document: a shareable map of what an AI agent can operate in the application today and, with the located reason, what it cannot yet.
+
+Design decision, ratified before the build (rule 12), recorded here first. The report is read-only and purely additive: it renders the exact `ScanReport` the console already prints, so it discovers nothing new, changes no count, and makes no semantic claim. It writes only the file named, never touches the source or the build, and is orthogonal to `--out` (which writes the IR JSON); either, both, or neither may be given.
+
+The report has a fixed, deterministic structure so it is golden-stable and diffable across runs (no timestamps, no absolute paths in the body):
+
+- A one-paragraph framing that states the guarantee plainly: every listed capability is structurally proven and bound to a named real method, and every refusal is named rather than guessed.
+- A summary table: operable capabilities (by-id and list), refused, list-refused, files skipped, partial entities, and `mis-bound` (always stated, always 0 by construction).
+- A "what an agent can operate today" section listing each discovered capability with its binding, split into read-by-id and list-all exactly as the console splits them.
+- A "what was refused, and why" section grouping the failures with their located first-sentence reason, plus the files skipped and any deferred (filtered, view-returning, transformed) reads when present, each named.
+- A single "most common blocker" line naming the cause that blocked the most entities (or the parse-skip wall when that is larger), so the reader sees the one highest-leverage change without the tool claiming anything it cannot prove.
+
+Honesty (the never-claim gate). The report renders proven facts and nothing else. It adds no capability, and it never presents a refused or deferred read as available. The "most common blocker" line is a descriptive tally of the failure causes already in the survey, a count, not a recommendation the tool cannot substantiate and not a promise that the blocked reads would be safe to expose once unblocked. `mis-bound` is unaffected, because nothing about discovery changes; the report is a second rendering of the same model, alongside the console and the manifest.
+
+Forecast (from the existing benchmark rows, not new runs): on the example app the report lists `getProduct` as the one operable capability with no refusals and no blocker; on erp-backend it lists 16 by-id and 9 list operable with 9 refused, `NO_BACKING_METHOD` the most common blocker; on pms-backend it lists `getUnit` and `getLease` operable with 41 refused, `NO_BACKING_METHOD` (38) the most common blocker. `mis-bound 0` on all three.
 
 ### 3.1 The generated manifest is what the runtime hosts
 
