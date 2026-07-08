@@ -149,7 +149,26 @@ Recommended adoption: generate at build time. The `tibyan-maven-plugin` runs the
 </plugin>
 ```
 
-The goal binds to `generate-resources`, scans the module (by default `${project.basedir}`, matching `tibyan scan <module>`), and produces a manifest byte-identical to `tibyan generate`, because it invokes the same `TibyanCompiler` and `McpBackend`, not a second generator. With the `tibyan-runtime-spring` dependency on the classpath, the runtime finds the manifest there automatically, with no launch property and no MCP config in `application.yml` (Volume 7, section 4). Nothing is committed by hand.
+The goal binds to `generate-resources`, scans the module (by default `${project.basedir}`, matching `tibyan scan <module>`), and produces a manifest through the same `TibyanCompiler` and `McpBackend` the CLI uses, not a second generator. With the `tibyan-runtime-spring` dependency on the classpath, the runtime finds the manifest there automatically, with no launch property and no MCP config in `application.yml` (Volume 7, section 4). Nothing is committed by hand.
+
+#### 3.1.1 The plugin is resilient by default, so adopting it cannot break a build (RATIFIED 2026-07-07)
+
+Design decision, ratified before the build (rule 12), recorded here first. The problem it fixes: the build plugin ran the provider's strict `provide` path, so a single source file the parser could not read at the Java 17 language level (newer-than-17 syntax, or a genuinely malformed file) aborted the Mojo and failed `mvn package`. For a tool whose defining promise is that it changes nothing in the host system, breaking the host's build on adoption is the wrong default, and it punishes exactly the messy, real, aging applications the tool exists to serve (the pms benchmark has 27 such files, so its build would have failed on `mvn package`).
+
+The ratified behavior:
+
+- **Default (resilient).** The plugin runs the same resilient `scan` the CLI's `tibyan scan` runs (`SpringCapabilityProvider#scan`, returning a `ScanReport`), then generates the manifest from the discovered model. An unparseable file is skipped and named, never fatal. Adopting the plugin therefore cannot break a build on an unparseable file. This makes the plugin's output byte-identical to `tibyan scan` for the same source, and identical to `tibyan generate` whenever the source is fully parseable (the two paths share one discovery rule set; resilience changes only whether an unparseable file aborts, never what is discovered, so `mis-bound` stays 0 either way).
+- **Loudness relocated, not softened (the E1 discipline, Volume 5 section 4.3).** A resilient build is not a silent one. The plugin logs, at WARN, every file it skipped with its located reason, and it logs a clear line when it generated zero capabilities (so an empty manifest never passes unnoticed). A partial manifest can never masquerade as a complete one, because the build log names every file that was not read. This is the same standard the CLI survey already meets.
+- **Strict opt-in.** Setting `<strict>true</strict>` on the plugin (or `-Dtibyan.strict=true`) restores the old behavior: the plugin runs the strict `provide` path and fails the build on any unparseable file or hard failure. This is for adopters who want their build to gate on a fully-parseable source tree (for example in CI). It is off by default.
+- **What still fails the build in the default path.** A genuinely invalid discovered IR (validation failure, which model closure in E5 makes rare) fails the build, because validation is the pipeline's gate and shipping a malformed manifest would be worse than failing. A scan that cannot run at all (the source root is missing, is not a directory, or cannot be walked) also fails the build. Only per-file unparseability is downgraded from fatal to a named skip.
+
+Honesty analysis (the never-claim constraint, the absolute gate): resilience adds no capability and weakens no proof. Every capability in a partial manifest is discovered by the unchanged structural rules and bound to a method the tool proved backs it; nothing is guessed, and no filtered or unproven read is emitted. The only thing that changes is that an unparseable file no longer aborts the whole build, and its absence is disclosed loudly. `mis-bound 0` is not at risk, because the discovery and matching rules are untouched.
+
+Pre-registered forecast (rule 12, measured against a stated prediction):
+
+- Example app (`examples/legacy-spring-app`, fully parseable): byte-identical manifest to today (`getProduct` only), the `EndToEndMcpIT` end-to-end test green, and the MCP golden unchanged. Resilient and strict produce the same output on a clean tree.
+- pms-backend (27 unparseable files): the strict path fails `mvn package` today; the resilient default succeeds, generating the 2 discovered capabilities (`getUnit`, `getLease`) and logging 27 named skips. This is inferred from the identical `scan` code path the CLI already runs on pms (second-app-trial.md section 8), not a new plugin run against the private app.
+- erp-backend (0 unparseable files, valid model post-E5): resilient and strict both generate all 25 capabilities, byte-identical.
 
 The CLI remains for manual and inspection use: run `tibyan scan` and `tibyan generate` to see the IR and the generated output, or to produce a manifest for a host that is not built with Maven. You can also point the runtime at a manifest file for an ad hoc run with `-Dtibyan.capabilities=file:./generated/<module>-mcp/tibyan/capabilities.json`, a relative path, never a hardcoded absolute or machine-specific path; the explicit property overrides the classpath default.
 
@@ -172,7 +191,9 @@ The manifest that ships under `tibyan-backend-mcp/src/test/resources/...` is onl
 - 2: only when `--out` was given and the discovered IR did not validate, so no file was written. The survey still printed in full.
 - 3: the scan could not run at all: the source root is missing, is not a directory, or cannot be walked.
 
-Surveying is not the same as producing an artifact. `tibyan generate` (and the build plugin) stay strict: they run the provider's strict path, which refuses a scan with any unparseable file or hard failure and exits 3, so a manifest is never produced from a partial read. A per-entity failure being exit 0 under `scan` is a survey result; the same source under `generate` is a loud refusal.
+Surveying is not the same as producing an artifact. `tibyan generate` stays strict: it runs the provider's strict path, which refuses a scan with any unparseable file or hard failure and exits 3, so a hand-run generation never produces a manifest from a partial read. A per-entity failure being exit 0 under `scan` is a survey result; the same source under `generate` is a loud refusal.
+
+The build plugin is the one exception, and deliberately so (section 3.1.1, ratified 2026-07-07): it is resilient by default, because adopting it must never break the host's build on an unparseable file. It runs the same resilient `scan` the CLI runs, skips and names unparseable files rather than aborting, and generates from what it discovered, logging every skip loudly so the manifest is never a silent partial. Setting `strict=true` on the plugin opts back into the strict `provide` path (fail the build on any unparseable file) for adopters who want their build to gate on a fully-parseable tree. The strict CLI `generate` is unchanged.
 
 ## 5. Future commands
 
