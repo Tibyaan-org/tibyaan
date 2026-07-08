@@ -4,9 +4,12 @@ This document records the release decisions for v1 and the exact steps to publis
 that the parts a machine cannot do (accounts, key ceremonies, external verification) are enumerated as
 human steps, never faked. Everything preparable in the repository is prepared and verifiable locally.
 
-Status at the time of writing: the reactor is at version `0.1.0` with full Central-required POM
-metadata and a `release` profile, and `mvn -Prelease verify` is green locally without any signing keys.
-The artifacts are NOT yet published. The remaining work is entirely the human steps in section 4.
+Status at the time of writing: the reactor is at version `0.1.0` and groupId `io.github.tibyaan.org`,
+with full Central-required POM metadata and a `release` profile, and `mvn -Prelease verify` is green
+locally without any signing keys. The signing step has additionally been proven to run against a
+throwaway key (real `.asc` signatures were produced for a published module, then discarded along with
+the key), so only real key material and the accounts are missing. The artifacts are NOT yet published.
+The remaining work is entirely the human steps in section 4.
 
 ## 1. License: Apache-2.0
 
@@ -42,7 +45,12 @@ plainly:
 The compatibility boundary is the plugin API (`tibyan-plugin-api`, Volume 10 section 6). The IR JSON and
 the runtime manifest formats are additive-where-possible but are not stable before 1.0.0.
 
-Post-release, the reactor returns to a snapshot development version (section 3, step 7).
+One version string is not carried by the POM: the CLI reports its version through a hardcoded
+`TOOL_VERSION` constant (`tibyan-cli/src/main/java/com/tibyaan/cli/TibyanCli.java`), which drives
+`tibyan version` and `tibyan --version`. It reads `0.1.0` for this release. Keep it in step with the POM
+version on every bump, the release and the snapshot restore alike (section 3 step 3, and section 4).
+
+Post-release, the reactor returns to a snapshot development version (section 4, step 6).
 
 ## 3. The release checklist
 
@@ -52,41 +60,91 @@ on are the human steps in section 4.
 1. Confirm the tree is clean and the full reactor is green: `mvn clean verify`. This runs the unit,
    golden, and end-to-end tiers.
 2. Confirm the version is the intended release version (no `-SNAPSHOT`): the aggregator and every module
-   read `0.1.0`.
+   read `0.1.0`, and the CLI's `TOOL_VERSION` constant reads `0.1.0` too.
 3. Confirm the release artifacts build without keys: `mvn -Prelease verify`. This produces the main,
-   `-sources`, and `-javadoc` jars for every published module and runs the full test suite; GPG signing
-   is skipped by default (`gpg.skip=true`) so this passes with no key material.
-4. Publish (human, section 4): sign and deploy to Maven Central, then release the staging repository.
+   `-sources`, and `-javadoc` jars for every published module (and no `-sources`/`-javadoc` jars for the
+   two non-published modules, the example app and the integration-test harness) and runs the full test
+   suite; GPG signing is skipped by default (`gpg.skip=true`) so this passes with no key material. The
+   signing configuration itself is proven separately by running the same profile with `-Dgpg.skip=false`
+   against a throwaway key, which produces real `.asc` detached signatures; the real release uses the
+   publisher's key in exactly the same way.
+4. Publish (human, section 4): sign and deploy to Maven Central, then release the staging deployment.
 5. Tag the release: `git tag -a v0.1.0 -m "Tibyan 0.1.0"` and push the tag.
 6. Verify the published artifacts resolve from Central in a scratch project (the quickstart in the root
    README is the acceptance check).
-7. Restore the development version: `mvn versions:set -DnewVersion=0.2.0-SNAPSHOT -DgenerateBackupPoms=false`
-   and commit.
+7. Restore the development version: `mvn versions:set -DnewVersion=0.2.0-SNAPSHOT -DgenerateBackupPoms=false`,
+   bump the CLI `TOOL_VERSION` constant to match, and commit.
 
 ## 4. Human-required steps (accounts, keys, verification): what only a person can do
 
-None of the following can be done inside an automated session; each is written as an exact step. They
-are the only work between the current commit and the artifacts being publicly consumable.
+The published coordinates are groupId `io.github.tibyaan.org`, version `0.1.0`. The Java package root
+stays `com.tibyaan` regardless: that is a source convention (CLAUDE.md rule 8), independent of the Maven
+coordinates, and it does not change. None of the steps below can be done inside an automated session;
+each is written as an exact step, in order. They are the only work between the current commit and the
+artifacts being publicly consumable. Steps marked ONE-TIME are done once for the project; steps marked
+PER-RELEASE are repeated for every version.
 
-1. Namespace verification on Sonatype Central. The groupId `com.tibyaan` must be verified before Central
-   will accept it. Central verifies a reversed-domain namespace by proof of domain ownership: add the
-   DNS TXT record Central provides to the `tibyaan.com` domain and complete verification at
-   https://central.sonatype.com. IF the `tibyaan.com` domain is not owned, do not fake it: either
-   acquire the domain, or switch the published groupId to `io.github.tibyaan-org` (which Central verifies
-   through the GitHub organization of the same name) and update `<groupId>` in the root POM accordingly.
-   The Java package root stays `com.tibyaan` regardless (that is a source convention, CLAUDE.md rule 8,
-   independent of the Maven coordinates).
-2. Create a Central publishing account and a user token at https://central.sonatype.com, and add the
-   token to `~/.m2/settings.xml` under a server id of `central` (the id the `central-publishing-maven-plugin`
-   references). Do not commit `settings.xml`; it holds the token.
-3. Generate a GPG key pair for signing (`gpg --gen-key`), and publish the public key to a keyserver
-   (for example `gpg --keyserver keys.openpgp.org --send-keys <KEYID>`). Keep the private key and its
-   passphrase secure. Configure the passphrase for `maven-gpg-plugin` through gpg-agent or a
-   `settings.xml` server/property; never place it in a committed file.
-4. Run the release: `mvn -Prelease -Dgpg.skip=false clean deploy`. This builds and signs the jars and
-   uploads them to the Central staging area. Then release the deployment (either automatically, if
-   `autoPublish` is enabled in the plugin, or manually in the Central UI).
-5. Complete steps 5 to 7 of the checklist (tag, verify from Central, restore the snapshot version).
+What the preparation session already did, so it is not repeated below: set the groupId to
+`io.github.tibyaan.org` across the reactor and confirmed the reactor builds green; confirmed
+`mvn -Prelease verify` produces the main, `-sources`, and `-javadoc` jars for all nine published modules
+and no `-sources`/`-javadoc` jars for the two non-published modules; and proved the GPG signing step
+runs by signing a published module with a throwaway key (real `.asc` files were produced, then discarded
+with the key). Only the real key, the accounts, and the external verification remain.
+
+1. (ONE-TIME) Verify the namespace `io.github.tibyaan.org` on the Sonatype Central Portal (it currently
+   shows Verification Pending). An `io.github` namespace is verified by proving control of the GitHub
+   account named by the segment right after `io.github`, here the user account `tibyaan`, so no domain
+   and no DNS record is needed. The code repository stays under the `Tibyaan-org` organization; Central
+   does not require the publishing account and the code host to be the same account.
+   a. Sign in to https://central.sonatype.com as the owner of the `tibyaan` GitHub account.
+   b. Under Namespaces, open the pending `io.github.tibyaan.org` entry to see its verification code.
+   c. Do exactly what the portal instructs for that code: create the public GitHub repository it names,
+      named with the verification code, under the account it names (the `tibyaan` account), then click
+      Verify.
+   d. Once verified, the temporary repository can be deleted; the namespace stays verified permanently.
+
+2. (ONE-TIME) Create the Central publishing token. At https://central.sonatype.com, under your account,
+   generate a user token (a username and password pair). Add it to `~/.m2/settings.xml` under a server
+   id of `central` (the id the `central-publishing-maven-plugin` references in the root POM). Do not
+   commit `settings.xml`; it holds the token.
+
+   ```xml
+   <server>
+     <id>central</id>
+     <username>CENTRAL_TOKEN_USERNAME</username>
+     <password>CENTRAL_TOKEN_PASSWORD</password>
+   </server>
+   ```
+
+3. (ONE-TIME) Generate and distribute a GPG signing key.
+   a. Generate a key pair: `gpg --full-generate-key` (or `gpg --gen-key`).
+   b. Publish the public key to a keyserver Central checks, for example
+      `gpg --keyserver keys.openpgp.org --send-keys <KEYID>`.
+   c. Keep the private key and its passphrase secure. Provide the passphrase to `maven-gpg-plugin`
+      through gpg-agent, or a `settings.xml` property, never a committed file. The signing wiring in the
+      `release` profile is already proven to work (the preparation session signed a module with a
+      throwaway key); this real key simply replaces it.
+
+4. (PER-RELEASE) Deploy. From a clean checkout at the release version, run:
+
+   ```
+   mvn -Prelease -Dgpg.skip=false clean deploy
+   ```
+
+   This builds, attaches the sources and javadoc jars, signs every published artifact, and uploads the
+   bundle to the Central staging area. `autoPublish` is `false` in the plugin (the current setting), so
+   review the deployment and release it manually in the Central Portal UI; set `autoPublish` to `true`
+   only if you want it to publish without that manual gate.
+
+5. (PER-RELEASE) Tag and verify. `git tag -a v0.1.0 -m "Tibyan 0.1.0"` and push the tag. Then confirm
+   the published artifacts resolve from Central in a scratch project (the quickstart in the root README
+   is the acceptance check).
+
+6. (PER-RELEASE) Restore the development version. Run
+   `mvn versions:set -DnewVersion=0.2.0-SNAPSHOT -DgenerateBackupPoms=false`, bump the CLI's hardcoded
+   `TOOL_VERSION` constant (`tibyan-cli/src/main/java/com/tibyaan/cli/TibyanCli.java`) to
+   `0.2.0-SNAPSHOT` to match, and commit. The constant is hardcoded because the CLI reports it through
+   picocli, so it does not move with the POM automatically; keep the two in step on every bump.
 
 Interim option, if Central onboarding is not yet complete and a consumable artifact is needed sooner:
 publish to GitHub Packages from the `Tibyaan-org/tibyaan` repository. This is an EXPLICITLY INTERIM

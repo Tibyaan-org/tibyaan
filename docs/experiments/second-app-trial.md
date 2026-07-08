@@ -514,3 +514,119 @@ recognizes as a list read; an opaque envelope return is not one. This is correct
 discovered is 0, mis-bound is 0, and every by-id row is byte-identical, which are the properties that
 matter. It sharpens the case for E6: pms's list API is not just filtered, it is hidden behind opaque
 envelope types that a filter-semantics phase must decide whether and how to see.
+
+### 8.8 P1b census and forecast (custom-query by-pk terminal, pms-backend, read-only, 2026-07-02)
+
+The design half of P1b (Volume 5 section 4.2.10, pending ratification) needs the custom-query by-id read
+inventory. This is pms-backend's, traced from source, read only, no tool change. The erp-backend census
+is in docs/experiments/third-app-trial.md, section 14.
+
+Census. pms-backend has exactly one custom-query by-primary-key terminal, Tenant, and it is a one-hop
+hand-written case:
+
+| Chain | Text | Ties to E and id |
+|---|---|---|
+| `TenantServiceImpl#findById` returns `TenantVTO` (view); body loads `tenantRepository.selectById(id).orElseThrow(...)`, maps `propertyMgtMapper.toTenantVTO(tenant)` | two-statement 4.2 shape | mapper resolves in-tree, `PropertyMgtMapper#toTenantVTO(Tenant) : TenantVTO` |
+| `TenantRepository#selectById` (hand-written interface); its single `@Repository` impl `TenantRepositoryImpl#selectById` body is `return tenantJpaRepository.findByIdWithRelations(id);` | one-hop delegation, verbatim `id` | delegate is the `@Query` terminal |
+| `TenantJpaRepository extends JpaRepository<Tenant, Long>`, `findByIdWithRelations` carries `@Query("SELECT t FROM Tenant t JOIN FETCH t.user LEFT JOIN FETCH t.unit un LEFT JOIN FETCH un.building b LEFT JOIN FETCH b.property WHERE t.id = :id")`, `@Param("id") Long id` | `SELECT t` (root), fetch joins only, `WHERE t.id = :id` | selects Tenant by its `@Id` field `id`, named parameter |
+
+Every other pms hand-written repository (`Vendor`, `Lease`, `LeaseDocument`, `Unit`, `Admin`) delegates
+`selectById` to the framework `findById` (P1a, already handled), so Tenant is the sole P1b occurrence, as
+the E2 census recorded.
+
+The decisive finding (design-closure, 2026-07-02), the number that decides the phase. Applying the
+strict rule (Volume 5 section 4.2.10, ratified) to Tenant's query verbatim: the WHERE, `WHERE t.id = :id`,
+is a single equality between the id property and the method's single parameter and NOTHING ELSE, so it
+PASSES P5. But the first fetch, `JOIN FETCH t.user`, is an INNER join fetch (written without `LEFT`), and
+`Tenant.user` is a nullable `@ManyToOne` (`@ManyToOne @JoinColumn(name = "user_id")`, no `optional = false`,
+no `nullable = false`, so nullable by JPA default). An inner join fetch on a nullable association drops the
+Tenant when its user is null: this query returns nothing for a Tenant that exists but has no user, so it
+is not equivalent to a by-primary-key load. It carries a hidden existence filter and FAILS the strict rule
+at P4. Verdict: FAIL. getTenant is not discovered. The first-draft forecast (discovered 2 to 3) was wrong
+because it read the WHERE alone and waved the fetch joins through; reading the join semantics flips it.
+
+Forecast (build deferred; a target for the eventual build):
+
+- Discovered: 2, UNCHANGED. getUnit and getLease are the only discoveries; getTenant stays
+  NO_BACKING_METHOD, its near-miss message changing from the generic custom-query note to the inner-fetch
+  refusal (Volume 5 section 4.2.10.3), the counts unmoved.
+- Failed: NO_BACKING_METHOD 38 unchanged; COMPOSITE_KEY 3 unchanged. Skipped-by-parse 27 unchanged. List 0
+  unchanged. Mis-bound 0, and never at risk since the rule emits nothing.
+- Row (projected forecast, build deferred, not a run row): discovered 2 (by-id 2, list 0), failed 41
+  (NO_BACKING_METHOD 38, COMPOSITE_KEY 3), skipped-by-parse 27, mis-bound 0. Byte-identical to the current
+  pms row.
+
+pms is therefore not the one-entity unlock the first draft claimed; it is a refusal, and P1b discovers
+zero here. The rule's value on pms is that it names Tenant's inner-fetch filter honestly rather than
+binding a filtered query as getTenant.
+
+### 8.9 E6 filtered-read census (filter-semantics-plus-envelope, pms-backend, read-only, 2026-07-02)
+
+The E6 design (Volume 5 section 4.11) needs the filtered-read inventory. This is pms-backend's, from
+source. pms is the E6 benchmark because its entire read API is filtered and envelope-shaped. Counts:
+
+| Shape | Count | Note |
+|---|---|---|
+| (a)/(b)/(c) filtered reads (single, multi, and filter-plus-paging), returning a `*ResultSet` envelope | ~35 | `getAllByFilter` (Tenant, Property, Lease), `getMy*`/`getBuilding*`, `getStaffList`, `getChatRooms`, and the rest of section 8.6 shape (c) |
+| (d) projection or view-returning `List<VTO>` filtered by a foreign key | ~7 | section 8.6 shape (d) |
+| (e) envelope-wrapped, existence hidden by an opaque wrapper | ~35 | the `*ResultSet` types; the same reads as (a) to (c), counted here for the visibility half |
+| (f) collection filters returning a collection | folded into (a) to (d) | |
+
+The decisive facts for the design:
+
+- Visibility: roughly 35 reads are invisible to the tool today because their return type is an opaque
+  `*ResultSet` wrapper, not a recognized container (E4 saw only 3 deferrals for this reason, section 8.7).
+  The wrapper is structurally unwrappable: `TenantResultSet` declares one collection field,
+  `List<TenantVTO> data`, plus a `Long total`, so the tool could resolve the class, read the element view,
+  and tie it back to Tenant through the 4.2 view machinery. But every such read is filtered, so unwrapping
+  lands at the filter wall and yields no capability.
+- Filter semantics: pms hides them in imperative code, not in any query text.
+  `getAllByFilter(fullName, email, orderBy, orderDir, pageNum, pageSize, pageOffset)` builds a
+  `TenantSearchFilter` and calls `tenantRepository.selectAllByFilters(filter)`, which a hand-written
+  `TenantQueryBuilder` executes. What `fullName` and `email` filter, and how, is nowhere readable; it is in
+  the query builder's Java. pms has zero Spring Data derived-query filters and zero readable filter
+  predicates.
+
+So on pms there is no structural way to know any filter's meaning, and no honest way to represent one.
+This is the evidence behind the E6 recommendation to REFUSE for v1 with a documented ceiling: pms's
+ceiling is essentially its entire read API beyond getUnit and getLease (Volume 5 section 4.11.5).
+
+### 8.10 E6a transparency census (envelope visibility, pms-backend, read-only, 2026-07-02)
+
+The E6a design (Volume 5 section 4.11.7) needs the wrapper-transparency inventory: for each wrapper
+return type, can the tool prove a read of E exists behind it without reading the wrapper's internals?
+
+Wrapper types in use: roughly thirty-plus per-entity `*ResultSet` classes (`TenantResultSet`,
+`VendorResultSet`, `RentalPaymentResultSet`, `TicketResultSet`, `LeaseResultSet`, and so on),
+OpenAPI-generated, each declaring one collection field `List<VTO> data` and a `Long total`. None is
+generic. A single generic `ListResultSet<T>` exists in the common library but no read returns it, so the
+generic tie (T1) is inert on pms in practice.
+
+Transparency classification:
+
+| Class | Count | Basis |
+|---|---|---|
+| TRANSPARENT via T2 (body has a repository-of-E access returning a collection of E) | roughly 12, in the parseable modules (property, lease, billing) | `getAllByFilter`, `findAllByProperty`, `getAllByProperty`, `getPaymentsByBuilding`, `getMyPayments`, `getMyInvoices`, `getInvoicesByBuilding`, `getCostsByBuilding`, `getMyTimeEntries`, each body `List<E> xs = eRepo.selectAllByFilters(filter); return mapper.toEResultSet(xs, count);` |
+| Not reached by E6a: return a `*ResultSet` but sit in unparseable placeholder-file modules | roughly 23 | vendor, user, staff, notification, maintenance, inspection, file, community, chat, admin; invisible by parse skip, not by wrapper (an E1 residue, genuinely invalid `$IMPORT` source) |
+| OPAQUE (no provable repository-of-E tie) | the proxy reads | `PropertyMgtProxyInternalServiceImpl#findPropertiesByBuildingIds` returns `List<PropertyProxyResult>` from a proxy service call, not a repository of an entity; refused `OPAQUE_WRAPPER` |
+
+The decisive facts:
+
+- Every transparent wrapper read on pms is filtered. Each body calls `eRepository.selectAllByFilters(filter)`
+  (a hand-written query builder) with domain parameters. So T2 makes them visible, and 4.10 then refuses
+  them as filtered. Zero of them discover.
+- The generic tie (T1) matters for generality and for a future app, but is inert here, so pms transparency
+  rests entirely on the body tie (T2).
+
+Forecast (build deferred; framed as visibility, not discovery):
+
+- Visibility gained: roughly 12 reads move from invisible to visible-and-classified, all in property,
+  lease, and billing. All roughly 12 are VISIBLE-BUT-REFUSED-FILTERED (named deferrals); new discoveries 0.
+- The roughly 23 `*ResultSet` reads in the ten unparseable modules stay parse-skipped; E6a does not reach
+  them.
+- Row (projected, build deferred): discovered 2 (by-id 2, list 0), UNCHANGED; visibility gained roughly 12
+  (all filtered deferrals); mis-bound 0; getUnit and getLease byte-identical. The headline is visibility,
+  not discovery: the deferral ledger becomes complete for the parseable modules, and it confirms
+  structurally that pms's wrapper reads are all filtered, feeding the E6b decision.
+- Named uncertainty: the roughly 12 is bounded by how many `*ResultSet` reads sit in parseable service
+  files (property, lease, billing); firm at build time.

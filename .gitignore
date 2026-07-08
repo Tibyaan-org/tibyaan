@@ -11,7 +11,6 @@ target/
 # IDE
 .idea/
 *.iml
-.vscode/
 .settings/
 .project
 .classpath
@@ -34,3 +33,5 @@ Thumbs.db
 *.trace.db
 /examples/pms-backend
 /examples/erp-backend
+config.bat
+node_modules

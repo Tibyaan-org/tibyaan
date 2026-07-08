@@ -566,3 +566,97 @@ description `List all Contact. Returns a page of results; the total count and pa
 modeled.`, and in OpenAPI as a GET on `/contact` whose 200 schema is `{"type": "array", "items":
 {"$ref": "#/components/schemas/Contact"}, "x-tibyan-paged": true}` with the page-envelope disclosure.
 The Contact component still discloses its partiality (the E5 rider rides through the element schema).
+
+---
+
+## 14. P1b census and forecast (custom-query by-pk terminal, erp-backend, read-only, 2026-07-02)
+
+The design half of P1b (Volume 5 section 4.2.10, pending ratification) needs the custom-query by-id read
+inventory. This is erp-backend's, traced from source, read only, no tool change. The pms-backend census
+is in docs/experiments/second-app-trial.md, section 8.8.
+
+Census. erp uses a `findByIdWith*` `@Query` idiom widely, all direct on Spring Data repositories, all
+clean by-primary-key selects (`SELECT [DISTINCT] <alias> FROM <E> <alias> LEFT JOIN FETCH ... WHERE
+<alias>.id = :id`, named parameter). Classified by what consumes each, since condition 4 (and P1b) is
+only consulted for a view-returning service read:
+
+| Repository `@Query` method | JPQL (WHERE) | Consumed by service `findById` returning | P1b relevance |
+|---|---|---|---|
+| `DeliveryRepository#findByIdWithRelationships` | `... WHERE d.id = :id` | `DeliveryReadDTO` (view) | P1b clears the load; the mapper still refuses (below) |
+| `ProductRepository#findByIdWithAssociations` | `... WHERE p.id = :id` | `Product` (entity) | 4.1 already; body never read |
+| `ContactRepository#findByIdWithAssociations` | `... WHERE c.id = :id` | `Contact` (entity) | 4.1 already |
+| `ContactGroupRepository#findByIdWithContacts` | `... WHERE ...id = :id` | `ContactGroup` (entity) | 4.1 already |
+| `TicketRepository#findByIdWithAssociations` | `... WHERE ...id = :id` | `Ticket` (entity) | 4.1 already |
+| (framework `findById`, not a `@Query`) | n/a | `QuoteServiceImpl#getInvoice -> byte[]` (view) | P1a already; Quote AMBIGUOUS today |
+
+Filtered custom queries, refused and structurally distinct (not by-primary-key): `DeliveryRepository#searchByFields`
+(`WHERE (:search IS NULL OR ...) AND (:status IS NULL OR d.status = :status) AND ...`, eight parameters),
+`ProductRepository#findProducts`, `EmailTemplateRepository#searchByFields`. These are multi-parameter, so
+condition 2 already refuses them; they are the live proof that the by-id `@Query` shape and the filtered
+`@Query` shape are structurally separable in this app, not merely name-separable.
+
+The two questions the task posed, answered from source:
+
+- Delivery: `DeliveryServiceImpl#findById` returns `DeliveryReadDTO`, loads `deliveryRepository.findByIdWithRelationships(id).orElseThrow(...)` (the clean by-pk `@Query`, direct), then maps `mapToDTO(delivery)`. `mapToDTO` is a private method on the service itself, called with no receiver (implicit `this`). Under condition 9 this does not resolve to a mapper on a field, a static factory, a constructor, or a method reference, so Delivery has TWO independent refusals today: the P1b load (which P1b clears) and the implicit-this mapper (which P1b does not touch). P1b alone does not unlock Delivery.
+- Quote: `QuoteServiceImpl#getInvoice(UUID)` returns `byte[]` and loads via the framework `quoteRepository.findById(id)` (verified at source), maps `reportGenerationService.generateInvoice(quote)`. Its load is framework, not custom, so getInvoice is already a P1a 4.2 match today, competing with the entity-returning `findById` (getQuote via 4.1). Quote is therefore AMBIGUOUS today, and P1b does not change its pool: getInvoice was never a P1b near-miss.
+- Ticket: `TicketServiceImpl#findById` returns `Ticket` (entity), so it is a section 4.1 discovery already; 4.1 binds on the return shape and never reads the body, so the fact that Ticket's body loads via `findByIdWithAssociations` (a custom query) is irrelevant. P1b's design does not touch already-discovered capabilities, verified here on Ticket, Product, Contact, and ContactGroup.
+
+Delivery's query itself, checked against the strict rule (design-closure, 2026-07-02): its five fetches
+are all `LEFT JOIN FETCH` and its WHERE is the single id equality, so the query PASSES the strict rule
+(unlike pms Tenant, whose query fails on an inner `JOIN FETCH t.user`; second-app-trial.md section 8.8).
+Delivery is refused only at the mapper, not the load.
+
+Forecast (build deferred; a target for the eventual build): byte-identical to the current erp row. Delivery stays refused (its
+mapper), Quote stays AMBIGUOUS (its framework load), the four entity-returning reads are untouched
+(4.1). The only visible change is Delivery's near-miss message shifting from the load terminal to the
+same-service mapper. Row (projected): discovered 25 (by-id 16, list 9), list-refused 1, failed 9
+(NO_BACKING_METHOD 6, NO_IDENTIFIER 1, AMBIGUOUS_BINDING 2), skipped-by-parse 0, partial 13, mis-bound 0.
+This makes erp the honest negative control for P1b: a benchmark that has the clean by-pk `@Query` shape in
+abundance yet gains no discovery from it, because the one view-returning consumer is blocked by an
+unrelated mapper rule. Combined with the design-closure finding on pms (Tenant's query fails the strict
+rule on an inner-fetch existence filter, section 8.8), P1b discovers ZERO across both benchmarks. There is
+no one-entity unlock; the strict rule refuses everything it surveyed, which is the correct behavior. P1b
+is ratified as the by-primary-key floor E6 builds on (Volume 5 section 4.2.10.6), and its standalone build
+is deferred (section 4.2.10.7).
+
+---
+
+## 15. E6 filtered-read census (filter-semantics-plus-envelope, erp-backend, read-only, 2026-07-02)
+
+The E6 design (Volume 5 section 4.11) needs the filtered-read inventory. This is erp-backend's, from
+source. Unlike pms, erp's filters are directly typed (no envelope wrappers) and its filters live in the
+query, so erp has no visibility half; its interest is the semantics half and the derived-query exception.
+Counts:
+
+| Shape | Count | Note |
+|---|---|---|
+| (a)/(b)/(c) filtered reads, returning `Page<E>` or `List<E>` directly | ~30 | section 12 shape (c): `searchByFields`, `findAll(String search, Pageable)`, `findByCategory`, `findBySupplier`, `findByParentId`, and the rest |
+| (d) projection or view-returning list | ~9 | section 12 shape (d): `Page<NameIdDTO>`, `List<XxxReadDTO>` |
+| transformed body | 5 | section 12 |
+| (e) envelope-wrapped, existence hidden | 0 | erp uses no `*ResultSet` wrappers; its reads are directly typed and already visible (E4 deferred them by name) |
+
+The split within erp's filters, which is the whole reason erp matters to E6:
+
+- Spring Data derived-query filters: many, and their meaning is framework-defined. `findByNameContainingIgnoreCase(String name, Pageable)`, `findByParentId(UUID parentId, Pageable)`, `findByProductCategoryId`, `findByAccountType(AccountType, Pageable)`, `findByMethod`, `findByTransactionId`, `findByAccountIdAndStatus`, `findByTypeAndStatus`. The framework parses the method name against the entity's properties and generates the predicate deterministically; reading it is reading a framework contract, not nominal inference. This is the one structural avenue for a verified filter (Volume 5 section 4.11.3).
+- Custom `@Query` filters: `searchByFields` (`WHERE (:search IS NULL OR ...) AND ...`), `findProducts`, `findContacts`. Arbitrary JPQL, meaning in the text, not derivable from the name; structurally as opaque as pms's query builders once the WHERE is more than the id equality.
+
+erp is therefore the negative-plus-partial control for E6: it shows the one honest structural avenue
+exists (derived-query filters) but is a minority mixed with unreadable `@Query` filters, and it confirms
+that the majority of filtered reads have no structural representation. This supports the E6 recommendation
+to defer with a documented ceiling (Volume 5 section 4.11.4): erp's ceiling is roughly 44 deferred reads
+beyond its 25 discoveries, of which only the derived-query subset is even a candidate for a future narrow
+structural rule.
+
+---
+
+## 16. E6a transparency census (envelope visibility, erp-backend, read-only, 2026-07-02)
+
+The E6a design (Volume 5 section 4.11.7) makes wrapper-hidden reads visible. erp uses no wrapper or
+envelope return types: every read returns `Page<E>`, `List<E>`, `Set<E>`, or a directly typed view
+collection (`Page<NameIdDTO>`, `List<XxxReadDTO>`), all of which 4.10 already recognizes (and defers by
+name when filtered or view-returning). There is no `*ResultSet`-style wrapper anywhere in erp.
+
+So E6a is inert on erp: there is no unrecognized wrapper return type for it to make transparent, and it
+recognizes nothing new. Forecast (build deferred): byte-identical. Discovered 25 (by-id 16, list 9),
+mis-bound 0, unchanged; visibility gained 0. erp confirms E6a is a pms-idiom phase: it addresses the
+envelope-wrapping style pms uses and erp does not.

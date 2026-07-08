@@ -206,6 +206,106 @@ The sequencing finding, plainly: phase E2's exit criterion as written in Volume 
 
 Ratification (2026-07-02): this rule is ratified as written, conditions 0 through 10, the ENTITY_REF-plus-view-annotation representation, fixtures F1 to F12, and the deferred patterns. Sequencing was decided: E3 is designed and built before the E2 build, and E2 plus E3 are measured jointly against the benchmark with the shared exit criterion, discovered greater than zero (forecast: Unit and Lease via P1a) and mis-bound exactly zero. The E2 build session follows the E3 build.
 
+#### 4.2.10 P1b: the custom-query by-primary-key terminal (designed 2026-07-02; RATIFIED 2026-07-02 as the strict by-primary-key boundary; BUILD DEFERRED)
+
+This is the deferred half of condition 4 (patterns 4.2.6). Today the load evidence must be a framework by-primary-key read (`findById`, `getById`, `getReferenceById`) on a Spring Data repository of E, reached directly (4a) or as the single delegate of the one-hop hand-written trace (4b). P1b answers the deferred question: when may a custom `@Query` method serve as that same load evidence? The bar is unchanged: structural proof of the by-primary-key claim, or refusal. Names carry no weight; the JPQL text is read, never the method name.
+
+The design-closure of 2026-07-02 tightened this rule and re-examined its one apparent discovery, and it changed the outcome. The first design draft (also 2026-07-02) permitted any `JOIN FETCH` clause, including an inner one, on the assumption that a fetch join "never removes rows." That assumption is false for an inner `JOIN FETCH`: an inner join is an existence filter, and it drops the root entity when the fetched association is absent. Applying the corrected, strict rule to the only clean-looking discovery, pms Tenant, flips it from discovered to refused (section 4.2.10.1). The decisive finding follows: on both benchmarks there is NO custom query that is both provably nothing-but-a-by-primary-key load and feeding a discoverable read. P1b therefore discovers zero, and its ratified value is the strict refusal boundary it draws, inherited by E6 as a floor (section 4.2.10.6). Refusal is not the primary path of this rule; on this evidence it is the total path.
+
+##### 4.2.10.1 Evidence and the decisive finding (read-only, both apps)
+
+Every custom-query by-id read was traced to source. The full census is in the experiment ledgers (docs/experiments/second-app-trial.md, section 8.8; docs/experiments/third-app-trial.md, section 14). Six by-primary-key-shaped custom `@Query` methods exist across the two apps. Condition 4 (and therefore P1b) is consulted only when such a query is the load evidence of a view-returning service read, which is true for exactly two of the six; the other four feed a service `findById` that returns the entity, so they are section 4.1 discoveries whose bodies 4.1 never reads (P1b never touches them, verified on erp Product, Contact, ContactGroup, and Ticket: `TicketServiceImpl#findById` returns Ticket, so its custom-query body is irrelevant to its existing 4.1 discovery). The two that matter, each applied against the strict rule below:
+
+- pms Tenant, `TenantServiceImpl#findById -> TenantVTO`, one-hop through `TenantRepository#selectById` to the `@Query` method. Its text, verbatim from source: `"SELECT t FROM Tenant t JOIN FETCH t.user LEFT JOIN FETCH t.unit un LEFT JOIN FETCH un.building b LEFT JOIN FETCH b.property WHERE t.id = :id"`. The WHERE is a single equality between the id property and the method's parameter, and PASSES P5. But the first fetch, `JOIN FETCH t.user`, is an INNER join fetch, and `Tenant.user` is a nullable `@ManyToOne` (declared `@ManyToOne @JoinColumn(name = "user_id")`, with no `optional = false` and no `nullable = false`, so nullable by JPA default). An inner join fetch on a nullable association drops the Tenant when its user is null: this query returns nothing for a Tenant that exists but has no user, so it is not equivalent to a by-primary-key load. It carries a hidden existence filter, and under the strict rule (P4 below) it FAILS. Verdict: FAIL. getTenant is not discovered.
+- erp Delivery, `DeliveryServiceImpl#findById -> DeliveryReadDTO`, direct on the Spring Data repository. Its text: `"SELECT d FROM Delivery d LEFT JOIN FETCH d.truck LEFT JOIN FETCH d.driver LEFT JOIN FETCH d.transaction t LEFT JOIN FETCH t.customer LEFT JOIN FETCH t.supplier WHERE d.id = :id"`. Every fetch is a LEFT JOIN FETCH and the WHERE is the single id equality, so this query PASSES the strict rule: it is a genuine by-primary-key load. But Delivery does not discover, for a reason unrelated to P1b: `DeliveryServiceImpl#findById` maps via `mapToDTO(delivery)`, an implicit-this call with no receiver, which refuses at condition 9 (the mapper does not resolve to a field, a static factory, a constructor, or a method reference). Verdict on the query: PASS; on the read: refused at the mapper.
+
+So the two clean-looking candidates fail for two different reasons: Tenant's query filters (inner fetch on a nullable association), and Delivery's query is a clean by-primary-key load whose consumer is blocked by an unrelated mapper rule. There is no case in either benchmark where a strict by-primary-key custom query feeds a discoverable view read. The blunt version of the finding, corrected from the first draft: the by-primary-key custom queries in the wild are not as clean as they look; the moment you read the join semantics rather than the WHERE alone, the one that seemed pure carries a filter. P1b discovers zero.
+
+The contrast with the openly filtered custom queries is structurally clear and not a matter of naming: erp `DeliveryRepository#searchByFields`, `ProductRepository#findProducts`, `EmailTemplateRepository#searchByFields` are multi-parameter with `AND`/`OR`/`LIKE` predicates, refused already by condition 2 and by P5.
+
+##### 4.2.10.2 The ratified rule: a custom `@Query` is a by-primary-key load only when provably nothing but one
+
+Condition 4's terminal set is amended. The load in 4a (the direct call), and the single delegate call in the 4b one-hop implementation body, may serve as the by-primary-key load evidence when, in addition to a framework read, they call a repository method annotated `@Query` that is a VERIFIED by-primary-key select of E. Nothing else in rule 4.2 changes: conditions 5 to 9 (the verbatim argument, the single-access body, the two read shapes, the one resolvable mapping step) still apply to the service method exactly as written.
+
+A `@Query` method is a verified by-primary-key select of E when ALL of the following hold. The rule is strict on purpose: it accepts only a query it can prove is nothing but a by-primary-key load.
+
+- P1. It is declared on a Spring Data repository of E (an interface extending a recognized supertype whose first type argument is E), reached directly or as the 4b one-hop delegate terminal. P1b adds no new repository resolution; it reuses 4a and 4b's scoping exactly.
+- P2. It carries a `@Query` annotation with a literal string value, and that value is JPQL. A `@Query(nativeQuery = true)` does not qualify: native SQL references tables and columns the tool has not mapped to E and its identifier, so the structural link to E is unprovable. A `@Query` referencing a named query by name only (its text defined elsewhere, for example a `@NamedQuery` or an XML mapping), or a repository method with no `@Query` at all, does not qualify: the query text must be present and readable in the annotation. Unlocatable text is a refusal, never an assumption.
+- P3. The JPQL, read as a narrow token template (not interpreted), is a single-entity select of the root: `SELECT [DISTINCT] <alias> FROM <E> <alias> <fetch clauses> WHERE <predicate>`, where `<alias>` is the sole select item and is exactly the FROM alias, and `<E>` by simple name is E. A projection (`SELECT new <Dto>(...)`, `SELECT <alias>.<field>`, `SELECT COUNT(...)`, or more than one select item) does not qualify: its result is not E, so it is not a load of E.
+- P4 (corrected in the design-closure, the pivotal condition). Every clause between FROM and WHERE is a `LEFT JOIN FETCH`. A LEFT (outer) join fetch is a pure eager-load directive: it adds related data to the returned E and never removes a root row, so it does not change the by-primary-key claim. An inner `JOIN FETCH` (a fetch join written without `LEFT`) does NOT qualify: it is an existence filter that drops the root E when the fetched association is absent, so it can return nothing for an E that exists by its id. The tool refuses it structurally, from the query text alone, without reasoning about whether the association happens to be mandatory; that a particular association is non-nullable is a fact the query text does not carry, and the rule does not go looking for it. A plain `JOIN` carrying an `ON` or `WITH` condition, or any join that is not a LEFT fetch, likewise does not qualify.
+- P5. The WHERE clause is EXACTLY one equality between E's identifier and the method's single parameter: one operand is `<alias>.<idField>`, where `<idField>` is E's `@Id` field name (the actual identifier field the entity declares, not the literal token "id" assumed), and the other operand is the method's single parameter, referenced as a named parameter (`:name`, bound by `@Param("name")` or the parameter's own name) or the positional `?1`. There is no other predicate: no `AND`, no `OR`, no second comparison, no function applied to the identifier or the parameter.
+- P6. The parameter binding is verbatim, extending condition 5's discipline to the query: the WHERE's parameter reference resolves to the method's single parameter (condition 2's id parameter). A WHERE that binds a literal, or references a parameter the method does not declare, does not qualify.
+
+The tool reads a bounded JPQL subset: it locates the `SELECT`, `FROM`, `LEFT JOIN FETCH`, and `WHERE` tokens, the alias, the join kinds, and the single equality; it does not evaluate expressions, resolve JPQL functions, or model the query language. Any query that does not fit the template refuses. This keeps the tool a structural matcher, not a JPQL interpreter (section 4.2.10.4).
+
+##### 4.2.10.3 The honesty argument, and the two hidden-filter refusals stated verbatim
+
+The rule's whole job is to draw the line between a by-primary-key load and a filtered read, because binding a filtered read as `get<E>` would tell an agent, in the tool description it acts on, that the capability reads E by its id when it actually reads only the rows that also pass a hidden condition. That is a filtered read wearing a by-id read's clothes, and emitting it would be the project's first semantic lie. A filter can hide in two places, and both are refused:
+
+> Filtered-WHERE refusal (P1b, verbatim): a `@Query` whose WHERE clause is anything other than the single equality of P5, in particular any WHERE containing a further predicate joined by `AND` or `OR` (for example `WHERE e.id = :id AND e.status = 'ACTIVE'`), is NOT a by-primary-key load. It is refused with a located message, "custom query on <Repo>#<method> filters beyond the primary key (WHERE has more than the id equality); it is a filtered read, not a by-id load, and is deferred, not bound as get<E> (Volume 5 section 4.2.10, P5)."
+
+> Inner-fetch refusal (P1b, verbatim): a `@Query` containing an inner `JOIN FETCH` (a fetch join written without `LEFT`) is NOT a by-primary-key load, because the inner join drops the root entity when the fetched association is null, so the query can return nothing for an entity that exists by its id. It is refused with a located message, "custom query on <Repo>#<method> has an inner JOIN FETCH on <assoc>, an existence filter that excludes rows whose association is absent; it is not a by-id load and is deferred, not bound as get<E> (Volume 5 section 4.2.10, P4)."
+
+The counterpoint, argued structurally: a LEFT JOIN FETCH is the one join the rule admits, because it is provably non-filtering from the query text alone. It keeps every root E row and only widens what is eagerly loaded onto it, so the row set is still "E with that id, or nothing." No predicate, and no inner join, is admitted; the id equality of P5 and the LEFT fetches of P4 are the entire permitted query.
+
+##### 4.2.10.4 What P1b will never do
+
+- Never read query semantics beyond the by-primary-key claim: it verifies the SELECT is of E, the joins are LEFT fetches, and the WHERE is exactly the id equality, and nothing more. It does not evaluate, optimize, or interpret the query.
+- Never treat an inner join, or any predicate beyond the id equality, as non-filtering: a construct that can drop a matching-id row is a filter, and a filter is a refusal.
+- Never accept native SQL (`nativeQuery = true`): the structural tie to E and its `@Id` is through JPQL entity and field names, which native SQL does not use.
+- Never accept a query it cannot locate as literal text (a named or externally-defined query): unlocatable evidence is a refusal.
+- Never infer from a method name: `findByIdWithRelations` is trusted for its read JPQL, not its name; and being named for the id does not save it when its join semantics filter, which is exactly why Tenant refuses.
+- Never relax conditions 5 to 9: the verbatim argument, the single-access body, and the one resolvable mapping step are unchanged. P1b only widens what counts as the load terminal, and only to the strict by-primary-key select.
+
+##### 4.2.10.5 Outcomes per affected entity, and the pool
+
+P1b terminals join the 4.2 candidate pool with no precedence (condition 10). The strict rule discovers no entity on either benchmark:
+
+- pms Tenant: REFUSED. Its `@Query` (`findByIdWithRelations`) fails P4 on the inner `JOIN FETCH t.user` (nullable association, an existence filter), so it is not verified by-primary-key evidence and getTenant is not emitted. Tenant stays NO_BACKING_METHOD, and its near-miss message becomes the inner-fetch refusal (section 4.2.10.3) instead of the generic "custom query, deferred" it carries today.
+- erp Delivery: REFUSED, on the mapper, unchanged by P1b. Its `@Query` passes the strict rule (all LEFT fetches), but `mapToDTO(delivery)` is an implicit-this call that refuses at condition 9. The load is no longer the reason; the mapper is.
+- erp Quote: UNCHANGED, stays AMBIGUOUS. `getInvoice` loads via the framework `findById` (a P1a match today, competing with the entity-returning `findById` as getQuote), so it never depended on P1b.
+- erp Product, Contact, Ticket, ContactGroup: UNCHANGED. Each service `findById` returns the entity and is a section 4.1 discovery whose body 4.1 never reads. P1b does not evaluate their custom-query loads.
+
+##### 4.2.10.6 Re-scope: P1b is E6's ratified lower boundary
+
+P1b is the narrow, strict, by-primary-key-only boundary; it is not folded into E6, and E6 is not folded into it. E6 (the filter-semantics problem) inherits the majority case this census surfaced: custom queries that do MORE than a by-primary-key load, whether by a WHERE predicate, an inner-fetch existence filter, a projection, or a returned collection. Designing how to represent those honestly is precisely E6's job.
+
+The ratified relationship, recorded so E6's design session inherits it: P1b's strict rule is E6's LOWER BOUNDARY. E6 designs upward from the floor P1b sets, and it may never present a query that does more than a by-primary-key load as an unfiltered by-id read. P1b's two refusals (the filtered WHERE and the inner-fetch filter) are the floor; whatever E6 builds to represent filtered and projected reads, it builds on top of that floor and never beneath it. A query that is exactly a by-primary-key load is a get<E> (P1b's domain); a query that is anything more is E6's, and it is labelled for what it is, never as a plain get.
+
+##### 4.2.10.7 Build recommendation: DEFER the standalone P1b build
+
+Recommended, and recorded: the standalone P1b build is DEFERRED. It discovers zero entities on both benchmarks, so a session that implements it would move no benchmark number; its whole value is the strict refusal boundary, and that value is captured by ratifying the rule here and carrying it into E6 as the floor (section 4.2.10.6). Building a JPQL token matcher to discover nothing is not worth a session.
+
+The exact trigger for building it later, so the deferral is not open-ended: P1b is built when either (a) E6 is built, since E6 must implement the same by-primary-key floor to know what it is building above, so P1b's matcher lands as part of E6's load-classification; or (b) a future benchmark app presents a custom `@Query` that passes the strict rule (all LEFT fetches, single id-equality WHERE) AND feeds a resolvable view read, which would make P1b discover a real capability and earn its own build. Until one of those triggers, P1b stands as DESIGNED and RATIFIED, BUILD DEFERRED.
+
+##### 4.2.10.8 Pre-registered fixtures (for the eventual build, whenever it lands)
+
+Positives:
+
+- P1b-1: direct Spring Data, clean by-pk `@Query`: a view-returning service method whose body is `V m = repo.findByIdX(id).orElseThrow(...); return mapper.toV(m);`, where `repo` is `extends JpaRepository<E, Id>` and `findByIdX` carries `@Query("SELECT e FROM E e WHERE e.id = :id")`. Discovers.
+- P1b-2: one-hop hand-written to a `@Query` terminal (the Tenant chain shape, but with a clean query): a hand-written interface whose single `@Repository` implementation delegates in one return statement to a Spring Data `@Query` by-pk method whose fetches are all LEFT. Discovers.
+- P1b-3: LEFT JOIN FETCH positive: the same as P1b-1 but the `@Query` is `"SELECT e FROM E e LEFT JOIN FETCH e.child WHERE e.id = :id"`. Discovers (a LEFT fetch does not change the claim).
+
+Refusals, each asserting the located diagnostic:
+
+- P1b-4 (the filtered-WHERE guard, the most important positive-refusal fixture): `"SELECT e FROM E e WHERE e.id = :id AND e.status = 'ACTIVE'"`, single id parameter. Must REFUSE with the verbatim P5 message; getE is not emitted.
+- P1b-5 (the inner-fetch guard, the Tenant shape): `"SELECT e FROM E e JOIN FETCH e.other WHERE e.id = :id"`, an inner fetch. Must REFUSE with the verbatim P4 inner-fetch message. This is the fixture that encodes the design-closure correction, and it is the reason Tenant refuses.
+- P1b-6: multi-parameter refusal: a `@Query` by-pk-looking method with a second parameter beyond the id. Refuses (condition 2, restated for the query).
+- P1b-7: native query refusal: `@Query(value = "SELECT * FROM e_table WHERE id = :id", nativeQuery = true)`. Refuses on P2.
+- P1b-8: unlocatable query refusal: a repository method whose `@Query` references a named query by name (no literal JPQL). Refuses on P2.
+- P1b-9: projection refusal: `@Query("SELECT new com.x.EDto(e.id, e.name) FROM E e WHERE e.id = :id")`. Refuses on P3 (the result is not E).
+- P1b-10 (pooling and mis-bound guard): an entity with both a framework-loaded view read and a clean P1b-loaded view read refuses as AMBIGUOUS_BINDING listing both; and the P1b-1 entity's discovered binding is exactly the verified method, output ENTITY_REF(E) with the view annotation, never a sibling entity's query.
+
+##### 4.2.10.9 Forecast (build deferred; a target for the eventual build)
+
+Even deferred, the build target is recorded number by number (ledgers: pms docs/experiments/second-app-trial.md section 8.8; erp docs/experiments/third-app-trial.md section 14). Under the ratified strict rule:
+
+- pms: discovered 2, UNCHANGED. Tenant does not flip (its `@Query` fails P4 on the inner fetch), so getUnit and getLease remain the only discoveries. Its NO_BACKING_METHOD near-miss message changes from the generic custom-query note to the inner-fetch refusal; the counts do not move. Failed 41 (NO_BACKING_METHOD 38, COMPOSITE_KEY 3), skipped-by-parse 27, mis-bound 0. All byte-identical to the current row.
+- erp: discovered 25, UNCHANGED. Delivery stays refused on its mapper, Quote stays AMBIGUOUS, the four entity-returning 4.1 reads are untouched; Delivery's near-miss message shifts from the load terminal to the mapper. Failed 9, mis-bound 0. Byte-identical to the current row.
+- Both apps: discovered delta zero, every existing discovered row byte-identical, mis-bound 0. The mis-bound bar is not merely met but never at risk, since the rule emits nothing.
+
+This is the honest close: P1b's strict rule refuses everything it surveyed, which is the correct behavior, and its ratified purpose is to be the by-primary-key floor E6 builds on, not a source of discovery.
+
 ### 4.3 Scan resilience: two entry points, the language level, collect-and-continue, and the walk rule (phase E1)
 
 Reading a large, messy, real app is not the same job as producing an artifact from a clean one, so the provider has two entry points, and they behave differently on purpose:
@@ -518,6 +618,122 @@ Stated before the build, so the build is measured against a forecast. The number
 - The hard bar is unchanged and absolute: mis-bound exactly 0 on both apps, and every existing `get<E>` outcome byte-identical (E4 is additive). A single mis-binding, or any movement in an existing discovery, stops the phase.
 
 Mis-bound for a list capability means either of two things, and both are counted: a `list<E>` bound to a method that returns a collection of the wrong entity (an element-type error), or a filtered method presented as unfiltered (a subset bound to `list<E>`, the `findCompleted()` hazard). The rule refuses both structurally (conditions 2 and 6), and fixtures L6 and L11 guard them.
+
+### 4.11 E6: the filter-semantics-plus-envelope problem, DEFERRED with a documented ceiling (designed 2026-07-02)
+
+E6 owns everything that does more than an unfiltered by-primary-key or list-all read: filtered reads (a WHERE with predicates beyond the id equality), projected and view-returning custom queries, and envelope-wrapped reads (the pms `*ResultSet` wrappers that hide whether a read even exists). P1b froze the lower boundary, a query that is nothing but a by-primary-key load (section 4.2.10); E6 is the majority above it. This section is the design half, and its honest conclusion is a deferral with a stated ceiling, not a discovery rule. The governing constraint is inherited and absolute: the tool may never present a filtered read as if its filter semantics were verified, because a parameter's name is a claim an agent acts on. Any option that cannot meet that constraint is rejected regardless of how much coverage it would add.
+
+Ratified split and verdict (2026-07-02, Volume 13): E6 is split into E6a (envelope transparency, making wrapped reads visible and classified, designed in section 4.11.7 below) and E6b (the filter-semantics decision, deferred with the ceiling of sections 4.11.4 to 4.11.6, human-attested its leading candidate). E6a is first, because an honesty decision about a filter cannot be made on a read that cannot be seen; E6a grants visibility, never discovery. The modeled-opaque rejection (section 4.11.3) is a standing rejection, never revisited casually: an MCP tool's name and signature are the claim, and a disclaimer is invisible at the moment of action.
+
+#### 4.11.1 The census: the filtered read is the majority, and pms hides it in envelopes
+
+From the read-only census of both benchmarks (full counts in the ledgers: docs/experiments/second-app-trial.md section 8.9, docs/experiments/third-app-trial.md section 15). By shape:
+
+- (a) single-predicate filter beyond id, (b) multi-predicate filter, (c) filter plus paging: pms has roughly 35 such reads, every one returning a `*ResultSet` envelope; erp has roughly 30, returning `Page<E>` or `List<E>` directly.
+- (d) projection or view-returning custom query: pms roughly 7 (`List<VTO>` by a foreign key); erp roughly 9 (`Page<NameIdDTO>`, `List<XxxReadDTO>`).
+- (e) envelope-wrapped reads where the existence of a read is hidden by an opaque wrapper: pms roughly 35 (the `*ResultSet` types); erp 0 (its filtered reads are directly typed).
+- (f) collection filters (`findByX` returning a collection): both apps, folded into (a) to (c) above.
+
+Two facts decide the design. First, the filtered read is the majority of real data access on both apps: after E1 to E5 and E4, pms discovers 2 reads and erp 25, and essentially everything else, dozens of reads per app, is filtered, projected, or wrapped. Second, and decisively, the two apps differ in where the filter lives, and pms is the harder and the designated benchmark:
+
+- erp's filters are in the query, and split in two: some are Spring Data derived queries (`findByNameContainingIgnoreCase`, `findByParentId`, `findByProductCategoryId`, `findByAccountType`), whose meaning the framework defines from the method name against the entity's properties; the rest are custom `@Query` with arbitrary JPQL (`searchByFields` with `:search IS NULL OR ...`), whose meaning is in the query text.
+- pms's filters are in imperative code. `TenantServiceImpl#getAllByFilter(fullName, email, orderBy, orderDir, pageNum, pageSize, pageOffset)` builds a `TenantSearchFilter` and calls `tenantRepository.selectAllByFilters(filter)`, which a hand-written `TenantQueryBuilder` executes. What `fullName` and `email` filter, and how (exact match, prefix, contains), is nowhere in any query text: it is in the query builder's Java. It is structurally invisible, full stop. pms has zero derived-query filters and zero readable filter predicates.
+
+So on pms, the designated E6 benchmark whose entire list API is filtered and envelope-shaped, there is no structural way to know any filter's meaning. That is the ground truth this design must answer to.
+
+#### 4.11.2 Part 1: the envelope sub-problem (seeing the read), and why it is a separate prerequisite
+
+The pms `*ResultSet` wrappers make a read invisible: E4 named only 3 deferred list reads on pms, not the roughly 42 the census counts, because the recognized-container rule cannot see into an opaque wrapper return type (section 4.10.6; docs/experiments/second-app-trial.md section 8.7). Part 1 asks whether the tool can structurally see through a wrapper to determine that a read of E exists.
+
+It can, and the mechanism is bounded: `TenantResultSet` is not generic over the entity (it is a per-entity named class, not `ResultSet<Tenant>`), so there is no type argument to read; but it declares exactly one collection field, `List<TenantVTO> data`, plus a `Long total`. The tool can resolve the wrapper class in-tree, find its single collection field, read the element type (`TenantVTO`), and resolve that view back to Tenant through the existing 4.2 view machinery (the mapper `toTenantVTO(Tenant)` ties it). That is a real, structural recognition of an envelope-wrapped collection read of Tenant, without interpreting the wrapper's semantics.
+
+But seeing the read buys nothing on its own, and this is the honest point: every pms envelope read that the tool would unwrap is a filtered read (`getAllByFilter`, `getMy*`, `getBuilding*`), so unwrapping the envelope lands exactly at the filter wall of part 2. Unwrapping envelopes only to refuse the filtered reads inside them adds no capability. There is not even a clean unfiltered-list-all hiding in the envelopes: the nominally unfiltered ones (`getAllTickets(pageNum, pageSize)`) return a view collection and page manually with `Integer` parameters, so they are view-returning and manually paged, not the clean `findAll` shape E4 models. Envelope-unwrapping is therefore its own prerequisite sub-phase, larger than it looks and worth building only after, and if, a representation for what it reveals exists. It is deferred with the rest of E6.
+
+#### 4.11.3 Part 2: the filter-representation question, the three honest shapes weighed against the never-claim constraint
+
+A filtered read can take only three shapes, and each is judged by the one test: does it ever present the filter's meaning as verified when it is not?
+
+- REFUSE. Filtered reads are refused, loud and classified, and the ceiling is documented (section 4.11.5). This meets the constraint trivially, because it claims nothing. Its cost is coverage: the majority of both apps stays unreachable. It is the safe answer, and on the structural-only principle it is the correct one, because a filter's meaning is genuinely not structurally provable in the general case, and pms proves it (the meaning is in query-builder Java).
+- MODELED-OPAQUE: expose the filter as a typed input whose name is copied but whose semantics are declared unclaimed in every surface. This is the path E4 rejected for single filters, reconsidered at scale, and it fails the constraint harder at scale, not softer. The copied parameter name lives in the structured tool schema, the part an agent acts on directly; a prose disclaimer lives in a description the agent may never read and an orchestrating agent certainly will not read across dozens of tools. The name is the claim, and a disclaimer beside a claim does not unmake it. The dilemma is unescapable: copy the domain name and you make an unverified claim; genericize it to `filter1` and the tool is useless. There is no honest and useful middle. pms makes it worse still: the tool cannot even write a truthful disclaimer, because it does not know what `fullName` filters. Rejected, permanently, on the constraint.
+- HUMAN-ATTESTED: a person asserts a filter's meaning, and the tool records it as HUMAN-ATTESTED, a category explicitly distinct from tool-verified, and carries that distinction through to every consumer surface. This is the only option that can both add coverage and meet the constraint, because it never presents the filter as verified; it presents it as attested. But its architectural weight is real and must be paid honestly. It would be the project's first human-in-the-loop mechanism and the first time the tool carries a claim it did not prove. The zero-mis-bound record is a guarantee about tool-verified bindings; attestation introduces a human-error failure mode outside that guarantee, so the messaging must be exact: "never guesses" survives (a human asserted, the tool did not guess), but "structural proof or refusal" gains a third state, attested, that must be labelled as such wherever it appears, never blurred into verified. And it is not a discovery rule at all; it is a capability-authoring mechanism (an attestation format, a way for a human to author it, IR carriage, backend disclosure, and a verified-versus-attested marker on every surface), which is a different kind of design that deserves its own phase, not a rider on E6.
+
+A structural exception, recorded precisely because it is easy to get wrong: Spring Data derived queries are the one place a filter's meaning is structurally verifiable, and reading them is not the nominal inference the earlier phases refused. The prior rule (never derive a query from a method name, section 4.10.7) is about arbitrary names: a method may be called anything, so `getActiveWidgets` proves nothing. But a Spring Data derived-query method name is a framework DSL, not an arbitrary name: the framework parses `findByNameContainingIgnoreCase` against the entity's `name` property and generates the predicate deterministically, and it rejects the method at startup if the property does not resolve. Reading it is reading a framework contract, the same class as reading `findById`. So a verified-derived-query filter is honest and structural. But it covers only derived queries: it does nothing for custom `@Query` filters (arbitrary JPQL) and nothing at all for pms (zero derived queries, all query-builder). It is a narrow structural sub-phase, not a solution to the majority, and it still needs the representation and the paging design that the rest of E6 needs.
+
+#### 4.11.4 Recommendation: REFUSE for v1, defer E6 with the ceiling documented
+
+Recommended, and ratifiable: for v1, the entire filter-semantics-plus-envelope pattern is REFUSED, and E6 is deferred, not built. The recommendation is not a failure to find a rule; it is the finding that a filter's meaning is not structurally provable in the general case, so the structural-only tool must refuse it, exactly as it refuses any evidence it cannot prove. The three options resolve as: MODELED-OPAQUE rejected permanently on the never-claim constraint; HUMAN-ATTESTED recorded as the one honest way to represent an unverified filter, deferred to its own future phase because it is a human-in-the-loop authoring mechanism and a real departure from structural-only, not an E6 matching rule; verified-derived-query filters recorded as the one narrow structural avenue, an erp-only minority, deferred as its own sub-phase; and envelope-unwrapping recorded as a prerequisite that pays off only once a representation exists, deferred with the rest.
+
+Filtered, projected, and envelope reads continue to be handled exactly as they are today: named deferrals in the survey (section 4.10.6; Volume 11 section 3.3), never emitted as capabilities, never mis-bound. No IR growth, no new discovery rule, no backend change. The deferral is the behavior, and it is already correct.
+
+#### 4.11.5 The coverage ceiling, stated plainly per app
+
+This is the honest boundary of what the structural-only tool addresses, and it is large. It is a finding about addressable scope, not a defect.
+
+- pms-backend: discovered 2 (getUnit, getLease). The ceiling holds essentially the entire rest of the read API: roughly 42 list reads (35 `*ResultSet` filtered and envelope-hidden, 7 `List<VTO>` foreign-key filtered), the filtered and non-primary-key by-id reads (`getAllByFilter`, `getMyUnit`, `getMyActiveLease`, `findByUserId` shapes), and Tenant's inner-fetch read (P1b-refused). pms is the app that proves the ceiling: its idiom is filtered and envelope-wrapped end to end, and structural-only discovery reaches almost none of it.
+- erp-backend: discovered 25 (16 by-id, 9 list-all). The ceiling holds roughly 44 deferred reads: roughly 30 filtered (derived-query and custom-`@Query`), roughly 9 projection or view lists, 5 transformed-body reads, and the view-returning custom-query reads (Delivery). Of erp's ceiling, only the derived-query subset is even a candidate for the narrow structural exception; the `@Query` and transformed reads are not.
+
+The one-line honest statement of the tool's reach: the structural-only tool tops out at unfiltered reads, get by primary key and list all. Filtered, projected, and envelope reads, the majority of both real apps, are beyond it without either human attestation (any filter) or a framework-contract derived-query rule (the derived-query minority only), and both are future.
+
+#### 4.11.6 Reopening triggers
+
+The question is reopened, as its own designed phase with ratification records first (rule 12), under any of:
+
+- Human-attested capabilities are adopted as a product direction. This is the only path that unlocks the majority, and it is a deliberate architectural decision (the first carried-but-unproven claim), not a matching-rule extension. Its design session must define the attestation format and the verified-versus-attested carriage before any code.
+- A narrow structural win is wanted sooner: verified Spring Data derived-query filters, on the evidence that enough clean derived queries exist to justify the derived-query grammar parser and a filtered-read representation. This is honest and structural but erp-shaped and partial, and it must still answer the paging and representation questions.
+- Envelope-unwrapping is wanted independently, once either of the above provides something to represent. On its own it reveals only reads the tool would then refuse, so it is never built first.
+
+Until one of these triggers, E6 stands as DESIGNED, DEFERRED WITH A DOCUMENTED CEILING. No fixtures and no forecast are pre-registered, because no buildable discovery rule is recommended; the deliverable is this ceiling and these triggers.
+
+#### 4.11.7 E6a: the envelope transparency rule (visibility, not discovery; designed 2026-07-02; CONSOLIDATED into the post-v1 Attestation phase, Volume 13)
+
+E6a is the first half of the ratified E6 split: it makes a read that hides behind a wrapper or envelope return type VISIBLE AND CLASSIFIED, so it can pass through the existing rules and be counted, rather than being skipped unseen at the return-type gate. The framing is the whole point and is stated first: E6a changes a read from invisible to visible and classified; it does NOT grant discovery. Once a read is visible, it still passes through 4.1, 4.2, 4.10, and P1b, and the E6b-pending filter refusal, exactly as any other read. A filtered read seen through a wrapper is still refused as filtered, now visibly and countably instead of hidden. The expected outcome is therefore many newly visible reads, mostly refused as filtered, few or zero new discoveries, and a failure ledger that becomes complete. E6a is not designed toward discoveries.
+
+##### 4.11.7.1 The transparency census (read-only, both apps)
+
+Full counts in the ledgers (pms docs/experiments/second-app-trial.md section 8.10; erp docs/experiments/third-app-trial.md section 16). What it establishes:
+
+- pms wraps almost every list read in a per-entity `*ResultSet` type (`TenantResultSet`, `RentalPaymentResultSet`, and roughly thirty more), OpenAPI-generated, each declaring one collection field (`List<VTO> data`) and a `Long total`. None is generic (there is a single generic `ListResultSet<T>` in the common library, but no read returns it). Every such read builds the wrapper in its body from a persistence access on a repository of the entity that returns a collection of it: `List<Tenant> tenants = tenantRepository.selectAllByFilters(filter); ... return mapper.toTenantResultSet(tenants, count);`. So the read of E is provable from the body's repository access, not from the wrapper. Every one of these reads is filtered (`selectAllByFilters(filter)` with domain parameters).
+- erp uses no wrapper types: its reads return `Page<E>`, `List<E>`, or `Page<NameIdDTO>` directly, all already recognized (or deferred by name) by 4.10. E6a is inert on erp.
+
+##### 4.11.7.2 The rule
+
+A method whose declared return type W is not already recognized (not E, not a view under 4.2, not a recognized collection container under 4.10) is made visible as a read of E, and handed to the existing rules, when transparency holds. Transparency is one of two structural ties to E, and nothing else:
+
+- T1, generic tie: W is a generic type and one of its type arguments is E (an in-tree `@Entity`) or a view of E (a type that resolves to E through the 4.2 view machinery). The wrapper's payload is E, provable from the type argument alone, without reading W's fields. This covers `Wrapper<E>` and `ListResultSet<TenantVTO>`.
+- T2, body tie: the method body contains exactly one persistence access on a repository-typed field (the 4.2 repository resolution), and that access's declared return type is E, `Optional<E>`, or a collection of E (`List<E>`, `Set<E>`, and so on). The read of E is proven by the repository access's return type, without reading W's fields. This covers the pms `getAllByFilter`/`selectAllByFilters` pattern.
+
+When T1 or T2 holds, the method is visible as a read of E and is routed to the existing rules unchanged (condition V below). When neither holds, the wrapper is opaque and the read is refused (condition O below).
+
+- V, visibility is not discovery (the crucial non-grant). Once transparent, the read is classified by the existing rules with no modification and no precedence: if the tie is to a collection of E, the method is a list-read candidate and 4.10's conditions apply in full, so a filtered or transformed body (which every pms wrapper read has) is deferred as filtered exactly as any other list read; if the tie is to a single E, the method is a by-id candidate and 4.1, 4.2, and P1b apply unchanged. E6a adds no discovery rule and bypasses no honesty rule. The only thing E6a changes is that the read is now seen and counted; whether it discovers is decided entirely by the rules it is handed to, and for a filtered read the answer is refusal.
+- O, opaque refusal. A wrapper return type for which neither T1 nor T2 holds, its tie to E not structurally provable, is refused with a located cause, `OPAQUE_WRAPPER`, naming the wrapper type and stating that the read's existence cannot be proven without reading the wrapper's internals or trusting its name. This covers a wrapper built from a service-to-service proxy call whose delegate is unparseable or returns a proxy type with no repository-of-E tie. The read stays invisible-by-refusal: counted, never guessed.
+
+##### 4.11.7.3 What E6a will never do
+
+- Never read the wrapper's fields or interpret its contents or semantics. The tie to E is the type argument (T1) or the repository access's return type (T2), never the wrapper's internal shape.
+- Never assume a wrapper wraps E from its name: `TenantResultSet` is not trusted to wrap Tenant by its name; the tie must be T1 or T2. A `TenantResultSet` whose body reads a repository of Building is a read of Building, not Tenant.
+- Never unwrap a wrapper whose tie to E is not structurally provable: that is `OPAQUE_WRAPPER`, a refusal.
+- Never grant discovery or bypass a filter refusal. Visibility is not discovery; a filtered read seen through a wrapper is still refused (filtered).
+- Never make a read of the wrong entity visible: T1 and T2 tie to exactly the E proven by the type argument or the repository access, so a wrong-entity mis-classification cannot occur.
+
+Collections through wrappers (a wrapper of a list of E) are in E6a scope via T1 or T2 (the dominant pms shape). A wrapper of a wrapper, or one whose payload resolves to E only through several hops, is a named deferral, out of E6a scope, decided by the census if it ever appears.
+
+##### 4.11.7.4 Pre-registered fixtures (for the eventual build)
+
+- E6a-1 (transparent generic that then discovers): a method returning `Box<E>` (generic, E the type argument) whose body is a clean framework `findAll` of E. Unwraps via T1 to a list read and discovers `list<E>`. This proves visibility can lead to discovery when the underlying read is clean; the benchmarks contain no such case, which the forecast states.
+- E6a-2 (transparent body, filtered, still refused, the common case): a method returning `EResultSet` (non-generic) whose body is `List<E> xs = eRepo.selectAllByFilters(filter); return map(xs);` with domain parameters. Visible via T2, then refused as a filtered list read (4.10 condition 3). This is the fixture that proves visibility without discovery.
+- E6a-3 (opaque, refused): a method returning `EResultSet` whose body has no provable repository-of-E access (built from a proxy call to an unresolvable delegate). Must refuse with `OPAQUE_WRAPPER`.
+- E6a-4 (name trap): a method returning `TenantResultSet` whose single persistence access is on a repository of Building. The tie is to Building, never to Tenant; the wrapper name carries nothing. Must classify as a read of Building (and then refuse it if filtered), never Tenant.
+- E6a-5 (mis-classification guard): a transparent wrapper read is classified as a read of exactly the entity its type argument or repository access proves, never a sibling; and a transparent-but-filtered read never appears as a discovery.
+
+##### 4.11.7.5 Forecast (visibility gained, not discoveries gained)
+
+Stated before the build, framed as visibility, not discovery (full number-by-number in the ledgers):
+
+- pms: roughly 12 `*ResultSet` reads move from invisible to visible, the ones in the three parseable modules (property, lease, billing). Every one is filtered, so all roughly 12 become VISIBLE-BUT-REFUSED-FILTERED, named deferrals in the survey. New discoveries: 0. The other roughly 23 `*ResultSet` reads sit in the ten unparseable placeholder-file modules (vendor, user, staff, notification, maintenance, inspection, file, community, chat, admin); they stay invisible by parse skip, which is not E6a's scope but the residue of the genuinely invalid source E1 already accounts for. The existing discoveries (getUnit, getLease) are byte-identical; mis-bound 0. Named uncertainty: the roughly 12 depends on how many `*ResultSet` reads sit in parseable service files; it is bounded by the property, lease, and billing modules.
+- erp: byte-identical. No wrapper return types exist, so E6a recognizes nothing new; discovered 25, mis-bound 0, unchanged.
+- The headline is visibility gained (roughly 12 on pms), discoveries gained 0. The failure and deferral ledger becomes more complete: pms's hidden wrapper reads are now counted as filtered deferrals rather than silently unseen, which is the correct and honest result. E6a confirms structurally what the E6 census asserted, that pms's wrapper reads are all filtered, which is exactly why E6b's filter decision is the one that matters, and E6a on its own moves no discovery number.
+
+This is the honest close of E6a's design: it is a visibility phase whose expected and correct benchmark result is many newly visible reads, all refused as filtered, and zero new discoveries. It feeds the E6b, human-attested case directly: where a wrapper is opaque and the tool cannot even prove a read exists, a human could assert what it returns, which the tool cannot.
 
 ## 5. Future providers
 
