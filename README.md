@@ -75,13 +75,19 @@ Read this before you plan an adoption, because v1 does not fit every "aging Spri
 
 ## Quickstart
 
-Availability note: the artifacts are prepared at version `0.1.0` but are not yet on Maven Central (the remaining publish steps are in [docs/RELEASING.md](docs/RELEASING.md)). Until they are, build them into your local Maven repository from a checkout of this repository with `mvn -DskipTests install`, then build the CLI once with `mvn -pl tibyan-cli -am -DskipTests package`.
+Availability note: the artifacts are prepared at version `0.1.0` but are not yet on Maven Central (the remaining publish steps are in [docs/RELEASING.md](docs/RELEASING.md)). Until they are, work from a checkout of this repository: Step 1 below builds the CLI from source, and to adopt (Step 2) you first install the runtime and the plugin into your local Maven repository with `mvn -DskipTests install`.
 
 ### Step 1: Preview first. This reads your source and changes nothing.
 
 Always start here. The preview is read-only: it never writes to your project, never touches your build, and cannot break anything. It shows you exactly what Tibyaan would expose and what it would refuse, so you decide with the evidence in front of you before you change a single file.
 
+Build the CLI once from a checkout of this repository, then point it at your application:
+
 ```bash
+# Build the tibyan CLI (a self-contained jar):
+mvn -pl tibyan-cli -am -DskipTests package
+
+# Survey your application. This only reads source; it writes nothing:
 java -jar tibyan-cli/target/tibyan-cli-0.1.0-jar-with-dependencies.jar scan /path/to/your-app
 ```
 
