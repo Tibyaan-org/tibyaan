@@ -1,5 +1,9 @@
 # Tibyaan
 
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.tibyaan-org/tibyan-runtime-spring?label=Maven%20Central)](https://central.sonatype.com/namespace/io.github.tibyaan-org)
+[![CI](https://github.com/Tibyaan-org/tibyaan/actions/workflows/ci.yml/badge.svg)](https://github.com/Tibyaan-org/tibyaan/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 **The software that runs your business cannot talk to AI. Tibyaan changes that.**
 
 Make the systems you already run understandable and usable by AI agents, without rewriting a line of them. Application modernization, in place.
