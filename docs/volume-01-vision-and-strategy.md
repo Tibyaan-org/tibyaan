@@ -119,6 +119,8 @@ quadrantChart
 
 Tibyan is deliberately in the corner that almost no one occupies: brownfield input combined with a shared model that feeds many outputs. Greenfield generators sit in the opposite corner. Single-purpose scanners sit low on the model axis. The brownfield, shared-model corner is both the hardest to build and the most defensible.
 
+Competitive landscape: comparisons with external systems (vendor claims and positioning analysis, a different category from the verified fact in these volumes) live separately in [competitive-landscape.md](competitive-landscape.md), not in this technical spec.
+
 ## 9. Future vision and differentiation
 
 The long-term shape of Tibyan, stated so that near-term decisions can be checked against it:

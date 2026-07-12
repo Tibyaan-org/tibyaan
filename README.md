@@ -159,4 +159,6 @@ The project is **Tibyaan** (the organization, the Maven groupId `io.github.tibya
 
 The full design is 17 volumes under [docs/](docs/README.md): the neutral Capability model, the provider rules, the backends, the runtime, and the architecture decisions behind every one. The current build state and resume point is [docs/STATUS.md](docs/STATUS.md).
 
+Competitive landscape: how Tibyaan compares to external systems (vendor claims and positioning analysis, kept separate from the technical spec) is in [docs/competitive-landscape.md](docs/competitive-landscape.md).
+
 Contributing, and the design-before-code discipline this project follows, is in [CONTRIBUTING.md](CONTRIBUTING.md). Licensed under Apache-2.0 ([LICENSE](LICENSE)).
