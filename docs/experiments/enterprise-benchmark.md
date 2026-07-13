@@ -48,7 +48,11 @@ their own ledgers; this one is redacted the same way the apps are private, only 
   phase. So this is not a coverage win. The win is that the tool can emit output for a real multi-module
   application at all, from zero emitted to 4 capabilities plus the full 111-entity model rendered as
   OpenAPI schemas. mis-bound 0, and the latent simple-name-collapse mis-bind (which would have merged two
-  distinct entities) is removed.
+  distinct entities) is removed. Caveat (the design's honest failure boundary): the phase does not
+  guarantee EMITTED for every colliding app. If a disambiguated name cannot be expanded to a globally
+  unique readable name (a residual display collision), that app stays IR-blocked with a precise located
+  error instead of the generic duplicate-name failure. This benchmark's 3 collisions have cleanly
+  diverging packages with no residual clash, so it moves to EMITTED; the build confirms.
 - Read this correctly: the headline is emission, not coverage. Discovered 4 before, discovered 4 after;
   the difference is BLOCKED before, EMITTED after. Any reader who sees "discovered 4" and calls the phase
   a small win has misread it: the phase turns a totally unusable result into a usable one.
