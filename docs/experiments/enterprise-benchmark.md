@@ -106,3 +106,80 @@ and shape categories so the ranking is auditable without the source.
   single capability for their app.
 
 This is the redacted evidence base; the ranked-build decision it drove is recorded in Volume 13.
+
+## 6. Discovery-Gap classification and forecast (counts and shapes only, 2026-07-13)
+
+Phase Discovery-Gap (RANK 2) was designed here (Volume 5, section 4.13). Its mandatory first step was an
+honest classification of the three recurring shapes as general (a standard Spring/JPA pattern worth a
+rule) or foundation-specific (fires only because of this app's private foundation conventions, worth much
+less). The classification was made from a full read-only census of this benchmark's by-id reads, cross-
+checked against the two public benchmarks. Recorded here by counts and shapes only.
+
+### 6.1 The by-id read census (39 in-scope reads)
+
+The application's single-id by-id reads were fully enumerated (not sampled): 39 in-scope reads, in these
+structural categories.
+
+- 5 CLEAN-DIRECT: load directly in the public body (framework `findById`, or an in-tree repository-port
+  `selectById` that is the already-handled section 4.2 condition 4b one-hop) plus at most one in-tree
+  mapper call, no guard, no second access. These already fall under sections 4.1 and 4.2. They span 4
+  entities; one entity has two competing view reads, so it is a correct AMBIGUOUS_BINDING (a future
+  named-reads question, not a discovery gap), which is why 4 capabilities emit from 5 clean reads.
+- 6 SOFT-DELETE-GUARDED: single persistence access, but a post-load existence guard
+  (`if (x.getIsDeleted()) throw NOT_FOUND`) sits between load and return. 3 are true private-same-class
+  helper hops (the load is in a private `getX`/`validateX` helper carrying the guard); 3 are direct
+  loads with the same guard inline. All 6 are correctly refused: the guard is an existence filter, so
+  presenting the read as a plain by-id read would misstate what it returns. The guard is pervasive
+  (roughly 59 occurrences across service bodies).
+- 12 MULTI-ACCESS (aggregate enrichment): a load plus one or more further repository or proxy accesses
+  feeding a multi-argument composite mapper. Attestation territory, not a structural discovery rule.
+- 15 SERVICE-OR-FEIGN DELEGATION: no local load; the body forwards to a Feign client or another service
+  (a twin-proxy-per-capability pattern inflates this bucket). Out of scope; there is no local read to
+  bind.
+- 1 STUB: a public read that constructs a hardcoded view with literal values, no persistence access.
+
+Separately, the 10 NO_IDENTIFIER entities are `@Entity` children with no direct `@Id` that inherit a
+single `@Id` from an in-tree base one `extends` hop away: 4 via an `@MappedSuperclass`, 6 via an
+`@Inheritance(JOINED)` parent. No composite parent, no not-in-tree parent, no ambiguous inheritance.
+
+### 6.2 The classification (general versus foundation-specific)
+
+- Inherited `@Id` (shape c): GENERAL. `@MappedSuperclass` and `@Inheritance(JOINED)` id inheritance are
+  core JPA, and here the 3 bases are in-tree in the app's own model modules, not in the foundation
+  library. Worth a rule.
+- Private-helper hop (shape a): MIXED. The general core, stepping through one private same-class
+  delegation to a clean by-primary-key load under section 4.2's disciplines, is worth a rule. What is
+  incidental and decisive here is the pervasive soft-delete guard: the clean, unguarded helper-hop count
+  is 0, so the general rule earns nothing on this app. Refusing the guarded instances is correct (the
+  tool cannot tell a benign soft-delete guard from an authorization or business filter without
+  interpreting it, the same lesson as P1b's inner-fetch-is-a-filter).
+- Port-to-implementation (shape b): NOT a general gap; the "across the module boundary" framing is a
+  mischaracterization. The census found 81 repository ports, 80 with an in-tree `@Repository`
+  implementation (56 carrying a verbatim by-primary-key delegation), 0 with an implementation outside the
+  scanned source; and 131 service-port reads the extractor already reaches by scanning `@Service` classes
+  directly. The "another module" is an intra-application Maven module (api, repository, core, model), not
+  a foundation jar; the provider parses all app modules into one unit set, so a module boundary blocks no
+  resolution. The only genuine version, a port whose implementation ships in an unscanned binary
+  dependency, has count 0 here and is unreachable by a source-only tool anyway. No new rule.
+
+### 6.3 Forecast and the headline finding
+
+Row (projected, build deferred): the general rules unlock ZERO new discovered capabilities. Inherited
+`@Id` recovers the identifier for all 10 NO_IDENTIFIER entities, turning each into a read intent, but all
+10 are internal polymorphic-subtype rows (per-channel notification-log subtypes, event-method-config
+subtypes, order-line-item subtypes) with no clean backing by-id read, so all 10 become NO_BACKING_METHOD:
+a cause relabel (NO_IDENTIFIER 10 to 0, NO_BACKING_METHOD 96 to 106), not a discovery. The helper-hop rule
+reaches the 3 true private hops, all soft-delete-guarded, so all are refused. Port-to-implementation adds
+nothing. Net: discovered 4 to 4, mis-bound 0.
+
+The headline, stated plainly because finding it was the point: the gap between the un-discovered reads and
+the zero a safe general rule reaches is the result. Of the 39 by-id reads, 5 are already handled (one an
+ambiguous pair), 6 are correctly refused soft-delete-guarded reads, 12 are aggregate-enrichment
+(Attestation), 15 are delegation (out of scope), 1 is a stub; and the 10 NO_IDENTIFIER are internal rows
+with no read. Almost all of this application's un-discovered reads depend on its own foundation idioms
+(the pervasive soft-delete guard, the aggregate and twin-proxy patterns) or are internal non-read
+entities. A safe general rule reaches none of them here. This is a real measurement of the tool's reach on
+a foundation-heavy codebase: the general structural rules are correct but inert here, and the remaining
+user-facing coverage lives in Attestation (the guarded and aggregate reads), not in more discovery rules.
+The build is deferred on the P1b precedent (a rule ratified for its boundary, built when an app exists on
+which it discovers).

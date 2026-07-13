@@ -699,3 +699,22 @@ pre-phase commit and compared with `diff -r`: zero differences across all 27 gen
 get and list capability keeps its name and binding, and every partiality disclosure is unchanged. The
 only change is the additive `key` field on each serialized entity. mis-bound stays 0. erp is the
 negative control confirmed: the phase is inert where there are no collisions.
+
+## 19. Discovery-Gap forecast (erp-backend, read-only, 2026-07-13)
+
+Phase Discovery-Gap (Volume 5, section 4.13, designed 2026-07-13) adds two general provider rules,
+inherited `@Id` and the private-helper hop. This forecasts the phase against erp-backend, before any
+build.
+
+Shape census (read-only): erp-backend exhibits NONE of the three shapes. All 25 entities declare a direct
+`@Id`; no `@Entity` uses `extends`, and the tree has no `@MappedSuperclass` or `@Inheritance`, so the
+inherited-`@Id` rule never fires. Reads load directly via Spring Data repositories (all 25 `*Repository`
+extend `JpaRepository`) and return the entity or a view in the public body, never through a private
+same-class helper, so the helper-hop rule never fires. Every hand-written port has its implementation
+in the scanned source. erp is the negative control for this phase just as it was for Entity Identity:
+single-context, direct-repository, no inheritance, no delegation indirection.
+
+Forecast (build deferred): byte-identical. Row (projected): discovered 25 (by-id 16, list 9), failed 9,
+list-refused 1, partial 13, mis-bound 0, UNCHANGED. Every capability keeps its name and binding; the MCP
+manifest and OpenAPI document are byte-identical. Any occurrence of one of these shapes at build would be
+a finding. mis-bound stays 0.

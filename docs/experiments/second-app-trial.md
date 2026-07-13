@@ -664,3 +664,22 @@ Byte-identical proven, not asserted. The generated output (the MCP tool sources 
 pre-phase commit (parent of the first Entity Identity commit) and compared with `diff -r`: zero
 differences. getUnit and getLease keep their names and bindings exactly. The only change is the additive
 `key` field now carried on each serialized entity. mis-bound stays 0.
+
+### 8.13 Discovery-Gap forecast (pms-backend, read-only, 2026-07-13)
+
+Phase Discovery-Gap (Volume 5, section 4.13, designed 2026-07-13) adds two general provider rules,
+inherited `@Id` (following an in-tree `@MappedSuperclass` or `@Inheritance` parent to the entity's single
+`@Id`) and the private-helper hop (stepping through one private same-class delegation to reach a clean
+by-primary-key load). This forecasts the phase against pms-backend, before any build.
+
+Shape census (read-only): pms-backend exhibits NONE of the three shapes. Every one of its 43 entities
+declares a direct `@Id`, and the tree contains no `@MappedSuperclass` and no `@Inheritance`, so the
+inherited-`@Id` rule never fires. Its reads load directly in the service body or through a hand-written
+repository port whose in-tree `@Repository` implementation is the existing section 4.2 condition 4b
+one-hop (already handled), never through a private same-class helper, so the helper-hop rule never fires.
+No port has an implementation outside the scanned source.
+
+Forecast (build deferred): byte-identical. Row (projected): discovered 2 (by-id 2, list 0), failed 41,
+skipped-by-parse 27, mis-bound 0, UNCHANGED. getUnit and getLease keep their names and bindings; the MCP
+manifest and OpenAPI document are byte-identical. Any occurrence of one of these shapes at build time
+(this read-only census found none) would be a finding, recorded then. mis-bound stays 0.
