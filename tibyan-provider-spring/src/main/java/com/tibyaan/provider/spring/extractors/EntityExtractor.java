@@ -17,7 +17,6 @@ import com.tibyaan.core.ir.Relation;
 import com.tibyaan.core.ir.RelationKind;
 import com.tibyaan.core.ir.Type;
 import com.tibyaan.provider.spring.JavaTypeMapper;
-import com.tibyaan.provider.spring.extractors.TypeRegistry.Kind;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -78,13 +77,17 @@ public final class EntityExtractor {
      * cannot map is skipped with a located note and the entity extracts without it. The registry
      * resolves association and enum types structurally (sections 4.4, 4.5).
      */
-    public ExtractedEntity extractEntity(ClassOrInterfaceDeclaration type, TypeRegistry registry) {
+    public ExtractedEntity extractEntity(ClassOrInterfaceDeclaration type, TypeRegistry registry,
+                                         TypeReferenceResolver resolver) {
         String entityName = type.getNameAsString();
         // Phase Entity Identity (Volume 5 section 4.12.2): the entity's stable identity is its
         // fully-qualified class name (the canonical FQCN including any enclosing type). The display
         // name starts as the simple name; the provider's batch fixpoint (section 4.12.3) refines it
-        // to a disambiguated name only where a simple name collides across the model.
-        String key = type.getFullyQualifiedName().orElse(entityName);
+        // to a disambiguated name only where a simple name collides across the model. Every reference
+        // this extractor emits, an ENTITY_REF field, a relation end, or a skipped field's owner, is
+        // keyed by FQCN here; the provider remaps those keys to display names once the fixpoint runs.
+        String key = entityKey(type);
+        CompilationUnit unit = type.findCompilationUnit().orElse(null);
         List<Field> fields = new ArrayList<>();
         List<Relation> relations = new ArrayList<>();
         List<SkippedField> skipped = new ArrayList<>();
@@ -94,11 +97,18 @@ public final class EntityExtractor {
             }
             boolean nullable = isNullable(declaration);
             for (VariableDeclarator variable : declaration.getVariables()) {
-                toField(entityName, declaration, variable, nullable, registry, fields, relations, skipped);
+                toField(key, entityName, unit, declaration, variable, nullable, registry, resolver,
+                        fields, relations, skipped);
             }
         }
         return new ExtractedEntity(
                 new Entity(key, entityName, fields, List.of(), Metadata.empty()), relations, skipped);
+    }
+
+    // The entity's key (Volume 5 section 4.12.2): the fully-qualified class name, falling back to the
+    // simple name only when the FQN is unresolvable (a source without a package declaration).
+    private static String entityKey(ClassOrInterfaceDeclaration type) {
+        return type.getFullyQualifiedName().orElse(type.getNameAsString());
     }
 
     // One field to IR (sections 4.4, 4.5, 4.6), or a skip with a located note (section 4.8). Order:
@@ -106,8 +116,9 @@ public final class EntityExtractor {
     // structural resolution of the declared type in-tree, which decides association, enum, or a
     // skip. Nothing is decided by a type's name resemblance, and nothing vetoes the entity: a field
     // the rules cannot map is recorded as a skipped field and the entity extracts without it.
-    private void toField(String entityName, FieldDeclaration declaration, VariableDeclarator variable,
-                         boolean nullable, TypeRegistry registry, List<Field> fields,
+    private void toField(String entityKey, String entitySimple, CompilationUnit unit,
+                         FieldDeclaration declaration, VariableDeclarator variable, boolean nullable,
+                         TypeRegistry registry, TypeReferenceResolver resolver, List<Field> fields,
                          List<Relation> relations, List<SkippedField> skipped) {
         String fieldName = variable.getNameAsString();
         String javaType = variable.getTypeAsString();
@@ -120,40 +131,60 @@ public final class EntityExtractor {
 
         // Section 4.8, rule 2: byte[] and other scalar arrays are binary blobs, not to-many shapes.
         if (isArray(javaType)) {
-            skipped.add(new SkippedField(entityName, fieldName, "binary or array field of type '"
+            skipped.add(new SkippedField(entityKey, fieldName, "binary or array field of type '"
                     + javaType + "' has no scalar mapping in the closed set (Volume 5 section 4.8); "
                     + "skipped, not modeled as a value."));
             return;
         }
         // Section 4.8, rule 1: a to-many collection is deferred to the list phase, skipped here.
         if (isCollection(javaType)) {
-            skipped.add(new SkippedField(entityName, fieldName, "to-many field of type '" + javaType
+            skipped.add(new SkippedField(entityKey, fieldName, "to-many field of type '" + javaType
                     + "' deferred to the list-modeling phase (E4, Volume 5 section 4.8); skipped, "
                     + "not modeled."));
             return;
         }
 
-        String simpleName = lastSegment(javaType);
-        Optional<Kind> kind = registry.kindOf(simpleName);
-        if (kind.isEmpty()) {
-            // Section 4.8, rule 4: a type not in the scanned tree (a library type) is skipped.
-            skipped.add(new SkippedField(entityName, fieldName, "type '" + javaType + "' is not "
+        // Section 4.12.4: resolve the declared type to a single in-tree declaration by key, against
+        // this entity's compilation unit. A unique simple name resolves by the fast path (byte-identical
+        // to the pre-phase last-segment lookup); a colliding simple name resolves to one type via Java
+        // scoping or refuses, never guessing which same-named type was meant.
+        if (unit == null) {
+            skipped.add(new SkippedField(entityKey, fieldName, "type '" + javaType + "' is not "
                     + "resolvable in the scanned source tree (Volume 5 section 4.8); skipped."));
             return;
         }
-        switch (kind.get()) {
+        TypeReferenceResolver.Resolution resolution = resolver.resolve(javaType, unit);
+        if (resolution.isNotInTree()) {
+            // Section 4.8, rule 4: a type not in the scanned tree (a library type) is skipped.
+            skipped.add(new SkippedField(entityKey, fieldName, "type '" + javaType + "' is not "
+                    + "resolvable in the scanned source tree (Volume 5 section 4.8); skipped."));
+            return;
+        }
+        if (resolution.isAmbiguous()) {
+            // Section 4.12.4, step d: an ambiguous cross-context reference is refused loud, its
+            // candidates named, never guessed. No reference is formed and the entity extracts without
+            // the field (partial-model integrity, section 4.8).
+            skipped.add(new SkippedField(entityKey, fieldName, "entity-typed field of type '" + javaType
+                    + "' is an ambiguous cross-context reference: it resolves to more than one in-tree "
+                    + "type " + resolution.candidates() + ", and the resolver will not guess which was "
+                    + "meant (Volume 5 section 4.12.4); skipped, no reference formed."));
+            return;
+        }
+        String targetKey = resolution.fqcn();
+        String targetSimple = lastSegment(javaType);
+        switch (resolution.kind()) {
             case ENTITY:
-                toAssociationField(entityName, declaration, fieldName, simpleName, nullable, fields,
-                        relations, skipped);
+                toAssociationField(entityKey, declaration, fieldName, targetKey, targetSimple, nullable,
+                        fields, relations, skipped);
                 return;
             case ENUM:
-                fields.add(toEnumField(fieldName, simpleName, nullable, registry));
+                fields.add(toEnumField(fieldName, targetKey, nullable, resolver));
                 return;
             case CLASS:
             default:
                 // Section 4.8, rule 3: an in-tree value type (for example @Embeddable) is skipped.
-                String embeddable = registry.isEmbeddable(simpleName) ? " (an @Embeddable)" : "";
-                skipped.add(new SkippedField(entityName, fieldName, "in-tree value type '" + javaType
+                String embeddable = registry.isEmbeddable(targetSimple) ? " (an @Embeddable)" : "";
+                skipped.add(new SkippedField(entityKey, fieldName, "in-tree value type '" + javaType
                         + "'" + embeddable + ", neither an @Entity nor an enum (Volume 5 section 4.8); "
                         + "skipped."));
         }
@@ -163,26 +194,32 @@ public final class EntityExtractor {
     // itself declares the relationship with @ManyToOne or @OneToOne. The kind is read from that
     // annotation, never inferred. Section 4.8, rule 5: an entity-typed field with no declared
     // relationship is skipped rather than inferred, and the entity extracts without it.
-    private void toAssociationField(String entityName, FieldDeclaration declaration, String fieldName,
-                                    String target, boolean nullable, List<Field> fields,
-                                    List<Relation> relations, List<SkippedField> skipped) {
+    private void toAssociationField(String entityKey, FieldDeclaration declaration, String fieldName,
+                                    String targetKey, String targetSimple, boolean nullable,
+                                    List<Field> fields, List<Relation> relations,
+                                    List<SkippedField> skipped) {
         Optional<RelationKind> relationKind = declaredRelationKind(declaration);
         if (relationKind.isEmpty()) {
-            skipped.add(new SkippedField(entityName, fieldName, "entity-typed field referencing '"
-                    + target + "' declares no @ManyToOne or @OneToOne (Volume 5 sections 4.4, 4.8); "
-                    + "the relationship is not stated in the source, so it is skipped, not inferred."));
+            skipped.add(new SkippedField(entityKey, fieldName, "entity-typed field referencing '"
+                    + targetSimple + "' declares no @ManyToOne or @OneToOne (Volume 5 sections 4.4, "
+                    + "4.8); the relationship is not stated in the source, so it is skipped, not "
+                    + "inferred."));
             return;
         }
-        relations.add(new Relation(entityName, target, relationKind.get()));
-        fields.add(new Field(fieldName, Type.entityRef(target), nullable, List.of()));
+        // The relation ends and the ENTITY_REF carry keys (section 4.12.4); the provider remaps them
+        // to display names once the disambiguation fixpoint has run.
+        relations.add(new Relation(entityKey, targetKey, relationKind.get()));
+        fields.add(new Field(fieldName, Type.entityRef(targetKey), nullable, List.of()));
     }
 
     // Section 4.5: an enum-typed field maps to STRING and carries the closed value set as an
     // annotation, read from the enum declaration in declaration order. @Enumerated is irrelevant:
     // the wire form is the constant name in every storage mode.
-    private static Field toEnumField(String fieldName, String enumType, boolean nullable,
-                                     TypeRegistry registry) {
-        List<String> constants = registry.enumConstants(enumType);
+    private static Field toEnumField(String fieldName, String enumFqcn, boolean nullable,
+                                     TypeReferenceResolver resolver) {
+        // Section 4.12.4: the enum's constants are read from the resolved declaration by FQCN, so two
+        // same-named enums in different packages no longer collapse to whichever was parsed last.
+        List<String> constants = resolver.enumConstants(enumFqcn);
         Annotation values = new Annotation(ENUM_ANNOTATION_KEY, constants);
         return new Field(fieldName, Primitive.STRING, nullable, List.of(values));
     }
@@ -250,7 +287,7 @@ public final class EntityExtractor {
             return Optional.empty();
         }
         return Optional.of(new ReadIntent(
-                entityName, "get" + entityName, id.getNameAsString(), idType.get()));
+                entityName, entityKey(type), "get" + entityName, id.getNameAsString(), idType.get()));
     }
 
     // The located reason an entity formed no read intent, for the provider's outcome. It

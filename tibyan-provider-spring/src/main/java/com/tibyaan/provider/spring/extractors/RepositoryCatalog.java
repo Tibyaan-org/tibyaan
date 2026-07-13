@@ -46,14 +46,19 @@ public final class RepositoryCatalog {
         this.springDataByName = springDataByName;
     }
 
-    /** Builds the catalog from every class and interface declared across the parsed units. */
-    public static RepositoryCatalog from(List<CompilationUnit> units) {
+    /**
+     * Builds the catalog from every class and interface declared across the parsed units. The
+     * resolver (Volume 5 section 4.12.4) is used to resolve each Spring Data repository's entity type
+     * argument to a single in-tree entity key, so repository-of-entity identity is decided by key.
+     */
+    public static RepositoryCatalog from(List<CompilationUnit> units, TypeReferenceResolver resolver) {
         Map<String, ClassOrInterfaceDeclaration> bySimpleName = new HashMap<>();
         Map<String, SpringDataRepo> springData = new HashMap<>();
         for (CompilationUnit unit : units) {
             for (ClassOrInterfaceDeclaration decl : unit.findAll(ClassOrInterfaceDeclaration.class)) {
                 bySimpleName.putIfAbsent(decl.getNameAsString(), decl);
-                springDataRepoOf(decl).ifPresent(repo -> springData.putIfAbsent(repo.interfaceSimpleName(), repo));
+                springDataRepoOf(decl, resolver)
+                        .ifPresent(repo -> springData.putIfAbsent(repo.interfaceSimpleName(), repo));
             }
         }
         return new RepositoryCatalog(bySimpleName, springData);
@@ -96,7 +101,8 @@ public final class RepositoryCatalog {
                 && !repositoryImplementationsOf(simpleName).isEmpty();
     }
 
-    private static Optional<SpringDataRepo> springDataRepoOf(ClassOrInterfaceDeclaration decl) {
+    private static Optional<SpringDataRepo> springDataRepoOf(ClassOrInterfaceDeclaration decl,
+                                                             TypeReferenceResolver resolver) {
         if (!decl.isInterface()) {
             return Optional.empty();
         }
@@ -109,9 +115,16 @@ public final class RepositoryCatalog {
             if (args.isEmpty() || args.get().size() != 2) {
                 continue;
             }
-            String entity = lastSegment(args.get().get(0).asString());
+            String entityAsWritten = args.get().get(0).asString();
+            String entitySimple = lastSegment(entityAsWritten);
+            // Resolve the entity type argument to a single in-tree entity key (section 4.12.4), so the
+            // matcher decides "repository of THIS entity" by key, not by a colliding simple name. Null
+            // when the argument is not an in-tree @Entity or cannot be narrowed to one.
+            String entityKey = decl.findCompilationUnit()
+                    .flatMap(cu -> resolver.resolveEntityKey(entityAsWritten, cu))
+                    .orElse(null);
             String idType = args.get().get(1).asString();
-            return Optional.of(new SpringDataRepo(decl.getNameAsString(), entity, idType));
+            return Optional.of(new SpringDataRepo(decl.getNameAsString(), entitySimple, entityKey, idType));
         }
         return Optional.empty();
     }

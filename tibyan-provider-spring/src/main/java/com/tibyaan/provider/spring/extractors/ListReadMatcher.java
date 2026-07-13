@@ -1,5 +1,6 @@
 package com.tibyaan.provider.spring.extractors;
 
+import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
@@ -69,7 +70,7 @@ public final class ListReadMatcher {
 
     /**
      * @param kind   MATCH, DEFERRED, or NOT_LIST
-     * @param entity the element entity when MATCH, else null
+     * @param entity the element entity's key (FQCN) when MATCH, else null (section 4.12.4)
      * @param paged  true when the wire is a page envelope (Page or Slice), so the `paged` disclosure applies
      * @param reason the deferral reason when DEFERRED, else null
      */
@@ -89,11 +90,12 @@ public final class ListReadMatcher {
     }
 
     /**
-     * Evaluate a service method against rule 4.10. {@code entityNames} is the set of in-tree
-     * {@code @Entity} simple names, so the element type can be classified as an entity (a match
-     * candidate), a non-entity domain type (a deferred view list), or a scalar (not a list read).
+     * Evaluate a service method against rule 4.10. The element type is resolved to a single in-tree
+     * entity key by the two-stage resolver (section 4.12.4), so the element is classified as an entity
+     * (a match candidate, carrying its key), a non-entity or unresolvable domain type (a deferred view
+     * list), or a scalar (not a list read). Identity is by key, never by a colliding simple name.
      */
-    public Result evaluate(ServiceMethodSource source, Set<String> entityNames) {
+    public Result evaluate(ServiceMethodSource source, TypeReferenceResolver resolver) {
         MethodDeclaration method = source.declaration();
 
         // Condition 2: the return type is a recognized collection container of a single type argument.
@@ -104,18 +106,25 @@ public final class ListReadMatcher {
         if (!CONTAINERS.contains(container)) {
             return Result.notList();
         }
-        Optional<String> element = singleTypeArgument(returnType);
-        if (element.isEmpty()) {
+        Optional<String> elementArg = singleTypeArgumentRaw(returnType);
+        if (elementArg.isEmpty()) {
             return Result.notList();
         }
-        String elementName = element.get();
-        if (SCALARS.contains(elementName)) {
+        String elementRaw = elementArg.get();
+        String elementSimple = lastSegment(elementRaw);
+        if (SCALARS.contains(elementSimple)) {
             return Result.notList();
         }
-        if (!entityNames.contains(elementName)) {
-            return Result.deferred("returns a collection of '" + elementName + "', which is not an "
+        // Section 4.12.4: resolve the element to a single in-tree entity key. A non-entity, an
+        // unresolvable library type, or an ambiguous cross-context reference is not a match candidate;
+        // it is a deferred view or projection list read, never guessed into an entity.
+        Optional<String> elementKey = method.findCompilationUnit()
+                .flatMap(cu -> resolver.resolveEntityKey(elementRaw, cu));
+        if (elementKey.isEmpty()) {
+            return Result.deferred("returns a collection of '" + elementSimple + "', which is not an "
                     + "in-tree @Entity; deferred view-returning or projection list read (section 4.10.6)");
         }
+        String elementName = elementKey.get();
 
         // From here the element is an in-tree entity; the method is a list-all candidate for it.
         boolean paged = ENVELOPES.contains(container);
@@ -179,9 +188,10 @@ public final class ListReadMatcher {
             return Result.deferred("findAll is not called on a repository field of the service (condition 4)");
         }
         Optional<SpringDataRepo> repo = catalog.springDataRepo(repoType);
-        if (repo.isEmpty() || !repo.get().entitySimpleName().equals(elementName)) {
+        if (repo.isEmpty() || repo.get().entityKey() == null
+                || !repo.get().entityKey().equals(elementName)) {
             return Result.deferred("the findAll target '" + repoType + "' is not a Spring Data repository "
-                    + "of " + elementName + " (condition 4)");
+                    + "of " + elementSimple + " (condition 4)");
         }
         // Condition 5: verbatim paging argument, or no argument for a no-parameter list-all.
         if (pagingParam == null) {
@@ -207,11 +217,12 @@ public final class ListReadMatcher {
         return Result.match(elementName, paged);
     }
 
-    // The single type argument's simple name, or empty for a raw type or a multi-argument generic.
-    private static Optional<String> singleTypeArgument(ClassOrInterfaceType type) {
+    // The single type argument as written (possibly qualified), or empty for a raw type or a
+    // multi-argument generic. The resolver strips generics and narrows it to an in-tree key.
+    private static Optional<String> singleTypeArgumentRaw(ClassOrInterfaceType type) {
         return type.getTypeArguments()
                 .filter(args -> args.size() == 1)
-                .map(args -> lastSegment(args.get(0).asString()));
+                .map(args -> args.get(0).asString());
     }
 
     // The service's fields whose declared type resolves to a repository (Spring Data, or a hand-written

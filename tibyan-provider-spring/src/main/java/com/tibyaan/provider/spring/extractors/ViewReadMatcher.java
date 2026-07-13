@@ -89,7 +89,8 @@ public final class ViewReadMatcher {
         }
 
         String repoType = repoFields.get(receiverFieldName(load));
-        MatchResult loadEvidence = checkByPrimaryKeyLoad(load, repoType, entity, intent.idType());
+        MatchResult loadEvidence = checkByPrimaryKeyLoad(load, repoType, entity, intent.entityKey(),
+                intent.idType());
         if (!loadEvidence.matched()) {
             return loadEvidence;
         }
@@ -97,13 +98,16 @@ public final class ViewReadMatcher {
         return checkShapeAndMapping(body, load, service, entity, view, loadEvidence.explanation());
     }
 
-    // Condition 4: the load is a by-primary-key read of E, direct (4a) or one-hop (4b).
-    private MatchResult checkByPrimaryKeyLoad(MethodCallExpr load, String repoType, String entity, Type idType) {
+    // Condition 4: the load is a by-primary-key read of E, direct (4a) or one-hop (4b). Whether the
+    // repository is a repository of THIS entity is decided by key (section 4.12.4): a colliding simple
+    // name binds to the right entity or refuses, never both. The simple name is used only in messages.
+    private MatchResult checkByPrimaryKeyLoad(MethodCallExpr load, String repoType, String entity,
+                                              String entityKey, Type idType) {
         String loadMethod = load.getNameAsString();
         Optional<SpringDataRepo> direct = catalog.springDataRepo(repoType);
         if (direct.isPresent()) {
             SpringDataRepo repo = direct.get();
-            if (!repo.entitySimpleName().equals(entity)) {
+            if (!isRepositoryOf(repo, entityKey)) {
                 return MatchResult.nearMiss("the load is a by-primary-key read of '"
                         + repo.entitySimpleName() + "', not '" + entity + "' (condition 4)");
             }
@@ -119,12 +123,18 @@ public final class ViewReadMatcher {
                     + repoType + "#" + loadMethod + ", " + repoType + " extends a Spring Data repository of "
                     + entity + " (" + repo.idTypeAsWritten() + ")");
         }
-        return checkOneHop(repoType, loadMethod, entity, idType);
+        return checkOneHop(repoType, loadMethod, entity, entityKey, idType);
+    }
+
+    // Whether a Spring Data repository is a repository of the entity with this key (section 4.12.4).
+    private static boolean isRepositoryOf(SpringDataRepo repo, String entityKey) {
+        return repo.entityKey() != null && repo.entityKey().equals(entityKey);
     }
 
     // Condition 4b: the load calls a hand-written repository method whose single @Repository
     // implementation delegates in exactly one return statement to a Spring Data by-primary-key read.
-    private MatchResult checkOneHop(String repoType, String loadMethod, String entity, Type idType) {
+    private MatchResult checkOneHop(String repoType, String loadMethod, String entity, String entityKey,
+                                    Type idType) {
         Optional<ClassOrInterfaceDeclaration> iface = catalog.declaration(repoType);
         if (iface.isEmpty() || !iface.get().isInterface()) {
             return MatchResult.nearMiss("the load target '" + repoType
@@ -148,12 +158,13 @@ public final class ViewReadMatcher {
             return MatchResult.nearMiss("'" + impl.getNameAsString() + "#" + loadMethod
                     + "' has no analyzable body (condition 4b)");
         }
-        return checkDelegationBody(implMethod.get(), impl, repoType, loadMethod, entity);
+        return checkDelegationBody(implMethod.get(), impl, repoType, loadMethod, entity, entityKey);
     }
 
     // The one-hop implementation body must be exactly: return <springDataField>.<pkRead>(<param>);
     private MatchResult checkDelegationBody(MethodDeclaration implMethod, ClassOrInterfaceDeclaration impl,
-                                            String repoType, String loadMethod, String entity) {
+                                            String repoType, String loadMethod, String entity,
+                                            String entityKey) {
         List<Statement> statements = implMethod.getBody().orElseThrow().getStatements();
         String implParam = implMethod.getParameter(0).getNameAsString();
         if (statements.size() != 1 || !statements.get(0).isReturnStmt()) {
@@ -180,7 +191,7 @@ public final class ViewReadMatcher {
                     + "by-primary-key evidence unavailable, deferred pattern P1b");
         }
         Optional<SpringDataRepo> sd = catalog.springDataRepo(delegateRepoType);
-        if (sd.isEmpty() || !sd.get().entitySimpleName().equals(entity)) {
+        if (sd.isEmpty() || !isRepositoryOf(sd.get(), entityKey)) {
             return MatchResult.nearMiss("'" + impl.getNameAsString() + "#" + loadMethod
                     + "' delegates to '" + delegateRepoType + "', which is not a Spring Data repository of "
                     + entity + " (condition 4b)");

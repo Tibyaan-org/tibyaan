@@ -21,6 +21,7 @@ import com.tibyaan.core.ir.Type;
 import com.tibyaan.plugin.ProviderInput;
 import com.tibyaan.plugin.SourceAnalyzer;
 import com.tibyaan.provider.spring.EntityOutcome.Cause;
+import com.tibyaan.provider.spring.extractors.DisplayNames;
 import com.tibyaan.provider.spring.extractors.EntityExtractor;
 import com.tibyaan.provider.spring.extractors.ExtractedEntity;
 import com.tibyaan.provider.spring.extractors.ListReadMatcher;
@@ -31,11 +32,11 @@ import com.tibyaan.provider.spring.extractors.ServiceExtractor;
 import com.tibyaan.provider.spring.extractors.ServiceMethod;
 import com.tibyaan.provider.spring.extractors.ServiceMethodSource;
 import com.tibyaan.provider.spring.extractors.SkippedField;
+import com.tibyaan.provider.spring.extractors.TypeReferenceResolver;
 import com.tibyaan.provider.spring.extractors.TypeRegistry;
 import com.tibyaan.provider.spring.extractors.ViewReadMatcher;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -133,29 +134,62 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
         }
 
         ParseResults parsed = parseJavaSources(sourceRoot);
+        // The two-stage key resolver (section 4.12.4): the single index of in-tree types every place
+        // that ties a Java type to an entity now resolves through, by key rather than by simple name.
+        TypeReferenceResolver resolver = TypeReferenceResolver.from(parsed.units());
         TypeRegistry registry = TypeRegistry.from(parsed.units());
-        RepositoryCatalog repositories = RepositoryCatalog.from(parsed.units());
+        RepositoryCatalog repositories = RepositoryCatalog.from(parsed.units(), resolver);
         ViewReadMatcher viewMatcher = new ViewReadMatcher(repositories, typeMapper);
         List<ServiceMethodSource> serviceSources = serviceExtractor.sources(parsed.units());
         int skipCount = parsed.skips().size();
 
+        // Pass 1 (extraction). Extract every @Entity keyed by FQCN (section 4.12.2), collecting a
+        // per-entity plan: a terminal outcome (composite key, no identifier) or a read intent to
+        // discover. References are carried by key; each key's source file is tracked for the
+        // split-package check. Discovery is deferred to pass 2, once display names are known.
         List<Entity> entities = new ArrayList<>();
-        List<Capability> capabilities = new ArrayList<>();
-        List<EntityOutcome> outcomes = new ArrayList<>();
         List<Relation> relations = new ArrayList<>();
         List<SkippedField> skippedFields = new ArrayList<>();
-
-        Discovery discovery = new Discovery(serviceSources, viewMatcher, skipCount);
+        List<EntityPlan> plans = new ArrayList<>();
+        Map<String, Set<String>> filesByKey = new LinkedHashMap<>();
         for (ClassOrInterfaceDeclaration type : entityExtractor.entityTypes(parsed.units())) {
-            classifyEntity(type, registry, discovery, entities, capabilities, relations, outcomes,
-                    skippedFields);
+            ExtractedEntity extracted = entityExtractor.extractEntity(type, registry, resolver);
+            entities.add(extracted.entity());
+            relations.addAll(extracted.relations());
+            skippedFields.addAll(extracted.skipped());
+            recordSourceFile(filesByKey, extracted.entity().key(), type);
+            plans.add(planFor(type, extracted.entity().key()));
+        }
+
+        // Section 4.12.2, rule 3: a key claimed by two distinct source files is a split-package clash;
+        // fail loud, never merge. A genuine same-file duplicate key is guarded by core validation.
+        failOnSplitPackage(filesByKey);
+
+        // Section 4.12.3: assign each entity a display name from its key by the batch fixpoint. A
+        // residual display collision fails loud here; otherwise the assignment is a pure function of
+        // the key set. Remapping the key-carrying references to display names lets the rest of the
+        // pipeline (closure, finalize, generation) run on unique display names, byte-identical to the
+        // pre-phase pipeline whenever every simple name was already unique.
+        Map<String, String> displayByKey = DisplayNames.assign(keysOf(entities));
+        entities = remapEntities(entities, displayByKey);
+        relations = remapRelations(relations, displayByKey);
+        skippedFields = remapSkips(skippedFields, displayByKey);
+
+        // Pass 2 (discovery). Each plan yields an outcome, minting capability names from display names
+        // and matching identity by key (section 4.12.4). By-id capabilities are added in walk order.
+        List<Capability> capabilities = new ArrayList<>();
+        List<EntityOutcome> outcomes = new ArrayList<>();
+        Discovery discovery = new Discovery(serviceSources, viewMatcher, skipCount, resolver, displayByKey);
+        for (EntityPlan plan : plans) {
+            outcomes.add(plan.toOutcome(discovery, capabilities, displayByKey));
         }
 
         // List reads (phase E4, section 4.10): a separate pool over the same service catalog. It appends
         // list<E> capabilities and reports its own outcomes, disjoint from by-id discovery above (a list
         // candidate returns a collection of E, a by-id candidate returns E singular), so it cannot move
         // any get<E> result. Identifier-independent: an entity with no usable id can still yield list<E>.
-        ListReads listReads = discoverListReads(repositories, serviceSources, entities, capabilities);
+        ListReads listReads = discoverListReads(repositories, serviceSources, resolver, capabilities,
+                displayByKey);
 
         // Partial-model integrity: close the model (drop references to absent entities, section 4.7),
         // then finalize (mark partial entities and enrich their outcomes, section 4.9). Both run once
@@ -167,6 +201,118 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
                 dedupeAndSort(finalized.relations()), Metadata.empty());
         return new ScanReport(model, finalized.outcomes(), parsed.skips(), finalized.skippedFields(),
                 listReads.outcomes(), listReads.deferrals());
+    }
+
+    // A per-entity plan from pass 1: the entity key and simple name, and either a terminal failure
+    // reason (composite key, no identifier) or a read intent to discover in pass 2. The outcome is
+    // built in pass 2 so its entity name is the display name, which the disambiguation fixpoint
+    // (section 4.12.3) has by then assigned.
+    private record EntityPlan(String entityKey, String entitySimple, Kind kind, String reason,
+                              ReadIntent intent) {
+
+        enum Kind { COMPOSITE, NO_IDENTIFIER, DISCOVER }
+
+        EntityOutcome toOutcome(Discovery discovery, List<Capability> capabilities,
+                                Map<String, String> displayByKey) {
+            String display = displayByKey.getOrDefault(entityKey, entitySimple);
+            return switch (kind) {
+                case COMPOSITE -> EntityOutcome.failed(display, Cause.COMPOSITE_KEY, reason);
+                case NO_IDENTIFIER -> EntityOutcome.failed(display, Cause.NO_IDENTIFIER, reason);
+                case DISCOVER -> discovery.discover(intent, capabilities);
+            };
+        }
+    }
+
+    // Eligibility, computed in pass 1 (section 4.2, condition 0; section 4.1). A composite key or a
+    // missing usable identifier forms no read intent; otherwise the entity carries a read intent.
+    private EntityPlan planFor(ClassOrInterfaceDeclaration type, String key) {
+        String simple = type.getNameAsString();
+        if (entityExtractor.hasCompositeKey(type)) {
+            return new EntityPlan(key, simple, EntityPlan.Kind.COMPOSITE,
+                    entityExtractor.compositeKeyReason(type), null);
+        }
+        Optional<ReadIntent> intent = entityExtractor.readIntent(type);
+        if (intent.isEmpty()) {
+            return new EntityPlan(key, simple, EntityPlan.Kind.NO_IDENTIFIER,
+                    entityExtractor.noReadIntentReason(type), null);
+        }
+        return new EntityPlan(key, simple, EntityPlan.Kind.DISCOVER, null, intent.get());
+    }
+
+    // Records the source file that declares an entity key, for the split-package check (section
+    // 4.12.2, rule 3). Units are parsed from their paths, so the storage path is present.
+    private static void recordSourceFile(Map<String, Set<String>> filesByKey, String key,
+                                         ClassOrInterfaceDeclaration type) {
+        String file = type.findCompilationUnit()
+                .flatMap(CompilationUnit::getStorage)
+                .map(storage -> storage.getPath().toString())
+                .orElse("(unknown source)");
+        filesByKey.computeIfAbsent(key, k -> new LinkedHashSet<>()).add(file);
+    }
+
+    // Section 4.12.2, rule 3: two distinct entity classes sharing a package and simple name in
+    // different source files yield identical keys. The FQCN alone cannot tell this from a genuine
+    // duplicate, so it is distinguished by source file and refused loud, worded distinctly, never
+    // merged. Folding the module coordinate into the key is the deferred option (no benchmark needs it).
+    private static void failOnSplitPackage(Map<String, Set<String>> filesByKey) {
+        for (Map.Entry<String, Set<String>> entry : filesByKey.entrySet()) {
+            if (entry.getValue().size() > 1) {
+                throw new ProviderException("split-package clash: the entity key '" + entry.getKey()
+                        + "' is declared by more than one source file " + entry.getValue()
+                        + ". Two distinct classes sharing a package and simple name in different modules "
+                        + "cannot be told apart by their fully-qualified name (Volume 5 section 4.12.2, "
+                        + "rule 3); they are not merged. Rename one class or split the package to resolve "
+                        + "it.");
+            }
+        }
+    }
+
+    private static List<String> keysOf(List<Entity> entities) {
+        List<String> keys = new ArrayList<>();
+        for (Entity entity : entities) {
+            keys.add(entity.key());
+        }
+        return keys;
+    }
+
+    // Remap every key-carrying reference an entity holds to a display name (section 4.12.3): the
+    // entity's own name from its key, and each ENTITY_REF field's target from the resolved target key.
+    // A unique simple name maps to itself, so a no-collision model is unchanged.
+    private static List<Entity> remapEntities(List<Entity> entities, Map<String, String> displayByKey) {
+        List<Entity> remapped = new ArrayList<>();
+        for (Entity entity : entities) {
+            String display = displayByKey.getOrDefault(entity.key(), entity.name());
+            List<Field> fields = new ArrayList<>();
+            for (Field field : entity.fields()) {
+                if (field.type() instanceof EntityRef ref) {
+                    String targetDisplay = displayByKey.getOrDefault(ref.entityName(), ref.entityName());
+                    fields.add(new Field(field.name(), Type.entityRef(targetDisplay), field.nullable(),
+                            field.annotations()));
+                } else {
+                    fields.add(field);
+                }
+            }
+            remapped.add(new Entity(entity.key(), display, fields, entity.annotations(), entity.metadata()));
+        }
+        return remapped;
+    }
+
+    private static List<Relation> remapRelations(List<Relation> relations, Map<String, String> displayByKey) {
+        List<Relation> remapped = new ArrayList<>();
+        for (Relation relation : relations) {
+            remapped.add(new Relation(displayByKey.getOrDefault(relation.from(), relation.from()),
+                    displayByKey.getOrDefault(relation.to(), relation.to()), relation.kind()));
+        }
+        return remapped;
+    }
+
+    private static List<SkippedField> remapSkips(List<SkippedField> skips, Map<String, String> displayByKey) {
+        List<SkippedField> remapped = new ArrayList<>();
+        for (SkippedField skip : skips) {
+            remapped.add(new SkippedField(displayByKey.getOrDefault(skip.entity(), skip.entity()),
+                    skip.field(), skip.note()));
+        }
+        return remapped;
     }
 
     // Model closure (section 4.7) plus the partial disclosure (section 4.9), as one pass over the
@@ -249,58 +395,30 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
                 .toList();
     }
 
-    // One entity's journey through extraction, eligibility, and binding discovery, recording a
-    // single outcome. Each step that fails records a located reason and stops for this entity; the
-    // scan continues (phase E1).
-    private void classifyEntity(
-            ClassOrInterfaceDeclaration type,
-            TypeRegistry registry,
-            Discovery discovery,
-            List<Entity> entities,
-            List<Capability> capabilities,
-            List<Relation> relations,
-            List<EntityOutcome> outcomes,
-            List<SkippedField> skippedFields) {
-        String entityName = type.getNameAsString();
-
-        // Extraction no longer vetoes the entity on an unmappable field (section 4.8): it always
-        // produces an entity, with the fields it could not map recorded as skips. The entity is
-        // partial, never absent, so the discovery decisions below are byte-for-byte unchanged.
-        ExtractedEntity extracted = entityExtractor.extractEntity(type, registry);
-        entities.add(extracted.entity());
-        relations.addAll(extracted.relations());
-        skippedFields.addAll(extracted.skipped());
-
-        // Condition 0: a composite key forms no read intent and is never read by part of its key.
-        if (entityExtractor.hasCompositeKey(type)) {
-            outcomes.add(EntityOutcome.failed(
-                    entityName, Cause.COMPOSITE_KEY, entityExtractor.compositeKeyReason(type)));
-            return;
-        }
-
-        Optional<ReadIntent> intent = entityExtractor.readIntent(type);
-        if (intent.isEmpty()) {
-            outcomes.add(EntityOutcome.failed(
-                    entityName, Cause.NO_IDENTIFIER, entityExtractor.noReadIntentReason(type)));
-            return;
-        }
-
-        outcomes.add(discovery.discover(intent.get(), capabilities));
-    }
-
     // The candidate pool (Volume 5 section 4.2, condition 10): 4.1 entity-returning and 4.2
     // view-returning candidates pool with no precedence. Exactly one discovers; zero refuses with
     // near-misses named; more than one is ambiguous. The provider never picks.
+    //
+    // Phase Entity Identity (section 4.12.4): a candidate returns THIS entity when its return type
+    // resolves, by key, to the intent's entity key (not merely by simple name), so a method returning
+    // one context's Note is never a candidate for another's. The emitted capability's name and output
+    // are minted from the entity's display name; the intent's simple name still drives the view
+    // matcher's AST-level reasoning.
     private final class Discovery {
 
         private final List<ServiceMethodSource> serviceSources;
         private final ViewReadMatcher viewMatcher;
         private final int skipCount;
+        private final TypeReferenceResolver resolver;
+        private final Map<String, String> displayByKey;
 
-        Discovery(List<ServiceMethodSource> serviceSources, ViewReadMatcher viewMatcher, int skipCount) {
+        Discovery(List<ServiceMethodSource> serviceSources, ViewReadMatcher viewMatcher, int skipCount,
+                  TypeReferenceResolver resolver, Map<String, String> displayByKey) {
             this.serviceSources = serviceSources;
             this.viewMatcher = viewMatcher;
             this.skipCount = skipCount;
+            this.resolver = resolver;
+            this.displayByKey = displayByKey;
         }
 
         EntityOutcome discover(ReadIntent intent, List<Capability> capabilities) {
@@ -310,23 +428,31 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
                 evaluate(source, intent, candidates, nearMisses);
             }
 
+            // The display-named view of the intent: the emitted capability name (get<display>), output
+            // (ENTITY_REF(display)), and every diagnostic use the display name, which equals the simple
+            // name unless it collided. Identity is still the intent's key.
+            String display = displayByKey.getOrDefault(intent.entityKey(), intent.entityName());
+            ReadIntent displayIntent = new ReadIntent(display, intent.entityKey(), "get" + display,
+                    intent.idInputName(), intent.idType());
+
             if (candidates.size() == 1) {
                 Candidate winner = candidates.get(0);
-                Capability capability = buildCapability(intent, winner);
+                Capability capability = buildCapability(displayIntent, winner);
                 capabilities.add(capability);
-                return EntityOutcome.discovered(intent.entityName(), discoveredDetail(capability, winner));
+                return EntityOutcome.discovered(display, discoveredDetail(capability, winner));
             }
             if (candidates.isEmpty()) {
-                return EntityOutcome.failed(intent.entityName(), Cause.NO_BACKING_METHOD,
-                        noBackingMethodMessage(intent, serviceSources, nearMisses, skipCount));
+                return EntityOutcome.failed(display, Cause.NO_BACKING_METHOD,
+                        noBackingMethodMessage(displayIntent, serviceSources, nearMisses, skipCount));
             }
-            return EntityOutcome.failed(intent.entityName(), Cause.AMBIGUOUS_BINDING,
-                    ambiguousBindingMessage(intent, candidates));
+            return EntityOutcome.failed(display, Cause.AMBIGUOUS_BINDING,
+                    ambiguousBindingMessage(displayIntent, candidates));
         }
 
-        // Conditions 1 to 3 frame every candidate; a return equal to the entity is a section 4.1
-        // (entity-returning) candidate, and any other non-void return is evaluated as a section 4.2
-        // (view-returning) candidate. A 4.2 method that passed 1 to 3 but failed later is a near miss.
+        // Conditions 1 to 3 frame every candidate; a return that resolves by key to the entity is a
+        // section 4.1 (entity-returning) candidate, and any other non-void return is evaluated as a
+        // section 4.2 (view-returning) candidate. A 4.2 method that passed 1 to 3 but failed later is
+        // a near miss.
         private void evaluate(ServiceMethodSource source, ReadIntent intent,
                               List<Candidate> candidates, List<String> nearMisses) {
             ServiceMethod method = source.method();
@@ -340,7 +466,10 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
             if (method.returnTypeSimpleName().equals("void")) {
                 return;
             }
-            if (method.returnTypeSimpleName().equals(intent.entityName())) {
+            // Section 4.12.4: entity-returning iff the return type resolves by key to the intent's
+            // entity, against the service's compilation unit. Byte-identical to the simple-name check
+            // when the return type's simple name is unique in the tree (the resolver's fast path).
+            if (returnsEntityByKey(source, intent.entityKey())) {
                 candidates.add(new Candidate(method.toBinding(), null,
                         "returns the entity " + intent.entityName() + " directly (section 4.1)"));
                 return;
@@ -351,6 +480,16 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
             } else {
                 nearMisses.add(method.signature() + ": " + result.reason());
             }
+        }
+
+        // Whether the method's return type resolves, by the two-stage resolver against the service's
+        // compilation unit, to the entity with this key (section 4.12.4).
+        private boolean returnsEntityByKey(ServiceMethodSource source, String entityKey) {
+            String returnType = source.declaration().getType().asString();
+            return source.declaration().findCompilationUnit()
+                    .flatMap(cu -> resolver.resolveEntityKey(returnType, cu))
+                    .map(entityKey::equals)
+                    .orElse(false);
         }
     }
 
@@ -428,21 +567,22 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
     // overloads are indistinguishable), and every collection read the phase does not model is a named
     // deferral. The pool is disjoint from by-id discovery, so this only ever adds capabilities.
     private ListReads discoverListReads(RepositoryCatalog repositories,
-                                        List<ServiceMethodSource> serviceSources, List<Entity> entities,
-                                        List<Capability> capabilities) {
-        Set<String> entityNames = new LinkedHashSet<>();
-        for (Entity entity : entities) {
-            entityNames.add(entity.name());
-        }
+                                        List<ServiceMethodSource> serviceSources,
+                                        TypeReferenceResolver resolver, List<Capability> capabilities,
+                                        Map<String, String> displayByKey) {
         ListReadMatcher matcher = new ListReadMatcher(repositories);
 
+        // The element entity is resolved to its key by the matcher (section 4.12.4); grouping by
+        // display name is grouping by identity (display names are globally unique) and keeps the
+        // per-entity iteration in the same alphabetical order as before.
         Map<String, List<ListCandidate>> matchesByEntity = new TreeMap<>();
         List<DeferredListRead> deferrals = new ArrayList<>();
         for (ServiceMethodSource source : serviceSources) {
-            ListReadMatcher.Result result = matcher.evaluate(source, entityNames);
+            ListReadMatcher.Result result = matcher.evaluate(source, resolver);
             switch (result.kind()) {
                 case MATCH -> matchesByEntity
-                        .computeIfAbsent(result.entity(), key -> new ArrayList<>())
+                        .computeIfAbsent(displayByKey.getOrDefault(result.entity(), result.entity()),
+                                key -> new ArrayList<>())
                         .add(new ListCandidate(source.method().toBinding(), result.paged()));
                 case DEFERRED -> deferrals.add(
                         new DeferredListRead(source.method().signature(), result.reason()));
@@ -500,8 +640,10 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
         List<CompilationUnit> units = new ArrayList<>();
         List<ParseSkip> skips = new ArrayList<>();
         for (Path file : javaFilesUnder(sourceRoot)) {
-            try (InputStream in = Files.newInputStream(file)) {
-                ParseResult<CompilationUnit> result = parser.parse(in);
+            try {
+                // Parse from the path (not a stream) so each unit carries its storage: the split-package
+                // check (section 4.12.2, rule 3) needs the declaring source file of each entity key.
+                ParseResult<CompilationUnit> result = parser.parse(file);
                 if (result.isSuccessful() && result.getResult().isPresent()) {
                     units.add(result.getResult().get());
                 } else {
