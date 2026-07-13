@@ -660,3 +660,26 @@ So E6a is inert on erp: there is no unrecognized wrapper return type for it to m
 recognizes nothing new. Forecast (build deferred): byte-identical. Discovered 25 (by-id 16, list 9),
 mis-bound 0, unchanged; visibility gained 0. erp confirms E6a is a pms-idiom phase: it addresses the
 envelope-wrapping style pms uses and erp does not.
+
+---
+
+## 17. Entity Identity forecast (erp-backend, read-only, 2026-07-13)
+
+Phase Entity Identity (Volume 4 section 3.7, Volume 5 section 4.12) adds a qualified `key` to each entity
+and derives the display `name` from it, disambiguating only where simple names collide across bounded
+contexts. This forecasts the phase against erp-backend, before any build.
+
+Collision census: erp-backend is a single-module app of 25 entities with no colliding simple names;
+every `@Entity` simple name is unique. The display-name rule's condition 1 applies to every entity, and
+no entity is renamed. (This is expected: erp is single-module, so the multi-context name reuse that
+motivates the phase does not arise here; erp is the negative control that proves the phase is inert
+where there are no collisions, just as the private enterprise benchmark is the positive case.)
+
+Forecast (build deferred): byte-identical in generated output. Row (projected): discovered 25 (by-id 16,
+list 9), failed 18, partial 13, mis-bound 0, UNCHANGED. Every capability keeps its name and binding; the
+16 GET operations (with 13 partial entity schemas) and the MCP manifest are byte-identical; the survey's
+`collisions resolved` line is omitted (zero). The only change is additive in the serialized IR: each
+extracted entity gains a `key` field, while reference tokens, display names, and the partiality
+disclosures are unchanged, so an IR-serialization golden updates with a visible additive diff and the
+backend goldens stay byte-identical. Any colliding simple name found at build time (this read-only
+census found none) would be a regression finding. mis-bound stays 0.

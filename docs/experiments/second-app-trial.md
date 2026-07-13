@@ -630,3 +630,23 @@ Forecast (build deferred; framed as visibility, not discovery):
   structurally that pms's wrapper reads are all filtered, feeding the E6b decision.
 - Named uncertainty: the roughly 12 is bounded by how many `*ResultSet` reads sit in parseable service
   files (property, lease, billing); firm at build time.
+
+### 8.11 Entity Identity forecast (pms-backend, read-only, 2026-07-13)
+
+Phase Entity Identity (Volume 4 section 3.7, Volume 5 section 4.12) adds a qualified `key` to each entity
+and derives the display `name` from it, disambiguating only where simple names collide across bounded
+contexts. This forecasts the phase against pms-backend, before any build.
+
+Collision census: pms-backend has NO colliding simple names among its 43 entities; every `@Entity`
+simple name is unique across the app. So the display-name rule's condition 1 applies to every entity
+(unique simple name, display equals simple name), and no entity is renamed.
+
+Forecast (build deferred): byte-identical in generated output. Row (projected): discovered 2 (by-id 2,
+list 0), failed 41 (NO_BACKING_METHOD 38, COMPOSITE_KEY 3), skipped-by-parse 27, mis-bound 0, UNCHANGED.
+getUnit and getLease keep their names and bindings exactly; the MCP manifest and the two-operation
+OpenAPI document are byte-identical; the survey's `collisions resolved` line is omitted (zero). The only
+change is additive in the serialized IR: each extracted entity gains a `key` field (its fully-qualified
+class name), while reference tokens and display names are unchanged, so an IR-serialization golden
+updates with a visible additive diff and the backend goldens stay byte-identical. Any colliding simple
+name found at build time (this read-only census found none) would be a regression finding, recorded
+then. mis-bound stays 0.
