@@ -684,3 +684,18 @@ extracted entity gains a `key` field, while reference tokens, display names, and
 disclosures are unchanged, so an IR-serialization golden updates with a visible additive diff and the
 backend goldens stay byte-identical. Any colliding simple name found at build time (this read-only
 census found none) would be a regression finding. mis-bound stays 0.
+
+## 18. Entity Identity actual (erp-backend, built and measured, 2026-07-13)
+
+The phase is built (Volume 5 section 4.12). Re-run against erp-backend, the forecast is confirmed
+exactly. Row (actual): discovered 25 (by-id 16, list 9), failed 9 (NO_IDENTIFIER 1, NO_BACKING_METHOD 6,
+AMBIGUOUS_BINDING 2), list-refused 1 (the ProductCategory list overload), partial 13 (22 fields skipped),
+mis-bound 0, UNCHANGED. The read-only census held: no colliding simple names at build (0 regressions),
+so every entity kept its simple name.
+
+Byte-identical proven, not asserted. The generated output (all 25 MCP tool sources and
+`tibyan/capabilities.json`, and the OpenAPI document) was generated on the current build and on the
+pre-phase commit and compared with `diff -r`: zero differences across all 27 generated files. Every
+get and list capability keeps its name and binding, and every partiality disclosure is unchanged. The
+only change is the additive `key` field on each serialized entity. mis-bound stays 0. erp is the
+negative control confirmed: the phase is inert where there are no collisions.

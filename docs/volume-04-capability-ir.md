@@ -40,7 +40,7 @@ flowchart TD
 ### 3.2 Entity
 | Field | Type | Meaning |
 |---|---|---|
-| key | string | The entity's stable identity: a provider-derived, dot-separated qualified name, unique within the module. For the Spring provider it is the entity class's fully-qualified name. It is what references resolve against and what makes two entities that share a simple name distinct. Added by phase Entity Identity (designed 2026-07-13, pending ratification); see section 3.7 |
+| key | string | The entity's stable identity: a provider-derived, dot-separated qualified name, unique within the module. For the Spring provider it is the entity class's fully-qualified name. It is what references resolve against and what makes two entities that share a simple name distinct. Added by phase Entity Identity (built 2026-07-13); see section 3.7 |
 | name | string | The entity's display name, unique within the model. It is the simple name when that simple name is unique, and a deterministic context-disambiguated name (for example CrmNote) where needed to keep display names unique; a colliding entity may itself retain the bare simple name when its peers disambiguate around it (Volume 5, section 4.12.3, condition 3c). Every consumer surface (capability names, MCP tool names, OpenAPI schema names) derives from this. Semantics refined by phase Entity Identity; see section 3.7 |
 | fields | Field[] | The entity's fields |
 | annotations | Annotation[] | Generic extension hooks |
@@ -80,7 +80,7 @@ flowchart TD
 ### 3.6 Annotation and Metadata
 Annotation is a generic key with values, used as an extension hook so the IR can carry hints without growing new typed fields prematurely. Metadata is free-form key and value data that carries no semantic weight (for example, the source file a thing came from). Neither may smuggle framework concepts into semantics.
 
-### 3.7 Entity identity: qualified key and display name (phase Entity Identity; designed 2026-07-13, pending ratification)
+### 3.7 Entity identity: qualified key and display name (phase Entity Identity; built 2026-07-13)
 
 Status: designed from the private enterprise benchmark, pending ratification. Per rule 12 this frozen design is committed first; the build is a separate later session that begins by committing the ratified design. No matching or keying code is written until this is ratified. The provider-side rule (keying, display-name derivation, reference resolution) is Volume 5, section 4.12; the backend-surface rule is Volume 6, section 3.4.
 
@@ -179,7 +179,7 @@ A validation failure stops the pipeline before any generation, with a located, h
 
 This is the MVP target: one entity, one read-only capability, a binding the runtime resolves to a real method.
 
-Note (Entity Identity, section 3.7, pending ratification): this example predates the `key` field and does not show it. When the phase is built each entity gains a `key` (here it would be `"key": "inventory.Product"`) and `name` becomes the display name (unchanged, `Product`, since it does not collide); the generated backend output stays byte-identical. The field is elided here to keep the example the current built shape.
+Note (Entity Identity, section 3.7, built 2026-07-13): this illustrative example elides the `key` field for brevity. Each entity now carries a `key` (here it would be `"key": "inventory.Product"`), and `name` is the display name (unchanged, `Product`, since it does not collide); the generated backend output is byte-identical to the pre-phase output whenever the simple name does not collide, as here.
 
 ## 7. Future elements (out of MVP scope)
 

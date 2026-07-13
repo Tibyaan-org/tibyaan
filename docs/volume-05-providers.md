@@ -87,7 +87,7 @@ What is still assumed or unsupported, recorded so it is closed deliberately late
 - The capability name is still the `get<Entity>` convention. Only the binding is discovered, not the business name of the capability.
 - The entity's identifier is the first field annotated `@Id`. Composite or non-`@Id` identifiers are out of scope (three join entities in the trial; deliberately unscheduled).
 - Type matching uses the closed primitive set; an id whose type is not in that set (Volume 4, section 4) cannot be matched and is surfaced as an unmapped type.
-- Matching resolves the return type by simple name (condition 3). Phase Entity Identity (section 4.12.4, designed 2026-07-13, pending ratification) supersedes this with key-based resolution, so a colliding simple name resolves to the right entity or refuses loud; the change is byte-identical when the simple name is unique. The same supersession applies to the entity, enum, and list-element type resolution in sections 4.2, 4.4, 4.5, and 4.10.
+- Matching resolves the return type by simple name (condition 3). Phase Entity Identity (section 4.12.4, built 2026-07-13) supersedes this with key-based resolution, so a colliding simple name resolves to the right entity or refuses loud; the change is byte-identical when the simple name is unique. The same supersession applies to the entity, enum, and list-element type resolution in sections 4.2, 4.4, 4.5, and 4.10.
 
 ### 4.2 DTO-aware read discovery (designed 2026-07-02; RATIFIED 2026-07-02 as written)
 
@@ -736,9 +736,9 @@ Stated before the build, framed as visibility, not discovery (full number-by-num
 
 This is the honest close of E6a's design: it is a visibility phase whose expected and correct benchmark result is many newly visible reads, all refused as filtered, and zero new discoveries. It feeds the E6b, human-attested case directly: where a wrapper is opaque and the tool cannot even prove a read exists, a human could assert what it returns, which the tool cannot.
 
-### 4.12 Entity identity: qualified keying and display-name disambiguation (phase Entity Identity; designed 2026-07-13, pending ratification)
+### 4.12 Entity identity: qualified keying and display-name disambiguation (phase Entity Identity; designed and ratified 2026-07-13, built 2026-07-13)
 
-This is the provider-side realization of the identity split ratified in Volume 4, section 3.7: the Spring provider assigns each entity a qualified `key` and derives its display `name` from that key, disambiguating only where simple names collide. It is designed from the private enterprise benchmark, before any code. Per rule 12 the frozen rule is committed first; the build is a separate later session. Until ratification, no keying or display-naming code is written.
+This is the provider-side realization of the identity split ratified in Volume 4, section 3.7: the Spring provider assigns each entity a qualified `key` and derives its display `name` from that key, disambiguating only where simple names collide. It is designed from the private enterprise benchmark. Per rule 12 the frozen rule was committed first and the build followed in a later session, implementing this text exactly. The build is recorded across the three benchmark ledgers (docs/experiments, the Entity Identity `actual` sections): both public benchmarks are byte-identical in generated output (proven by a `diff -r` against the pre-phase commit, zero differences), and the private enterprise benchmark moved from BLOCKED (3 duplicate-name validation errors, no output) to EMITTED (valid, 4 capabilities, both backends generate) with its discovered count unchanged at 4 and mis-bound 0. The fixtures EI-1 to EI-15 (section 4.12.6) are all green.
 
 #### 4.12.1 Evidence (read-only, the private enterprise benchmark)
 

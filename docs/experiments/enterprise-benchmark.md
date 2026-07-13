@@ -57,6 +57,28 @@ their own ledgers; this one is redacted the same way the apps are private, only 
   the difference is BLOCKED before, EMITTED after. Any reader who sees "discovered 4" and calls the phase
   a small win has misread it: the phase turns a totally unusable result into a usable one.
 
+## 4a. Entity Identity actual (BLOCKED to EMITTED, built and measured, 2026-07-13)
+
+The phase is built (Volume 5 section 4.12) and re-run against this benchmark. The forecast is confirmed;
+the transition is measured on both the pre-phase commit and the current build (counts and shapes only,
+the app stays private).
+
+- Pre-phase (measured): 111 entities, 4 discovered, validation FAILED with exactly 3 duplicate-name
+  errors, so NO output was produced. This is BLOCKED, reproduced precisely: the 3 errors are the 3
+  colliding simple names (6 entities) the survey found.
+- Current build (measured): 111 entities, 4 discovered (by-id 4, list 0), failed 107 (NO_IDENTIFIER 10,
+  NO_BACKING_METHOD 96, AMBIGUOUS_BINDING 1), mis-bound 0, validation PASSES, and both backends generate
+  (MCP manifest plus tool sources, and the OpenAPI document rendering all 111 entities as schemas). This
+  is EMITTED. The 3 collisions have cleanly diverging packages, so the batch fixpoint disambiguated them
+  with no residual clash, exactly as forecast; no app-level residual-collision fail-loud occurred.
+- DISCOVERED STAYS 4, confirmed. The phase granted emission and identity, not discovery. Of the 4
+  discovered reads, 2 are entity-returning (section 4.1) and 2 are view-returning (section 4.2); both
+  key-resolution paths were exercised on the real app, and the tool's mis-bound counter is 0.
+- mis-bound 0 hand-verified. Each discovered binding resolves its return type (or its load repository's
+  entity) to the intent entity by key, so a wrong binding is structurally impossible; the EI-6 fixture
+  proves the same guard in isolation (a finder of one context's entity never binds the other). The latent
+  simple-name-collapse mis-bind is removed: two distinct same-named entities can no longer merge.
+
 ## 5. What this benchmark ranked next (counts and shapes only), recorded for the roadmap
 
 This app produced the evidence that ranked the post-v1 build order (Volume 13). Recorded here as counts

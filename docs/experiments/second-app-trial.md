@@ -650,3 +650,17 @@ class name), while reference tokens and display names are unchanged, so an IR-se
 updates with a visible additive diff and the backend goldens stay byte-identical. Any colliding simple
 name found at build time (this read-only census found none) would be a regression finding, recorded
 then. mis-bound stays 0.
+
+### 8.12 Entity Identity actual (pms-backend, built and measured, 2026-07-13)
+
+The phase is built (Volume 5 section 4.12). Re-run against pms-backend, the forecast is confirmed
+exactly. Row (actual): discovered 2 (by-id 2, list 0), failed 41 (NO_BACKING_METHOD 38, COMPOSITE_KEY 3),
+list-refused 0, skipped-by-parse 27, partial 0, mis-bound 0, UNCHANGED. The 3 deferred list reads are
+unchanged. The read-only census held: no colliding simple names were found at build (0 regressions), so
+every entity kept its simple name as its display name.
+
+Byte-identical proven, not asserted. The generated output (the MCP tool sources and
+`tibyan/capabilities.json`, and the OpenAPI document) was generated on the current build and on the
+pre-phase commit (parent of the first Entity Identity commit) and compared with `diff -r`: zero
+differences. getUnit and getLease keep their names and bindings exactly. The only change is the additive
+`key` field now carried on each serialized entity. mis-bound stays 0.
