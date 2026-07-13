@@ -27,6 +27,7 @@ public final class SampleModels {
     public static CapabilityModel inventory() {
         Entity product = new Entity(
                 "Product",
+                "Product",
                 List.of(
                         Field.of("id", Primitive.LONG, false),
                         Field.of("name", Primitive.STRING, false),

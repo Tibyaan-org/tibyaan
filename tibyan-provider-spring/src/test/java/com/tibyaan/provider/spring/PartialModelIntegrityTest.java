@@ -124,12 +124,12 @@ class PartialModelIntegrityTest {
 
     @Test
     void g1_closureDropsAReferenceToAnAbsentEntityAndDiscloses() {
-        Entity a = new Entity("A", List.of(
+        Entity a = new Entity("A", "A", List.of(
                 new Field("toAbsent", Type.entityRef("Missing"), false, List.of()),
                 new Field("toPresent", Type.entityRef("Present"), false, List.of()),
                 new Field("name", Primitive.STRING, false, List.of())),
                 List.of(), Metadata.empty());
-        Entity present = new Entity("Present",
+        Entity present = new Entity("Present", "Present",
                 List.of(new Field("id", Primitive.LONG, false, List.of())), List.of(), Metadata.empty());
         List<Relation> relations = List.of(
                 new Relation("A", "Missing", RelationKind.MANY_TO_ONE),
@@ -160,7 +160,7 @@ class PartialModelIntegrityTest {
     @Test
     void g2_capabilityOutputIsNeverTouchedByClosure() {
         // Condition 4: closure never drops or alters a capability's output or binding.
-        Entity a = new Entity("A",
+        Entity a = new Entity("A", "A",
                 List.of(new Field("toAbsent", Type.entityRef("Missing"), false, List.of())),
                 List.of(), Metadata.empty());
         List<EntityOutcome> outcomes = List.of(EntityOutcome.discovered("A", "getA"));

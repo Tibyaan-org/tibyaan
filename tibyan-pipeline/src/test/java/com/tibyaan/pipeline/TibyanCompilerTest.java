@@ -77,7 +77,7 @@ class TibyanCompilerTest {
     }
 
     private static CapabilityModel validModel() {
-        Entity product = new Entity("Product",
+        Entity product = new Entity("Product", "Product",
                 List.of(Field.of("id", Primitive.LONG, false)), List.of(), Metadata.empty());
         Map<String, Type> inputs = new LinkedHashMap<>();
         inputs.put("id", Primitive.LONG);

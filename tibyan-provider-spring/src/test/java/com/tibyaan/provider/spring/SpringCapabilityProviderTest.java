@@ -74,6 +74,7 @@ class SpringCapabilityProviderTest {
     // its fields, and the read only capability are identical.
     private static CapabilityModel expectedModel() {
         Entity product = new Entity(
+                "com.tibyaan.examples.legacy.Product",
                 "Product",
                 List.of(
                         Field.of("id", Primitive.LONG, false),

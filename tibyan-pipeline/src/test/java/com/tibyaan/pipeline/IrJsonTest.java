@@ -65,7 +65,7 @@ class IrJsonTest {
     }
 
     private static CapabilityModel e3Model() {
-        Entity person = new Entity("Person",
+        Entity person = new Entity("Person", "Person",
                 List.of(
                         Field.of("id", Primitive.LONG, false),
                         new Field("rating", Primitive.FLOAT, false, List.of()),
@@ -73,7 +73,7 @@ class IrJsonTest {
                                 List.of(new Annotation("enum", List.of("ACTIVE", "INACTIVE")))),
                         Field.of("employer", Type.entityRef("Company"), true)),
                 List.of(), Metadata.empty());
-        Entity company = new Entity("Company",
+        Entity company = new Entity("Company", "Company",
                 List.of(Field.of("id", Primitive.LONG, false)), List.of(), Metadata.empty());
         return new CapabilityModel("assoc", "0.1",
                 List.of(person, company), List.of(),
@@ -82,7 +82,7 @@ class IrJsonTest {
     }
 
     private static CapabilityModel productModel() {
-        Entity product = new Entity("Product",
+        Entity product = new Entity("Product", "Product",
                 List.of(
                         Field.of("id", Primitive.LONG, false),
                         Field.of("name", Primitive.STRING, false),

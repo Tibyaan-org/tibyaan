@@ -30,18 +30,33 @@ class SemanticValidatorTest {
     }
 
     @Test
-    void duplicateEntityNameIsReported() {
+    void duplicateEntityKeyIsReported() {
+        // Entity Identity (Volume 4 rule 1): two entities with the same qualified key are a genuine
+        // duplicate. Entity.of(name, fields) sets key = name, so two "Product" entities collide on key.
         CapabilityModel model = new CapabilityModel("m", "0.1",
                 List.of(Entity.of("Product", List.of()), Entity.of("Product", List.of())),
                 List.of(), List.of(), Metadata.empty());
 
         assertThat(validator.validate(model).errors())
-                .anyMatch(e -> e.contains("duplicate entity name") && e.contains("Product"));
+                .anyMatch(e -> e.contains("duplicate entity key") && e.contains("Product"));
+    }
+
+    @Test
+    void duplicateEntityDisplayNameIsReported() {
+        // Entity Identity (Volume 4 rule 1): two DISTINCT keys resolving to the same display name must
+        // fail loud in core, independent of any provider (the surface-safety check).
+        CapabilityModel model = new CapabilityModel("m", "0.1",
+                List.of(Entity.of("a.Product", "Product", List.of()),
+                        Entity.of("b.Product", "Product", List.of())),
+                List.of(), List.of(), Metadata.empty());
+
+        assertThat(validator.validate(model).errors())
+                .anyMatch(e -> e.contains("duplicate entity display name") && e.contains("Product"));
     }
 
     @Test
     void duplicateFieldNameWithinAnEntityIsReported() {
-        Entity entity = new Entity("Product", List.of(
+        Entity entity = new Entity("Product", "Product", List.of(
                 Field.of("id", Primitive.LONG, false),
                 Field.of("id", Primitive.STRING, false)), List.of(), Metadata.empty());
         CapabilityModel model = new CapabilityModel("m", "0.1",
@@ -64,8 +79,23 @@ class SemanticValidatorTest {
     }
 
     @Test
+    void duplicateBindingStringIsReported() {
+        // Entity Identity (Volume 4 rule 7): two capabilities carrying the same binding string fail
+        // loud, so an unprovable binding is refused rather than shipped as a possible runtime mis-bind.
+        Capability a = Capability.read("getCrmNote", Map.of(), Primitive.LONG,
+                new BindingRef("NoteService#findById"));
+        Capability b = Capability.read("getSupportNote", Map.of(), Primitive.LONG,
+                new BindingRef("NoteService#findById"));
+        CapabilityModel model = new CapabilityModel("m", "0.1",
+                List.of(), List.of(a, b), List.of(), Metadata.empty());
+
+        assertThat(validator.validate(model).errors())
+                .anyMatch(e -> e.contains("duplicate binding") && e.contains("NoteService#findById"));
+    }
+
+    @Test
     void unresolvedEntityReferenceInAFieldIsReported() {
-        Entity entity = new Entity("Order", List.of(
+        Entity entity = new Entity("Order", "Order", List.of(
                 Field.of("product", Type.entityRef("Ghost"), false)), List.of(), Metadata.empty());
         CapabilityModel model = new CapabilityModel("m", "0.1",
                 List.of(entity), List.of(), List.of(), Metadata.empty());

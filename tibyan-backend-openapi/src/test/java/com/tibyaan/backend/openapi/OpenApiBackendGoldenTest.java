@@ -86,7 +86,7 @@ class OpenApiBackendGoldenTest {
 
     // The legacy example app, an entity-returning read of a complete entity.
     private static CapabilityModel completeIr() {
-        Entity product = new Entity("Product", List.of(
+        Entity product = new Entity("Product", "Product", List.of(
                 Field.of("id", Primitive.LONG, false),
                 Field.of("name", Primitive.STRING, false),
                 Field.of("price", Primitive.DECIMAL, false)),
@@ -99,7 +99,7 @@ class OpenApiBackendGoldenTest {
 
     // A view-returning read: the schema must decline to enumerate the view's fields.
     private static CapabilityModel viewIr() {
-        Entity unit = new Entity("Unit", List.of(Field.of("id", Primitive.LONG, false)),
+        Entity unit = new Entity("Unit", "Unit", List.of(Field.of("id", Primitive.LONG, false)),
                 List.of(), Metadata.empty());
         Capability getUnit = new Capability("getUnit", CapabilityKind.READ, inputs("id", Primitive.LONG),
                 Type.entityRef("Unit"), false, true, new BindingRef("UnitServiceImpl#findById"),
@@ -110,7 +110,7 @@ class OpenApiBackendGoldenTest {
 
     // A partial entity: two modeled fields, two skipped, disclosed via the partial annotation.
     private static CapabilityModel partialIr() {
-        Entity gizmo = new Entity("Gizmo", List.of(
+        Entity gizmo = new Entity("Gizmo", "Gizmo", List.of(
                 Field.of("id", Primitive.UUID, false),
                 Field.of("name", Primitive.STRING, false)),
                 List.of(new Annotation("partial", List.of("parts", "tags"))), Metadata.empty());
@@ -123,9 +123,9 @@ class OpenApiBackendGoldenTest {
     // Every primitive, an enum field, a nullable field, and an entity reference to a second entity.
     private static CapabilityModel typesIr() {
         Map<String, Type> fields = new LinkedHashMap<>();
-        Entity kind = new Entity("Kind", List.of(Field.of("id", Primitive.UUID, false)),
+        Entity kind = new Entity("Kind", "Kind", List.of(Field.of("id", Primitive.UUID, false)),
                 List.of(), Metadata.empty());
-        Entity sample = new Entity("Sample", List.of(
+        Entity sample = new Entity("Sample", "Sample", List.of(
                 Field.of("id", Primitive.UUID, false),
                 Field.of("name", Primitive.STRING, false),
                 Field.of("count", Primitive.INTEGER, false),
@@ -148,7 +148,7 @@ class OpenApiBackendGoldenTest {
     // A paged list read: the 200 response is an array whose items are the element entity's component,
     // with the x-tibyan-paged disclosure (Volume 6 section 4.2).
     private static CapabilityModel listIr() {
-        Entity contact = new Entity("Contact", List.of(
+        Entity contact = new Entity("Contact", "Contact", List.of(
                 Field.of("id", Primitive.UUID, false),
                 Field.of("name", Primitive.STRING, false)),
                 List.of(), Metadata.empty());

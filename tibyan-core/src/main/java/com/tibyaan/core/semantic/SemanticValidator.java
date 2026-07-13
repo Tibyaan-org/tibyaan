@@ -10,6 +10,7 @@ import com.tibyaan.core.ir.Relation;
 import com.tibyaan.core.ir.Type;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -37,8 +38,9 @@ public final class SemanticValidator {
         List<String> errors = new ArrayList<>();
         Set<String> entityNames = collectEntityNames(model);
 
-        checkEntityAndFieldNames(model, errors);
+        checkEntityIdentity(model, errors);
         checkCapabilityNames(model, errors);
+        checkBindingUniqueness(model, errors);
         checkTypeReferences(model, entityNames, errors);
         checkRelations(model, entityNames, errors);
         checkReadOnlyKind(model, errors);
@@ -62,12 +64,23 @@ public final class SemanticValidator {
         return names;
     }
 
-    // Rule 1: entity names unique within the module, field names unique within an entity.
-    private static void checkEntityAndFieldNames(CapabilityModel model, List<String> errors) {
-        Set<String> seenEntities = new HashSet<>();
+    // Rule 1 (Volume 4 section 5, phase Entity Identity): entity KEYS unique within the model (the
+    // identity check: two entities with the same qualified key are a genuine duplicate and fail loud),
+    // entity DISPLAY NAMES unique within the model (the surface-safety check, enforced independently of
+    // any provider so a residual display collision fails loud here rather than shipping a duplicate tool
+    // or schema), and field names unique within an entity.
+    private static void checkEntityIdentity(CapabilityModel model, List<String> errors) {
+        Set<String> seenKeys = new HashSet<>();
+        Set<String> seenNames = new HashSet<>();
         for (Entity entity : model.entities()) {
-            if (!seenEntities.add(entity.name())) {
-                errors.add("duplicate entity name: '" + entity.name() + "'");
+            if (!seenKeys.add(entity.key())) {
+                errors.add("duplicate entity key: '" + entity.key()
+                        + "' (two entities share this qualified identity, a genuine duplicate)");
+            }
+            if (!seenNames.add(entity.name())) {
+                errors.add("duplicate entity display name: '" + entity.name()
+                        + "' (two distinct entities resolved to the same display name; the display-naming"
+                        + " rule must disambiguate them, Volume 5 section 4.12.3)");
             }
             Set<String> seenFields = new HashSet<>();
             for (Field field : entity.fields()) {
@@ -75,6 +88,23 @@ public final class SemanticValidator {
                     errors.add("entity '" + entity.name() + "': duplicate field name '"
                             + field.name() + "'");
                 }
+            }
+        }
+    }
+
+    // Rule 7 (Volume 4 section 5, phase Entity Identity; Volume 5 section 4.12.4): binding strings are
+    // unique across emitted capabilities, so an unprovable binding (for example two same-simple-name
+    // @Service classes both yielding OfferService#findById) is refused rather than shipped as a possible
+    // runtime mis-bind. Enforced in core, provable-or-refuse, regardless of provider.
+    private static void checkBindingUniqueness(CapabilityModel model, List<String> errors) {
+        Map<String, String> seen = new HashMap<>();
+        for (Capability capability : model.capabilities()) {
+            String binding = capability.binding().value();
+            String prior = seen.putIfAbsent(binding, capability.name());
+            if (prior != null) {
+                errors.add("duplicate binding '" + binding + "' on capabilities '" + prior + "' and '"
+                        + capability.name() + "' (a binding must be unique across emitted capabilities,"
+                        + " Volume 4 section 5 rule 7)");
             }
         }
     }

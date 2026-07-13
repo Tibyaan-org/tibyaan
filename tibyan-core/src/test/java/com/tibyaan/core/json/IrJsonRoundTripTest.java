@@ -62,7 +62,7 @@ class IrJsonRoundTripTest {
 
     @Test
     void listCapabilityWithOutputMultipleValidatesAndRoundTrips() throws Exception {
-        Entity contact = new Entity("Contact",
+        Entity contact = new Entity("Contact", "Contact",
                 List.of(Field.of("id", Primitive.UUID, false)), List.of(), Metadata.empty());
         Capability listContact = Capability.readList("listContact", Map.of(), Type.entityRef("Contact"),
                 new BindingRef("ContactService#findAll"), List.of(Annotation.flag("paged")));

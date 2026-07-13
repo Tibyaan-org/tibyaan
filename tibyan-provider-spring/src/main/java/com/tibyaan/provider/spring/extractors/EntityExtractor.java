@@ -80,6 +80,11 @@ public final class EntityExtractor {
      */
     public ExtractedEntity extractEntity(ClassOrInterfaceDeclaration type, TypeRegistry registry) {
         String entityName = type.getNameAsString();
+        // Phase Entity Identity (Volume 5 section 4.12.2): the entity's stable identity is its
+        // fully-qualified class name (the canonical FQCN including any enclosing type). The display
+        // name starts as the simple name; the provider's batch fixpoint (section 4.12.3) refines it
+        // to a disambiguated name only where a simple name collides across the model.
+        String key = type.getFullyQualifiedName().orElse(entityName);
         List<Field> fields = new ArrayList<>();
         List<Relation> relations = new ArrayList<>();
         List<SkippedField> skipped = new ArrayList<>();
@@ -93,7 +98,7 @@ public final class EntityExtractor {
             }
         }
         return new ExtractedEntity(
-                new Entity(entityName, fields, List.of(), Metadata.empty()), relations, skipped);
+                new Entity(key, entityName, fields, List.of(), Metadata.empty()), relations, skipped);
     }
 
     // One field to IR (sections 4.4, 4.5, 4.6), or a skip with a located note (section 4.8). Order:

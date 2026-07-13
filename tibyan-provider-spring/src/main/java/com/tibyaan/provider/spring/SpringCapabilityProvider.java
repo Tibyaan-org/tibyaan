@@ -211,7 +211,8 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
             List<Annotation> annotations = partialFields.isEmpty()
                     ? List.of()
                     : List.of(new Annotation("partial", partialFields));
-            closedEntities.add(new Entity(entity.name(), keptFields, annotations, entity.metadata()));
+            closedEntities.add(new Entity(entity.key(), entity.name(), keptFields, annotations,
+                    entity.metadata()));
         }
 
         List<Relation> closedRelations = new ArrayList<>();

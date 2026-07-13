@@ -111,6 +111,7 @@ class McpBackendGoldenTest {
     private static CapabilityModel productIr() {
         Entity product = new Entity(
                 "Product",
+                "Product",
                 List.of(
                         Field.of("id", Primitive.LONG, false),
                         Field.of("name", Primitive.STRING, false),
@@ -136,6 +137,7 @@ class McpBackendGoldenTest {
     // capability carries the view annotation the provider attaches (Volume 5 section 4.2.5).
     private static CapabilityModel viewIr() {
         Entity unit = new Entity(
+                "Unit",
                 "Unit",
                 List.of(Field.of("id", Primitive.LONG, false)),
                 List.of(),
@@ -163,6 +165,7 @@ class McpBackendGoldenTest {
     // true and the paged annotation (Volume 5 section 4.10; Volume 6 section 3.3).
     private static CapabilityModel listIr() {
         Entity contact = new Entity(
+                "Contact",
                 "Contact",
                 List.of(Field.of("id", Primitive.UUID, false)),
                 List.of(),
