@@ -735,6 +735,63 @@ Stated before the build, framed as visibility, not discovery (full number-by-num
 
 This is the honest close of E6a's design: it is a visibility phase whose expected and correct benchmark result is many newly visible reads, all refused as filtered, and zero new discoveries. It feeds the E6b, human-attested case directly: where a wrapper is opaque and the tool cannot even prove a read exists, a human could assert what it returns, which the tool cannot.
 
+### 4.12 Entity identity: qualified keying and display-name disambiguation (phase Entity Identity; designed 2026-07-13, pending ratification)
+
+This is the provider-side realization of the identity split ratified in Volume 4, section 3.7: the Spring provider assigns each entity a qualified `key` and derives its display `name` from that key, disambiguating only where simple names collide. It is designed from the private enterprise benchmark, before any code. Per rule 12 the frozen rule is committed first; the build is a separate later session. Until ratification, no keying or display-naming code is written.
+
+#### 4.12.1 Evidence (read-only, the private enterprise benchmark)
+
+A real multi-module, bounded-context Spring application was surveyed (structural counts only, the app is private): 169 Maven modules, 111 `@Entity` classes, 158 `@Service` classes, parsed clean (0 skipped by parse). Three simple names collided across six entities: each colliding name is declared by two distinct entity classes, in two distinct modules, mapped to two distinct database tables. In generic terms, an `Offer` in an ordering context and a different `Offer` in a discount context, distinct classes with distinct fields and distinct tables. The tool keyed entities by simple name (the original `name` field, Volume 4 rule 1), so it saw three duplicate names, failed validation, and wrote no IR: no MCP server, no OpenAPI document, nothing, for the entire application. This is the only total, output-blocking failure the benchmark surfaced. Crucially it is not a discovery gap and not a mis-bind: the survey still classified all 111 entities correctly (4 discovered, 107 refused, mis-bound 0), and fail-loud caught the collision rather than merging the two entities. But nothing could be emitted, which gates every other improvement.
+
+#### 4.12.2 The keying rule
+
+Every `@Entity` E gets a `key`: its fully-qualified class name, package plus simple name, dot-separated, exactly as the source declares it. It is the entity's identity.
+
+1. The IR field is neutral (Volume 4, section 3.7): a provider-unique qualified string. The Spring provider derives it from the Java fully-qualified class name, which JavaParser already resolves from the package declaration and the class name. No normalization beyond that: no generics (an entity is a plain class), no array marks, no case folding. A future provider derives its own qualified identity (a database provider: schema plus table).
+2. Genuine-duplicate check (identity): two entities with the same `key` are the same source class seen twice. That is a real error, and it fails loud with a located message naming the key and both source files, exactly as the pre-phase rule failed on a duplicate name. Keying by qualified name does not weaken this; it narrows it to real duplicates.
+3. A collision of simple names with distinct keys (the benchmark's case) is not a duplicate. The two entities are distinct, both retained, and disambiguated for display by section 4.12.3.
+
+#### 4.12.3 The display-name rule (the heart)
+
+The display `name` is what every consumer surface derives from (the capability name `get<name>`, the MCP tool name, the OpenAPI schema and path, Volume 6, section 3.4). It must stay the clean simple name wherever it can, and disambiguate readably and deterministically where it cannot.
+
+1. Unique simple name: if E's simple name is unique across the model, its display `name` is exactly that simple name. No prefix, no change. This is the hard no-regression clause: a single-context application, and both public benchmarks (pms-backend, erp-backend), have no colliding simple names, so every entity keeps its simple name and every generated surface is byte-identical to today. The build verifies this against the existing goldens.
+2. Colliding simple name: if a simple name S is shared by two or more entities with distinct keys, each of those entities gets a context-disambiguated display name derived structurally from its key. The derivation:
+   a. Take the colliding set's keys and split each into its dotted segments (package segments then the simple name). Compute the longest common leading prefix of the package segments across the whole set and discard it: the disambiguator lives in the segments where the keys diverge.
+   b. For each colliding entity, prepend the minimal number of its own leading diverging package segments needed to make its display name distinct from every other collider's, each segment PascalCased, in package order, immediately before S. Two colliders always differ at their first diverging segment, so the usual result is one segment each.
+   c. Worked example. Keys `example.order.model.entity.Offer` and `example.discount.model.entity.Offer` share the leading segment `example`; the first diverging segments are `order` and `discount`. Each needs one segment, so the display names are `OrderOffer` and `DiscountOffer`. The capabilities become `getOrderOffer` and `getDiscountOffer`; the OpenAPI components become `OrderOffer` and `DiscountOffer`. Nothing else in the model is touched.
+   d. Deeper divergence. If two colliders share their first diverging segment (only possible with three or more colliders, or deeper package nesting), each of those two prepends its next diverging segment too, minimally, until distinct: `example.sales.retail...Order` and `example.sales.wholesale...Order` yield `RetailOrder` and `WholesaleOrder`; a three-way collision where two share a segment yields, for those two, two-segment prefixes and, for the third, its distinguishing one-segment prefix. The expansion is per-entity and minimal.
+3. Determinism and stability. A display name is a pure function of the entity's own key and the set of colliding keys, so the same source yields the same names on every run: golden-stable. It is order-independent (it does not depend on scan order). Honest stability note: adding or removing a colliding entity can change the disambiguated names of its collision peers (a visible, golden-caught diff), because the common prefix or the required depth can shift; it never affects any non-colliding entity or any entity whose simple name is unique. Determinism is per model, which is what golden tests check.
+4. Never a numeric suffix. `Offer_2`, `Offer1` and the like are rejected: they are unreadable to an agent, unstable (they depend on scan order), and carry no structural meaning. The disambiguator is always the structural context (a package segment), which is a real, stable fact about where the entity lives. The trade is deliberate: a structural prefix may not be the prettiest business noun (`product` where a human might have written `discount`), but it is honest, deterministic, and readable, which a suffix is not.
+5. Never rename a non-colliding entity. Only entities whose simple name actually collides receive a prefix. Everything else keeps its simple name unconditionally.
+6. The failure boundary, stated so no fragile heuristic is invented. Because the keys of two distinct colliders differ, walking their diverging package segments always reaches a distinguishing segment, so the minimal-expansion rule always terminates with distinct display names for distinct keys. The only case where it cannot produce distinct names is when two keys are identical, and that is a genuine duplicate, already failed loud by the keying rule (section 4.12.2, condition 2) before display derivation runs. So there is no pathological display-collision case handled by guesswork: distinct keys always disambiguate, identical keys always fail loud. This is the clean, decidable boundary.
+
+#### 4.12.4 Reference resolution across contexts
+
+`ENTITY_REF` fields, `Relation` endpoints, and a capability's entity output carry the entity's display `name` (Volume 4, sections 3.5, 4, and 3.7), which is unique, so their shape does not change. The provider resolves references by key while building the IR:
+
+1. When the Entity extractor maps a source field or a service return whose type is entity-typed, it resolves that Java type to a single in-tree entity by its fully-qualified name (through the existing `TypeRegistry` and the compilation unit's imports, section 4.4), then emits that entity's display `name` in the `ENTITY_REF`. In the single-context case the resolved name is the simple name, so the reference token is byte-identical to today.
+2. Unambiguous cross-context reference: a field typed `Offer` in the ordering context, whose import or fully-qualified type resolves to the ordering `Offer`'s key, becomes `ENTITY_REF(OrderOffer)`, the correct disambiguated entity. It never resolves to the discount `Offer`.
+3. Ambiguous reference: if a source reference cannot be resolved to exactly one in-tree entity key, for example a raw unqualified `Offer` with no import that could match either key, the provider refuses loud, naming the field and the candidate keys, and forms no reference. It never picks a default, never guesses which context was meant. This is the never-guess bar applied to references, the same posture section 4.1 takes for bindings.
+
+#### 4.12.5 What this rule will never do
+
+It never renames a uniquely-named entity; it never emits a numeric or scan-order-dependent disambiguator; it never merges two distinct keys into one entity (the latent mis-bind this phase removes); it never resolves an ambiguous cross-context reference by guessing; and it grants no discovery, it changes identity and display only. The discovery-gap rules that would raise the discovered count on this class of app (the private-helper hop, the interface-to-implementation resolution, the inherited `@Id`) are a separate, evidence-ranked phase (Volume 13), explicitly not in this one.
+
+#### 4.12.6 Pre-registered fixtures (EI-1 to EI-7)
+
+- EI-1 (the happy path): two entities with the same simple name `Offer` in different packages (distinct keys), each with a clean by-id read; both discover, producing distinct readable capabilities `getOrderOffer` and `getDiscountOffer` and distinct OpenAPI components `OrderOffer` and `DiscountOffer`.
+- EI-2 (no regression): a single-context model with no collisions; every entity keeps its simple name, and the generated MCP manifest and OpenAPI are byte-identical to the pre-phase output (`getProduct`, component `Product`).
+- EI-3 (identity guard): the same qualified key declared twice; validation still fails loud with a located message naming the key, exactly as a duplicate name did before.
+- EI-4 (unambiguous cross-context reference): a field typed `Offer` in the ordering context, imported from the ordering package, resolves to `ENTITY_REF(OrderOffer)`, never to the discount `Offer`.
+- EI-5 (ambiguous reference refuses): a reference that cannot be resolved to exactly one entity key is refused loud, naming the candidate keys; no reference is formed and nothing is guessed.
+- EI-6 (mis-bound guard): two distinct same-named entities never merge; each `get<name>` binds to its own entity's method against its own key, and neither capability's binding or output points at the other entity.
+- EI-7 (deeper-divergence disambiguation): three entities share a simple name, two of them sharing their first diverging package segment; per-entity minimal expansion produces three distinct, readable, structurally-derived names with no numeric suffix.
+
+#### 4.12.7 Forecast
+
+The three-benchmark forecast, number by number, is in the ledgers (docs/experiments/second-app-trial.md and third-app-trial.md, the Entity Identity forecast sections; the private benchmark by structural counts and shapes only). In summary: both public benchmarks are byte-identical in generated output (no collisions in them; any collision found at build time is a regression finding), and the private enterprise benchmark moves from IR-BLOCKED to IR-EMITTED with its discovered count unchanged, because raising that count is the separate discovery-gap phase, not this one. This phase's win is that the tool can emit output for a real multi-module application at all.
+
 ## 5. Future providers
 
 | Provider | Source | Why it matters |
