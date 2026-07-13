@@ -3,7 +3,7 @@
 Privacy (absolute, permanent, this and every future session): this is a real, large, multi-module Spring
 application, adopted 2026-07-12 as a permanent third benchmark, the first external-adopter-scale app. It
 is PRIVATE. This ledger records ONLY structural counts and shape categories, never the application's
-name, domain, module names, entity names, or any code. Generic names (OrderOffer, DiscountOffer) stand in
+name, domain, module names, entity names, or any code. Generic names (CrmNote, SupportNote) stand in
 for real entities where an example is needed. The two earlier benchmarks (pms-backend, erp-backend) have
 their own ledgers; this one is redacted the same way the apps are private, only more strictly.
 
@@ -32,8 +32,8 @@ their own ledgers; this one is redacted the same way the apps are private, only 
 
 - 3 simple names collide, each declared by 2 distinct entity classes, in 2 distinct modules, mapped to 2
   distinct tables: 6 entities of 111. Every collision is legitimate bounded-context reuse (distinct fields,
-  distinct tables, distinct meaning), not an accidental duplicate. Generic illustration: an `Offer` in an
-  ordering context and a different `Offer` in a discount context.
+  distinct tables, distinct meaning), not an accidental duplicate. Generic illustration: a `Note` in a
+  crm context and a different `Note` in a support context.
 - This is the evidence for phase Entity Identity (Volume 4 section 3.7, Volume 5 section 4.12). It is not
   a discovery gap and not a mis-bind: the survey classified all 111 entities correctly with mis-bound 0;
   simple-name keying simply cannot represent the model, so nothing is emitted.
@@ -41,8 +41,8 @@ their own ledgers; this one is redacted the same way the apps are private, only 
 ## 4. Entity Identity forecast (BLOCKED to EMITTED)
 
 - With phase Entity Identity, the 3 colliding simple names (6 entities) receive deterministic
-  disambiguated display names derived from structural package context (generically OrderOffer and
-  DiscountOffer), so both validation rules pass, the IR writes, and both backends generate.
+  disambiguated display names derived from structural package context (generically CrmNote and
+  SupportNote), so both validation rules pass, the IR writes, and both backends generate.
 - Row (projected): IR moves from BLOCKED to EMITTED. DISCOVERED STAYS 4. This phase grants identity and
   emission, NOT discovery: raising the discovered count is the separate, ranked-second discovery-gap
   phase. So this is not a coverage win. The win is that the tool can emit output for a real multi-module
