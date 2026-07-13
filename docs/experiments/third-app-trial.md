@@ -676,7 +676,8 @@ motivates the phase does not arise here; erp is the negative control that proves
 where there are no collisions, just as the private enterprise benchmark is the positive case.)
 
 Forecast (build deferred): byte-identical in generated output. Row (projected): discovered 25 (by-id 16,
-list 9), failed 18, partial 13, mis-bound 0, UNCHANGED. Every capability keeps its name and binding; the
+list 9), failed 9, list-refused 1, partial 13, mis-bound 0, UNCHANGED (25 entities = 16 by-id discovered +
+9 by-id failed; the stale "failed 18" was the pre-E3/E4 first-run number). Every capability keeps its name and binding; the
 16 GET operations (with 13 partial entity schemas) and the MCP manifest are byte-identical; the survey's
 `collisions resolved` line is omitted (zero). The only change is additive in the serialized IR: each
 extracted entity gains a `key` field, while reference tokens, display names, and the partiality
