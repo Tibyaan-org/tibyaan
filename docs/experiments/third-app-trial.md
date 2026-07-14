@@ -718,3 +718,22 @@ Forecast (build deferred): byte-identical. Row (projected): discovered 25 (by-id
 list-refused 1, partial 13, mis-bound 0, UNCHANGED. Every capability keeps its name and binding; the MCP
 manifest and OpenAPI document are byte-identical. Any occurrence of one of these shapes at build would be
 a finding. mis-bound stays 0.
+
+## 20. Discovery-Gap actual (erp-backend, built and measured, 2026-07-13)
+
+The phase is built, general scope only (Volume 5, section 4.13). Re-run against erp-backend, the forecast
+is confirmed exactly. Row (actual): discovered 25 (by-id 16, list 9), failed 9 (NO_IDENTIFIER 1,
+NO_BACKING_METHOD 6, AMBIGUOUS_BINDING 2), list-refused 1, partial 13 (22 fields skipped), mis-bound 0,
+UNCHANGED.
+
+The read-only census held: erp-backend exhibits none of the three shapes. All 25 entities declare a direct
+`@Id` and none uses `extends`, so the inherited-`@Id` walk is never entered; reads load directly in the
+public body, so the helper hop is never entered. erp is the negative control confirmed for this phase as
+it was for Entity Identity: the general rules are inert where the shapes are absent. Notably its one
+remaining NO_IDENTIFIER entity stays NO_IDENTIFIER (it declares no `@Id` and extends nothing, so there is
+no ancestor to inherit from), which is the correct outcome and a useful guard that the walk does not
+invent an identifier.
+
+Byte-identical proven, not asserted: all 25 generated MCP tool sources, `tibyan/capabilities.json`, and
+the OpenAPI document were generated on the current build and on the pre-build commit and compared with
+`diff -r`: zero differences. mis-bound stays 0.

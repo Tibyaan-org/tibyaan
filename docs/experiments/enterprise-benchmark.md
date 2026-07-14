@@ -183,3 +183,38 @@ a foundation-heavy codebase: the general structural rules are correct but inert 
 user-facing coverage lives in Attestation (the guarded and aggregate reads), not in more discovery rules.
 The build is deferred on the P1b precedent (a rule ratified for its boundary, built when an app exists on
 which it discovers).
+
+## 6.4 Discovery-Gap actual (built and measured, 2026-07-13, counts and shapes only)
+
+The phase was built, general scope only (the human elected to build rather than defer; the rules are
+unchanged). The forecast held to the number.
+
+- Row (actual): discovered 4 (by-id 4, list 0), UNCHANGED, exactly as forecast. Failed 107, now
+  NO_BACKING_METHOD 106 and AMBIGUOUS_BINDING 1, with NO_IDENTIFIER 0. mis-bound 0. The forecast cause
+  relabel is confirmed to the number: NO_IDENTIFIER 10 to 0, NO_BACKING_METHOD 96 to 106.
+- Inherited `@Id` fired on all 10 and resolved all 10: every one of the 10 entities that had been reported
+  NO_IDENTIFIER inherits a single, readable, in-tree `@Id`, so each now forms a read intent. None of the
+  three refusals was needed (no not-in-tree parent, no inherited composite key, no ambiguous hierarchy),
+  which confirms the census. All 10 then failed NO_BACKING_METHOD, because they are internal
+  polymorphic-subtype rows with no by-id read. The rule is now telling the truth about them (they have an
+  identifier; what they lack is a read) instead of wrongly reporting that they have no identifier. It
+  discovered nothing, exactly as forecast.
+- The private-helper hop fired on all 3 true hops and refused all 3: each was reached through the private
+  helper and refused on its post-load soft-delete guard, with the extra-statement message. This is the
+  designed outcome, verified live: the guard, not the hop, is the ceiling. It discovered nothing, exactly
+  as forecast.
+- The foundation-specific gaps stay refused. Nothing in the aggregate-enrichment, delegation, guarded, or
+  stub categories became a capability. Discovered above 4 would have meant a general rule overreached into
+  foundation-specific territory; it did not.
+- mis-bound 0, hand-verified, with the riskiest hop scrutinized. The generated output (MCP manifest and
+  tool sources, and the OpenAPI document) is BYTE-IDENTICAL to the pre-build output, so the 4 discovered
+  bindings are the same 4: nothing was added and no binding moved. No inherited-`@Id` trace bound anything
+  at all (all 10 resolved entities failed NO_BACKING, so no capability derives from the inheritance walk,
+  and no wrong parent's id could be bound), and no helper-hop trace bound anything (all 3 refused). No
+  interface-to-implementation trace exists, because the phase implements no such rule.
+
+The headline is confirmed by measurement, not argument: on this benchmark the general rules discover ZERO
+new capabilities. What the build changed is honesty, not coverage: 10 entities are no longer mislabeled as
+having no identifier, and 3 guarded reads now say precisely why they are refused. The remaining
+user-facing coverage (the guarded and aggregate-enrichment reads) is Attestation territory, not more
+discovery rules.

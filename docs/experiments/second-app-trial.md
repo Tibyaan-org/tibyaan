@@ -683,3 +683,19 @@ Forecast (build deferred): byte-identical. Row (projected): discovered 2 (by-id 
 skipped-by-parse 27, mis-bound 0, UNCHANGED. getUnit and getLease keep their names and bindings; the MCP
 manifest and OpenAPI document are byte-identical. Any occurrence of one of these shapes at build time
 (this read-only census found none) would be a finding, recorded then. mis-bound stays 0.
+
+### 8.14 Discovery-Gap actual (pms-backend, built and measured, 2026-07-13)
+
+The phase is built, general scope only (Volume 5, section 4.13). Re-run against pms-backend, the
+forecast is confirmed exactly. Row (actual): discovered 2 (by-id 2, list 0), failed 41 (COMPOSITE_KEY 3,
+NO_BACKING_METHOD 38), list-refused 0, skipped-by-parse 27, partial 0, mis-bound 0, UNCHANGED.
+
+The read-only census held: pms-backend exhibits none of the three shapes, so neither general rule fires.
+Every entity declares a direct `@Id` (the inherited-`@Id` walk is never entered), and no read delegates
+its load to a private same-class helper (the helper hop is never entered; pms's one-hop load through an
+injected repository port is the existing condition 4b, unchanged). No new refusal message appears.
+
+Byte-identical proven, not asserted: the generated MCP tool sources, `tibyan/capabilities.json`, and the
+OpenAPI document were generated on the current build and on the pre-build commit and compared with
+`diff -r`: zero differences. mis-bound stays 0, and there is nothing for the new traces to mis-bind here
+because neither fires.
