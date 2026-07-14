@@ -1,5 +1,6 @@
 package com.tibyaan.provider.spring.extractors;
 
+import com.github.javaparser.ast.Modifier;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
@@ -48,10 +49,13 @@ public final class ViewReadMatcher {
 
     private final RepositoryCatalog catalog;
     private final JavaTypeMapper typeMapper;
+    private final TypeReferenceResolver resolver;
 
-    public ViewReadMatcher(RepositoryCatalog catalog, JavaTypeMapper typeMapper) {
+    public ViewReadMatcher(RepositoryCatalog catalog, JavaTypeMapper typeMapper,
+                           TypeReferenceResolver resolver) {
         this.catalog = catalog;
         this.typeMapper = typeMapper;
+        this.resolver = resolver;
     }
 
     public MatchResult evaluate(MethodDeclaration method, ClassOrInterfaceDeclaration service, ReadIntent intent) {
@@ -74,8 +78,10 @@ public final class ViewReadMatcher {
             }
         }
         if (repoCalls.isEmpty()) {
-            return MatchResult.nearMiss("body contains no persistence access, so there is no load to "
-                    + "verify (condition 4); a delegation-only facade is out of scope");
+            // Section 4.13.3: the load may sit exactly one PRIVATE same-class hop away. The trace steps
+            // through it under the same disciplines, or refuses. When no such helper is there, the
+            // pre-phase refusal is returned verbatim, so a delegation-only facade reads exactly as before.
+            return evaluateThroughPrivateHelper(method, service, intent, body, param, view, repoFields);
         }
         if (repoCalls.size() > 1) {
             return MatchResult.nearMiss("body contains more than one repository access (condition 6); "
@@ -96,6 +102,191 @@ public final class ViewReadMatcher {
         }
 
         return checkShapeAndMapping(body, load, service, entity, view, loadEvidence.explanation());
+    }
+
+    // The private-helper-hop trace (Volume 5, section 4.13.3), the general core of the mixed shape. The
+    // public read's own body performs no persistence access because the load sits one PRIVATE same-class
+    // hop away. The trace steps through exactly that one hop, pins the helper to a single declaration,
+    // and holds the helper to the same disciplines section 4.2 holds a service body to. It grants no new
+    // latitude: the load must still be a by-primary-key read of THIS entity, resolved by key.
+    private MatchResult evaluateThroughPrivateHelper(MethodDeclaration method,
+                                                     ClassOrInterfaceDeclaration service, ReadIntent intent,
+                                                     BlockStmt body, String param, String view,
+                                                     Map<String, String> repoFields) {
+        // Condition 1: the load position is a call on the method's own class taking the id verbatim.
+        List<MethodCallExpr> helperCalls = new ArrayList<>();
+        for (MethodCallExpr call : body.findAll(MethodCallExpr.class)) {
+            if (isOwnMethodCall(call) && isVerbatimArgument(call, param)) {
+                helperCalls.add(call);
+            }
+        }
+        if (helperCalls.isEmpty()) {
+            // The pre-phase refusal, returned verbatim: nothing loads here at all.
+            return MatchResult.nearMiss("body contains no persistence access, so there is no load to "
+                    + "verify (condition 4); a delegation-only facade is out of scope");
+        }
+        if (helperCalls.size() > 1) {
+            return MatchResult.nearMiss("body calls more than one same-class method with the id "
+                    + "parameter, so the load position is not unique (section 4.13.3, condition 1)");
+        }
+        MethodCallExpr helperCall = helperCalls.get(0);
+        String helperName = helperCall.getNameAsString();
+
+        // Condition 1a: the call must pin to EXACTLY ONE private declaration on the method's own class.
+        // The tool does not adjudicate an overloaded or shadowed helper set; it refuses rather than read
+        // one candidate's body while the id could dispatch to another. This is the never-guess bar
+        // (section 4.12.4, step d) applied to a same-class method call.
+        List<MethodDeclaration> sameName = new ArrayList<>();
+        for (MethodDeclaration declared : service.getMethods()) {
+            if (declared.getNameAsString().equals(helperName)) {
+                sameName.add(declared);
+            }
+        }
+        List<MethodDeclaration> privates = new ArrayList<>();
+        for (MethodDeclaration declared : sameName) {
+            if (declared.hasModifier(Modifier.Keyword.PRIVATE)) {
+                privates.add(declared);
+            }
+        }
+        if (privates.isEmpty()) {
+            return MatchResult.nearMiss("the load is delegated to '" + helperName + "', which is not a "
+                    + "private method on the service's own class (section 4.13.3, condition 5); a "
+                    + "cross-class delegation is out of scope");
+        }
+        if (sameName.size() > 1) {
+            return MatchResult.nearMiss("the helper call '" + helperName + "' does not resolve to a "
+                    + "single private declaration: the class declares " + sameName.size() + " methods of "
+                    + "that name, an overloaded or shadowed set the tool will not adjudicate "
+                    + "(section 4.13.3, condition 1a); it refuses rather than read one candidate's body");
+        }
+        MethodDeclaration helper = privates.get(0);
+
+        // Condition 2: the helper takes the id and returns E or Optional<E>, resolved by key.
+        if (helper.getParameters().size() != 1) {
+            return MatchResult.nearMiss("private helper '" + helperName + "' does not take exactly one "
+                    + "parameter (section 4.13.3, condition 2)");
+        }
+        if (!singleParamMapsTo(helper, intent.idType())) {
+            return MatchResult.nearMiss("private helper '" + helperName + "' does not take the entity's "
+                    + "id type (section 4.13.3, condition 2)");
+        }
+        if (!returnsEntityOrOptionalByKey(helper, intent.entityKey())) {
+            return MatchResult.nearMiss("private helper '" + helperName + "' does not return "
+                    + intent.entityName() + " or Optional<" + intent.entityName() + "> (section 4.13.3, "
+                    + "condition 2); the helper's return type resolves to a different entity or to none");
+        }
+        Optional<BlockStmt> helperBody = helper.getBody();
+        if (helperBody.isEmpty()) {
+            return MatchResult.nearMiss("private helper '" + helperName + "' has no body to analyze "
+                    + "(section 4.13.3, condition 2)");
+        }
+
+        // Conditions 2 and 3: the helper's body is exactly the clean by-primary-key load and nothing else.
+        MatchResult loadEvidence = checkHelperBody(helper, helperBody.get(), intent, repoFields);
+        if (!loadEvidence.matched()) {
+            return loadEvidence;
+        }
+
+        // Condition 4: back in the public method, the helper's value feeds exactly one resolvable
+        // mapping step, under section 4.2's conditions 7 to 9, unchanged.
+        return checkShapeAndMapping(body, helperCall, service, intent.entityName(), view,
+                loadEvidence.explanation());
+    }
+
+    // Conditions 2 and 3: the helper performs exactly one persistence access, the by-primary-key load of
+    // THIS entity with the id forwarded verbatim, and its body contains NO other statement, in any
+    // position. A guard (the soft-delete check among them), a filter, a mutation, a second access, or a
+    // further delegation all disqualify: the tool cannot verify such a guard is benign without
+    // interpreting its meaning, which it must never do, so it refuses.
+    private MatchResult checkHelperBody(MethodDeclaration helper, BlockStmt body, ReadIntent intent,
+                                        Map<String, String> repoFields) {
+        String name = helper.getNameAsString();
+        String helperParam = helper.getParameter(0).getNameAsString();
+        List<MethodCallExpr> repoCalls = repositoryCalls(body, repoFields.keySet());
+
+        for (MethodCallExpr call : repoCalls) {
+            if (MUTATIONS.contains(call.getNameAsString())) {
+                return MatchResult.nearMiss("private helper '" + name + "' performs a mutation '"
+                        + call.getNameAsString() + "' on a repository field; a read binds to no write "
+                        + "(section 4.13.3, condition 3)");
+            }
+        }
+        if (repoCalls.isEmpty()) {
+            return MatchResult.nearMiss("private helper '" + name + "' contains no persistence access, "
+                    + "so there is no load to verify (section 4.13.3, condition 2); a helper that "
+                    + "delegates further is read no deeper");
+        }
+        if (repoCalls.size() > 1) {
+            return MatchResult.nearMiss("private helper '" + name + "' contains more than one repository "
+                    + "access (section 4.13.3, conditions 2 and 3)");
+        }
+        MethodCallExpr load = repoCalls.get(0);
+        if (!isVerbatimArgument(load, helperParam)) {
+            return MatchResult.nearMiss("private helper '" + name + "' does not forward its id parameter '"
+                    + helperParam + "' verbatim to the load (section 4.13.3, condition 2)");
+        }
+        // Condition 3, the strict extra-statement refusal, worded so it names the defect accurately
+        // whether the guard sits before or after the load.
+        if (!isBareLoadBody(body, load)) {
+            return MatchResult.nearMiss("private helper '" + name + "' contains a statement beyond the "
+                    + "by-primary-key load and its Optional unwrap (section 4.13.3, condition 3); the "
+                    + "tool cannot tell a soft-delete guard from an authorization or business filter "
+                    + "without interpreting it, so it refuses rather than present a filtered read as a "
+                    + "plain by-id read");
+        }
+        String repoType = repoFields.get(receiverFieldName(load));
+        return checkByPrimaryKeyLoad(load, repoType, intent.entityName(), intent.entityKey(),
+                intent.idType());
+    }
+
+    // Condition 3: the body is exactly the load (with its Optional unwrap), in one of the two shapes.
+    // Any additional statement, in any position, means this is not a bare load.
+    private static boolean isBareLoadBody(BlockStmt body, MethodCallExpr load) {
+        List<Statement> statements = body.getStatements();
+        Expression unwrapped = unwrappedLoadValue(load);
+        if (statements.size() == 1) {
+            if (!statements.get(0).isReturnStmt()) {
+                return false;
+            }
+            Optional<Expression> returned = statements.get(0).asReturnStmt().getExpression();
+            return returned.isPresent() && returned.get() == unwrapped;
+        }
+        if (statements.size() == 2) {
+            Optional<String> local = localFromLoad(statements.get(0), load);
+            if (local.isEmpty() || !statements.get(1).isReturnStmt()) {
+                return false;
+            }
+            Optional<Expression> returned = statements.get(1).asReturnStmt().getExpression();
+            return returned.isPresent() && isNameExpr(returned.get(), local.get());
+        }
+        return false;
+    }
+
+    // A call on the method's own class: written bare, or as this.m(...).
+    private static boolean isOwnMethodCall(MethodCallExpr call) {
+        Optional<Expression> scope = call.getScope();
+        return scope.isEmpty() || scope.get().isThisExpr();
+    }
+
+    // Section 4.13.3, condition 2, re-anchored to the key resolver: the helper's declared return type
+    // (or its Optional type argument) must resolve to the intent's entity BY KEY, never by simple name,
+    // so a helper returning a same-named entity from another bounded context can never satisfy it.
+    private boolean returnsEntityOrOptionalByKey(MethodDeclaration helper, String entityKey) {
+        String returnType = helper.getType().asString();
+        String target = returnType;
+        if (lastSegment(stripGenerics(returnType)).equals("Optional")) {
+            int open = returnType.indexOf('<');
+            int close = returnType.lastIndexOf('>');
+            if (open < 0 || close <= open) {
+                return false;
+            }
+            target = returnType.substring(open + 1, close).trim();
+        }
+        String resolve = target;
+        return helper.findCompilationUnit()
+                .flatMap(unit -> resolver.resolveEntityKey(resolve, unit))
+                .map(entityKey::equals)
+                .orElse(false);
     }
 
     // Condition 4: the load is a by-primary-key read of E, direct (4a) or one-hop (4b). Whether the

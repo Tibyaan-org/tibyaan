@@ -24,6 +24,7 @@ import com.tibyaan.provider.spring.EntityOutcome.Cause;
 import com.tibyaan.provider.spring.extractors.DisplayNames;
 import com.tibyaan.provider.spring.extractors.EntityExtractor;
 import com.tibyaan.provider.spring.extractors.ExtractedEntity;
+import com.tibyaan.provider.spring.extractors.IdentifierResolver;
 import com.tibyaan.provider.spring.extractors.ListReadMatcher;
 import com.tibyaan.provider.spring.extractors.MatchResult;
 import com.tibyaan.provider.spring.extractors.ReadIntent;
@@ -138,8 +139,11 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
         // that ties a Java type to an entity now resolves through, by key rather than by simple name.
         TypeReferenceResolver resolver = TypeReferenceResolver.from(parsed.units());
         TypeRegistry registry = TypeRegistry.from(parsed.units());
+        // The identifier resolver (section 4.13.2): reads an entity's own @Id, or follows the in-tree
+        // superclass chain to a single inherited one, refusing what it cannot read.
+        IdentifierResolver identifiers = IdentifierResolver.from(parsed.units(), resolver);
         RepositoryCatalog repositories = RepositoryCatalog.from(parsed.units(), resolver);
-        ViewReadMatcher viewMatcher = new ViewReadMatcher(repositories, typeMapper);
+        ViewReadMatcher viewMatcher = new ViewReadMatcher(repositories, typeMapper, resolver);
         List<ServiceMethodSource> serviceSources = serviceExtractor.sources(parsed.units());
         int skipCount = parsed.skips().size();
 
@@ -158,7 +162,7 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
             relations.addAll(extracted.relations());
             skippedFields.addAll(extracted.skipped());
             recordSourceFile(filesByKey, extracted.entity().key(), type);
-            plans.add(planFor(type, extracted.entity().key()));
+            plans.add(planFor(type, extracted.entity().key(), identifiers));
         }
 
         // Section 4.12.2, rule 3: a key claimed by two distinct source files is a split-package clash;
@@ -223,18 +227,23 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
         }
     }
 
-    // Eligibility, computed in pass 1 (section 4.2, condition 0; section 4.1). A composite key or a
-    // missing usable identifier forms no read intent; otherwise the entity carries a read intent.
-    private EntityPlan planFor(ClassOrInterfaceDeclaration type, String key) {
+    // Eligibility, computed in pass 1 (section 4.2, condition 0, widened by section 4.13.2). The
+    // identifier is resolved directly or through the in-tree superclass chain. A composite key (direct
+    // or inherited) forms no read intent and reports COMPOSITE_KEY; every other refusal (no identifier
+    // anywhere, an unreadable superclass, an ambiguous hierarchy, an inexact or unmappable id type)
+    // reports NO_IDENTIFIER with its own located message. Otherwise the entity carries a read intent,
+    // and discovery (sections 4.1 and 4.2) runs over it unchanged.
+    private EntityPlan planFor(ClassOrInterfaceDeclaration type, String key,
+                               IdentifierResolver identifiers) {
         String simple = type.getNameAsString();
-        if (entityExtractor.hasCompositeKey(type)) {
-            return new EntityPlan(key, simple, EntityPlan.Kind.COMPOSITE,
-                    entityExtractor.compositeKeyReason(type), null);
+        IdentifierResolver.Result identifier = identifiers.resolve(type);
+        if (identifier.kind() == IdentifierResolver.Kind.COMPOSITE) {
+            return new EntityPlan(key, simple, EntityPlan.Kind.COMPOSITE, identifier.reason(), null);
         }
-        Optional<ReadIntent> intent = entityExtractor.readIntent(type);
+        Optional<ReadIntent> intent = entityExtractor.readIntent(type, identifier);
         if (intent.isEmpty()) {
             return new EntityPlan(key, simple, EntityPlan.Kind.NO_IDENTIFIER,
-                    entityExtractor.noReadIntentReason(type), null);
+                    entityExtractor.noReadIntentReason(type, identifier), null);
         }
         return new EntityPlan(key, simple, EntityPlan.Kind.DISCOVER, null, intent.get());
     }

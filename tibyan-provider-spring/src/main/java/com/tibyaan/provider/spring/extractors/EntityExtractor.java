@@ -224,63 +224,18 @@ public final class EntityExtractor {
         return new Field(fieldName, Primitive.STRING, nullable, List.of(values));
     }
 
-    // Eligibility (section 4.2, condition 0): an entity with an @EmbeddedId, or with more than one
-    // @Id field, has a composite key. It forms no read intent and is never read by part of its key.
-    // This is separate from field mapping: an @Id association field still maps (section 4.4).
-    public boolean hasCompositeKey(ClassOrInterfaceDeclaration type) {
-        return idFieldCount(type) > 1 || hasEmbeddedId(type);
-    }
-
-    // A located reason for the composite-key refusal, naming what was seen (section 4.2.4).
-    public String compositeKeyReason(ClassOrInterfaceDeclaration type) {
-        String entityName = type.getNameAsString();
-        if (hasEmbeddedId(type)) {
-            return "entity '" + entityName + "' has an @EmbeddedId composite key, so it forms no "
-                    + "read-by-id capability and is never read by part of its key (Volume 5 "
-                    + "section 4.2, condition 0).";
-        }
-        List<String> idFields = new ArrayList<>();
-        for (FieldDeclaration declaration : type.getFields()) {
-            if (!isSkipped(declaration) && hasAnnotation(declaration, ID_ANNOTATION)) {
-                for (VariableDeclarator variable : declaration.getVariables()) {
-                    idFields.add(variable.getNameAsString());
-                }
-            }
-        }
-        return "entity '" + entityName + "' has a composite key: more than one @Id field " + idFields
-                + ". It forms no read-by-id capability and is never read by part of its key (Volume 5 "
-                + "section 4.2, condition 0).";
-    }
-
-    private static int idFieldCount(ClassOrInterfaceDeclaration type) {
-        int count = 0;
-        for (FieldDeclaration declaration : type.getFields()) {
-            if (!isSkipped(declaration) && hasAnnotation(declaration, ID_ANNOTATION)) {
-                count += declaration.getVariables().size();
-            }
-        }
-        return count;
-    }
-
-    private static boolean hasEmbeddedId(ClassOrInterfaceDeclaration type) {
-        for (FieldDeclaration declaration : type.getFields()) {
-            if (!isSkipped(declaration) && hasAnnotation(declaration, EMBEDDED_ID_ANNOTATION)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    // The MVP read getX(id) needs the entity's identifier, the field marked @Id, mapped to a
-    // bindable primitive (section 4.1). A FLOAT @Id forms no read intent: an inexact primary key is
-    // not a lookup key the tool will bind (section 4.6, rule 4). Empty means no usable identifier;
-    // the provider turns that into a located outcome. Callers check hasCompositeKey first.
-    public Optional<ReadIntent> readIntent(ClassOrInterfaceDeclaration type) {
-        Optional<VariableDeclarator> idField = firstIdField(type);
-        if (idField.isEmpty()) {
+    // Eligibility (section 4.2, condition 0, widened by section 4.13.2). The identifier is resolved by
+    // IdentifierResolver, which reads the entity's own @Id or, when it declares none, follows the
+    // in-tree superclass chain to a single inherited @Id, refusing what it cannot read. The MVP read
+    // getX(id) needs that identifier mapped to a bindable primitive (section 4.1). A FLOAT @Id forms no
+    // read intent: an inexact primary key is not a lookup key the tool will bind (section 4.6, rule 4).
+    // Empty means no usable identifier; the provider turns that into a located outcome.
+    public Optional<ReadIntent> readIntent(ClassOrInterfaceDeclaration type,
+                                           IdentifierResolver.Result identifier) {
+        if (!identifier.isFound()) {
             return Optional.empty();
         }
-        VariableDeclarator id = idField.get();
+        VariableDeclarator id = identifier.idField();
         String entityName = type.getNameAsString();
         Optional<Type> idType = typeMapper.map(id.getTypeAsString());
         if (idType.isEmpty() || idType.get() == Primitive.FLOAT) {
@@ -290,37 +245,32 @@ public final class EntityExtractor {
                 entityName, entityKey(type), "get" + entityName, id.getNameAsString(), idType.get()));
     }
 
-    // The located reason an entity formed no read intent, for the provider's outcome. It
-    // distinguishes an inexact-id refusal (section 4.6) from a missing or non-primitive identifier,
-    // without adding a new cause code.
-    public String noReadIntentReason(ClassOrInterfaceDeclaration type) {
-        String entityName = type.getNameAsString();
-        Optional<VariableDeclarator> idField = firstIdField(type);
-        if (idField.isEmpty()) {
-            return "entity '" + entityName + "' has no single @Id identifier, so no read-by-id "
-                    + "capability is modeled. Only single-id-parameter reads are in scope (Volume 5 "
-                    + "section 4.1); composite or non-@Id keys are a later shape, not an error here.";
+    // The located reason an entity formed no read intent, for the provider's outcome. A refusal the
+    // identifier resolver already located (no identifier, an unreadable superclass, an ambiguous
+    // hierarchy) carries its own message; the remaining two cases are an inexact-id refusal
+    // (section 4.6) and an unmappable id type, both reported exactly as they were before this phase.
+    // An inherited identifier names the ancestor that declares it, so the refusal stays located.
+    public String noReadIntentReason(ClassOrInterfaceDeclaration type,
+                                     IdentifierResolver.Result identifier) {
+        if (!identifier.isFound()) {
+            return identifier.reason();
         }
-        VariableDeclarator id = idField.get();
+        String entityName = type.getNameAsString();
+        VariableDeclarator id = identifier.idField();
+        // Empty for a directly declared identifier, so the pre-phase messages stay byte-identical.
+        String where = identifier.inherited()
+                ? " inherited from '" + identifier.declaringType() + "'"
+                : "";
         Optional<Type> idType = typeMapper.map(id.getTypeAsString());
         if (idType.isPresent() && idType.get() == Primitive.FLOAT) {
-            return "entity '" + entityName + "' has @Id '" + id.getNameAsString() + "' of type '"
-                    + id.getTypeAsString() + "', which maps to the inexact FLOAT primitive. An "
-                    + "inexact identifier forms no read intent (Volume 5 section 4.6); the tool will "
-                    + "not bind a lookup to a floating-point key.";
+            return "entity '" + entityName + "' has @Id '" + id.getNameAsString() + "'" + where
+                    + " of type '" + id.getTypeAsString() + "', which maps to the inexact FLOAT "
+                    + "primitive. An inexact identifier forms no read intent (Volume 5 section 4.6); "
+                    + "the tool will not bind a lookup to a floating-point key.";
         }
-        return "entity '" + entityName + "' has @Id '" + id.getNameAsString() + "' of type '"
-                + id.getTypeAsString() + "', which does not map to a bindable primitive, so no "
-                + "read-by-id capability is modeled (Volume 5 section 4.1).";
-    }
-
-    private static Optional<VariableDeclarator> firstIdField(ClassOrInterfaceDeclaration type) {
-        for (FieldDeclaration declaration : type.getFields()) {
-            if (!isSkipped(declaration) && hasAnnotation(declaration, ID_ANNOTATION)) {
-                return Optional.of(declaration.getVariable(0));
-            }
-        }
-        return Optional.empty();
+        return "entity '" + entityName + "' has @Id '" + id.getNameAsString() + "'" + where
+                + " of type '" + id.getTypeAsString() + "', which does not map to a bindable "
+                + "primitive, so no read-by-id capability is modeled (Volume 5 section 4.1).";
     }
 
     private static Optional<RelationKind> declaredRelationKind(FieldDeclaration declaration) {
