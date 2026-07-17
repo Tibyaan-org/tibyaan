@@ -1,0 +1,47 @@
+# Website CI: build the static site and run the honesty checks.
+#
+# Separate from the Maven reactor CI (ci.yml), and scoped to website/** so the two
+# never trigger each other. The honesty checks (website/scripts/honesty-checks.mjs)
+# are the gate that keeps the site as honest as the ledgers it advertises:
+#   - no em or en dashes in site copy (CLAUDE.md rule 9)
+#   - none of the banned oversell claims (plan section 7)
+#   - every internal link in the built output resolves
+#   - every Maven Central coordinate the site prints returns 200
+# External links (GitHub, Sonatype UI) are warnings here; the deploy path promotes
+# them to hard failures with STRICT_LINKS=1 once the repo is public.
+name: Website
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'website/**', '.github/workflows/website.yml' ]
+  pull_request:
+    branches: [ main ]
+    paths: [ 'website/**', '.github/workflows/website.yml' ]
+
+defaults:
+  run:
+    working-directory: website
+
+jobs:
+  build-and-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install (pinned)
+        run: npm ci
+
+      - name: Build (static export)
+        run: npm run build
+
+      - name: Honesty checks
+        run: node scripts/honesty-checks.mjs
