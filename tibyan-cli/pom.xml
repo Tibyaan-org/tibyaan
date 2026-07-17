@@ -8,7 +8,7 @@
     <parent>
         <groupId>io.github.tibyaan-org</groupId>
         <artifactId>tibyaan</artifactId>
-        <version>0.2.0</version>
+        <version>0.2.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>tibyan-cli</artifactId>
