@@ -79,21 +79,23 @@ Read this before you plan an adoption, because v1 does not fit every "aging Spri
 
 ## Quickstart
 
-Availability note: the artifacts are prepared at version `0.1.0` but are not yet on Maven Central (the remaining publish steps are in [docs/RELEASING.md](docs/RELEASING.md)). Until they are, work from a checkout of this repository: Step 1 below builds the CLI from source, and to adopt (Step 2) you first install the runtime and the plugin into your local Maven repository with `mvn -DskipTests install`.
+Availability note: the artifacts are on Maven Central under groupId `io.github.tibyaan-org`. The current release is `0.2.0`; `0.1.0` remains available for anyone pinned to it. Pre-1.0, treat a minor bump as potentially breaking: read [docs/RELEASING.md](docs/RELEASING.md) section 2 before upgrading.
 
 ### Step 1: Preview first. This reads your source and changes nothing.
 
 Always start here. The preview is read-only: it never writes to your project, never touches your build, and cannot break anything. It shows you exactly what Tibyaan would expose and what it would refuse, so you decide with the evidence in front of you before you change a single file.
 
-Build the CLI once from a checkout of this repository, then point it at your application:
+Download the self-contained CLI from Maven Central, then point it at your application:
 
 ```bash
-# Build the tibyan CLI (a self-contained jar):
-mvn -pl tibyan-cli -am -DskipTests package
+# Download the tibyan CLI (a self-contained jar):
+curl -O https://repo1.maven.org/maven2/io/github/tibyaan-org/tibyan-cli/0.2.0/tibyan-cli-0.2.0-jar-with-dependencies.jar
 
 # Survey your application. This only reads source; it writes nothing:
-java -jar tibyan-cli/target/tibyan-cli-0.1.0-jar-with-dependencies.jar scan /path/to/your-app
+java -jar tibyan-cli-0.2.0-jar-with-dependencies.jar scan /path/to/your-app
 ```
+
+Prefer to build from source? From a checkout of this repository, run `mvn -pl tibyan-cli -am -DskipTests package`, then use `tibyan-cli/target/tibyan-cli-0.2.0-jar-with-dependencies.jar`.
 
 This prints the discovered capabilities, every refusal with its located reason, and the totals including `mis-bound 0`. Expect most of a real, layered application to be refused (see "What you will actually see" above); that is the tool working, not failing. If the preview discovers nothing useful for your app, stop here: you have spent no build changes to learn it.
 
@@ -107,7 +109,7 @@ Once the preview convinces you, add two things to your application's `pom.xml`. 
 <dependency>
   <groupId>io.github.tibyaan-org</groupId>
   <artifactId>tibyan-runtime-spring</artifactId>
-  <version>0.1.0</version>
+  <version>0.2.0</version>
 </dependency>
 ```
 
@@ -117,7 +119,7 @@ Then the build plugin, which generates the capability manifest from your source 
 <plugin>
   <groupId>io.github.tibyaan-org</groupId>
   <artifactId>tibyan-maven-plugin</artifactId>
-  <version>0.1.0</version>
+  <version>0.2.0</version>
   <executions>
     <execution>
       <goals><goal>generate</goal></goals>
