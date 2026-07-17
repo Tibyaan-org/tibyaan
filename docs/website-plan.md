@@ -1,5 +1,10 @@
 # Tibyaan public website: plan
 
+> Where the built site lives: this plan was implemented, and the site was then extracted into its
+> own repository so it can deploy independently: **github.com/Tibyaan-org/tibyaan-site** (GitHub
+> Pages at https://tibyaan-org.github.io/tibyaan-site/). This document remains here as the design
+> record. The `website/` directory that once held the source has been removed from this repo.
+
 Status: APPROVED WITH AMENDMENTS. Written 2026-07-17; amended the same day after owner review.
 The owner approved the plan subject to five amendments and two notes; section 0.0 records each
 one and where it landed in this revision. Still a planning artifact: no scaffold, no components,
