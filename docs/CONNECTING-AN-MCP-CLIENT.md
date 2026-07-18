@@ -52,7 +52,27 @@ It uses only the Python standard library. Point it at your own app by editing th
 
 ## Pointing a client at it
 
-Any MCP client that speaks the HTTP + SSE transport can connect to `http://<host>:<port>/sse` directly.
+Any MCP client that speaks the HTTP + SSE transport can connect to `http://<host>:<port>/sse` directly. Two common clients are shown below: Claude Code, which speaks SSE directly, and Claude Desktop, which speaks only stdio and needs a bridge.
+
+### Claude Code (direct SSE)
+
+Claude Code connects to an SSE server directly, no bridge needed. With your app running, register it once:
+
+```bash
+claude mcp add --transport sse my-legacy-app http://localhost:8080/sse
+```
+
+Then confirm it is connected:
+
+```bash
+claude mcp list
+```
+
+Inside a session, `/mcp` shows the connected servers, and each discovered capability appears as a tool named `mcp__my-legacy-app__<capability>` (for the example app, `mcp__my-legacy-app__getProduct`). You do not call that name by hand: ask the agent in plain language, and it calls the tool. For the example app, "get product 5" makes the agent call `getProduct` with `id` 5 and read back the real row, `{"id":5,"name":"Wireless Mouse","price":29.99}`, from `ProductService.findById`. For your own app, ask for one of the capabilities your survey discovered.
+
+To scope the server to one project instead of your user config, add it to a project `.mcp.json` (committed with the repo) rather than the user scope; see Claude Code's own documentation for the current file format.
+
+### Claude Desktop and other stdio-only clients
 
 Clients that speak only the stdio transport (Claude Desktop configures stdio servers) reach a remote SSE server through a bridge. The common one is `mcp-remote`, launched over stdio:
 
@@ -67,7 +87,7 @@ Clients that speak only the stdio transport (Claude Desktop configures stdio ser
 }
 ```
 
-Confirm the exact key names and bridge against your client's current documentation; client configuration formats change faster than this repository does.
+Confirm the exact command names and config format against your client's current documentation; client configuration formats change faster than this repository does.
 
 ### Transport caveat
 

@@ -99,6 +99,8 @@ Prefer to build from source? From a checkout of this repository, run `mvn -pl ti
 
 This prints the discovered capabilities, every refusal with its located reason, and the totals including `mis-bound 0`. Expect most of a real, layered application to be refused (see "What you will actually see" above); that is the tool working, not failing. If the preview discovers nothing useful for your app, stop here: you have spent no build changes to learn it.
 
+**Multi-module application?** Point the scan at the whole reactor root, not one module at a time; you get one manifest covering every module. Discovery resolves against exactly the source you scan, so this matters. See [Surveying and adopting a multi-module application](docs/MULTI-MODULE.md).
+
 You can also generate an OpenAPI 3.0 document from the same read-only model: `tibyan generate --backend openapi --ir <ir.json> --out <dir>`.
 
 ### Step 2: Adopt. This wires the layer into your build.
@@ -160,6 +162,10 @@ Every one of these is a deliberate refusal-over-guessing boundary, not an oversi
 ## A note on the name
 
 The project is **Tibyaan** (the organization, the Maven groupId `io.github.tibyaan-org`, and the Java package root `com.tibyaan`). For historical reasons the Maven artifact ids and the CLI command keep the shorter spelling `tibyan` (for example `tibyan-runtime-spring`, `tibyan-maven-plugin`, and the `tibyan` command). They are the same project. A single canonical spelling across artifacts and the CLI is a candidate cleanup for the 1.0 line, where changing coordinates is acceptable.
+
+## Adopting: practical guides
+
+Surprised by your first run? Start with the [first-run FAQ](docs/FAQ.md): why you may see only one tool, what the generated `.java` files are for, why `scan` shows more than `generate`, and how to cover a multi-module app. The full command reference is [docs/COMMANDS.md](docs/COMMANDS.md); connecting an agent (including Claude Code) is [docs/CONNECTING-AN-MCP-CLIENT.md](docs/CONNECTING-AN-MCP-CLIENT.md).
 
 ## Where the deep documentation lives
 

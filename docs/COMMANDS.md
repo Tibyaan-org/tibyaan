@@ -264,6 +264,8 @@ mvn package                        # resilient default
 mvn package -Dtibyan.strict=true   # fail the build on any unparseable file (CI gate)
 ```
 
+For a multi-module reactor, `sourceRoot` defaults to the single module the plugin runs in, which is usually not what you want. Point it at the reactor root so one manifest covers every module, on the classpath of the module that runs. See [MULTI-MODULE.md](MULTI-MODULE.md).
+
 ---
 
 ## 4. The Spring runtime
