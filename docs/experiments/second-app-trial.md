@@ -762,3 +762,31 @@ Forecast (after the Controller-Authority build, stated before it):
 - Everything else is inert here: the roughly 40 filtered GETs refuse as deferred filtered reads and their
   `@Secured` contracts attach to nothing (no orphan authorities); the `*ResultSet` list endpoints stay
   outside rule 4.10's pool exactly as before; the unparseable WebSocket controller stays a named E1 skip.
+### 8.16 Controller-Authority actual (pms-backend, built and measured, 2026-07-19)
+
+The phase is built (Volume 5, section 4.14) and re-run against pms-backend. The forecast held to the
+number.
+
+- Row (actual): discovered 2 (by-id 2, list 0), failed 41 (COMPOSITE_KEY 3, NO_BACKING_METHOD 38),
+  list-refused 0, skipped-by-parse 27, partial 0, mis-bound 0, UNCHANGED. Every discovered, failed, and
+  skip count is identical to the pre-phase row: the phase added no capability and moved no binding.
+- Declared security: `security: declared 2 (compiled 2, unverifiable 0)`. Both discovered reads compiled
+  a contract through their strict controller anchors, exactly as forecast:
+  - getUnit compiled `requiredAuthorities ["1", "2"]` from `UnitControllerImpl#_getUnitById` under
+    `@Secured({PROPERTY_MANAGER_ROLE, SUPERINTENDENT_ROLE})`, the constants resolving in-tree (static
+    imports of `UserRoles`) to the literals "1" and "2".
+  - getLease compiled `requiredAuthorities ["1"]` from `LeaseControllerImpl#_getLeaseById` under
+    `@Secured({PROPERTY_MANAGER_ROLE})`, resolving to "1".
+  The modern-enablement gate passed (`@EnableMethodSecurity(securedEnabled = true)` in the in-tree
+  security-adapter library; no `@EnableGlobalMethodSecurity`). The forecast assumption held: the
+  associated-endpoint sweep found exactly one GET route for each of the two bindings, so both COMPILED
+  rather than turning conflicting; no second route exists.
+- Generated output changed ADDITIVELY on exactly those two entries and nowhere else. The MCP manifest
+  gained one `requiredAuthorities` field and one description clause per entry ("Requires any of the
+  declared authorities: 1, 2." and "... 1."), and the OpenAPI document gained one
+  `x-tibyan-required-authorities` extension and one summary clause per operation. Every other byte is
+  identical.
+- mis-bound 0, hand-verified and now covering the security contract: getUnit carries exactly its own
+  anchor's [1, 2] and getLease exactly its own [1], never swapped, never crossed. A wrong authority would
+  be a mis-bind, and there is none. The bindings are unchanged (UnitServiceImpl#findById,
+  LeaseServiceImpl#findById), hand-verified against source.

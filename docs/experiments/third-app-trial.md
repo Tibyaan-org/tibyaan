@@ -794,3 +794,23 @@ Forecast (after the Controller-Authority build, stated before it):
 - Nothing else moves: filtered and Pageable-carrying GETs stay deferred exactly as rule 4.10 already
   classifies their service methods; the enum-keyed EmailTemplate GET anchors nothing by-id (the entity has
   no by-id capability; its listEmailTemplate is unaffected).
+
+## 22. Controller-Authority actual (erp-backend, built and measured, 2026-07-19)
+
+The phase is built (Volume 5, section 4.14) and re-run against erp-backend. The forecast held: erp is the
+negative control, byte-identical.
+
+- Row (actual): discovered 25 (by-id 16, list 9), failed 9 (NO_IDENTIFIER 1, NO_BACKING_METHOD 6,
+  AMBIGUOUS_BINDING 2), list-refused 1, partial 13, mis-bound 0, UNCHANGED.
+- Declared security: NONE. The scan emitted no `security:` survey line, because the application has zero
+  method-security annotations and no Spring Security dependency, so every capability's state is ABSENT
+  and no field is emitted.
+- Generated output BYTE-IDENTICAL: the MCP manifest was regenerated and carries 25 tools and ZERO
+  `requiredAuthorities`/`securityUnverifiable` fields; the OpenAPI document carries ZERO
+  `x-tibyan-required-authorities`/`x-tibyan-security-unverifiable` extensions and no `securitySchemes`.
+  ABSENT emits nothing, so both documents are identical to the pre-phase output.
+- The pooling and anchor machinery ran live and invisibly: the strict one-statement anchors exist (the
+  admin controllers), the multi-route cases exist (Transaction fronted by four controller methods,
+  Product and Account by both admin and sales controllers), and with zero declarations everywhere the
+  composition rule landed on ABSENT for all 25. mis-bound 0. erp confirms the phase adds nothing where
+  nothing is declared.

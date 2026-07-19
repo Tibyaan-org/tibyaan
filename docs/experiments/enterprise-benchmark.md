@@ -300,3 +300,29 @@ handler whose body is exactly one statement delegating verbatim to the binding, 
   NOTHING (no orphan authorities). Stated for scale: this app declares its security richly, and almost
   all of that declaration sits on reads beyond the structural ceiling; the by-id slice the tool can carry
   is real but small, exactly one compiled contract today.
+
+## 7.4 Controller-Authority actual (built and measured, 2026-07-19, counts and shapes only)
+
+The phase was built (Volume 5, section 4.14) and re-run against this benchmark. The forecast held to the
+number. Recorded by counts and shapes only; no real name, route, or authority value is reproduced.
+
+- Row (actual): discovered 4 (by-id 4, list 0), UNCHANGED. Failed 107 (NO_BACKING_METHOD 106,
+  AMBIGUOUS_BINDING 1), partial 6, mis-bound 0, all UNCHANGED. The phase added no capability and moved no
+  binding; the generated output's 4 discovered bindings are the same 4.
+- Declared security: `declared 1 (compiled 1, unverifiable 0)`. EXACTLY ONE of the 4 discovered reads is
+  fronted by a strict one-statement controller anchor carrying a single-constant `@Secured` whose constant
+  resolves in-tree to a single numeric-code string literal, so it compiled a one-element
+  `requiredAuthorities` sequence, exactly as the section 7.2 fronting census predicted. The modern gate
+  passed (an in-tree `@EnableMethodSecurity(securedEnabled = true)` in a shared library module; no legacy
+  annotation).
+- The other THREE discovered reads are ABSENT: no fronting controller GET exists for them at all (one is
+  consumed only by an internal proxy; two are entity-returning reads with no controller in reach, and
+  structurally no controller GET in this codebase returns a raw entity). No `securityUnverifiable` marker
+  appeared anywhere, exactly as forecast.
+- The AMBIGUOUS entity stayed AMBIGUOUS: its two competing view reads are each fronted by a strict
+  one-statement anchor, and because a controller anchor is never a tiebreaker (the no-precedence rule), the
+  entity did not resolve. The live no-tiebreaker case, confirmed on a real app.
+- mis-bound 0, including the security contract: the one compiled read carries exactly its own anchor's
+  single authority; the pervasive filtered-list surface (its many `@Secured` codes) attaches to NOTHING,
+  because those reads are refused and have no capability to decorate (no orphan authorities). The tool
+  declares one honest by-id contract and refuses the rest.
