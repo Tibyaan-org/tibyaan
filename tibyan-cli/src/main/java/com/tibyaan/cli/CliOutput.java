@@ -1,5 +1,6 @@
 package com.tibyaan.cli;
 
+import com.tibyaan.core.ir.Annotation;
 import com.tibyaan.core.ir.Capability;
 import com.tibyaan.core.ir.CapabilityModel;
 import com.tibyaan.core.ir.Entity;
@@ -108,6 +109,11 @@ final class CliOutput {
             }
         }
 
+        // Declared security (Volume 5 section 4.14.5): one summary line, emitted only when a contract was
+        // declared on at least one discovered read, plus a per-capability line naming its compiled
+        // sequence or its unverifiable reason. A security-free app emits nothing here and stays identical.
+        printSecurity(report.model());
+
         System.out.println("Totals: discovered " + report.totalDiscoveredCount()
                 + " (by-id " + report.discoveredCount() + ", list " + report.listDiscoveredCount() + ")"
                 + ", failed " + report.failedCount() + byCause(report.failuresByCause())
@@ -116,6 +122,42 @@ final class CliOutput {
                 + ", partial " + report.partialEntityCount()
                 + " (" + report.skippedFieldCount() + " fields skipped)"
                 + ", mis-bound 0");
+    }
+
+    // The declared-security survey (Volume 5 section 4.14.5). Counts the capabilities carrying a compiled
+    // contract and those marked unverifiable, then lists each with its authorities or its reason. Emitted
+    // only when a contract was declared somewhere, so a security-free app's survey is byte-identical.
+    private static void printSecurity(CapabilityModel model) {
+        List<Capability> compiled = model.capabilities().stream()
+                .filter(c -> annotationValues(c, "requiredAuthorities") != null)
+                .collect(Collectors.toList());
+        List<Capability> unverifiable = model.capabilities().stream()
+                .filter(c -> annotationValues(c, "securityUnverifiable") != null)
+                .collect(Collectors.toList());
+        int declared = compiled.size() + unverifiable.size();
+        if (declared == 0) {
+            return;
+        }
+        System.out.println("security: declared " + declared + " (compiled " + compiled.size()
+                + ", unverifiable " + unverifiable.size() + ")");
+        for (Capability capability : compiled) {
+            System.out.println("  " + capability.name() + ": requires any of "
+                    + annotationValues(capability, "requiredAuthorities"));
+        }
+        for (Capability capability : unverifiable) {
+            List<String> reason = annotationValues(capability, "securityUnverifiable");
+            System.out.println("  " + capability.name() + ": unverifiable ("
+                    + (reason.isEmpty() ? "" : reason.get(0)) + ")");
+        }
+    }
+
+    private static List<String> annotationValues(Capability capability, String key) {
+        for (Annotation annotation : capability.annotations()) {
+            if (annotation.key().equals(key)) {
+                return annotation.values();
+            }
+        }
+        return null;
     }
 
     // The partial qualifier on a discovered or failed line (Volume 5 section 4.9): the entity

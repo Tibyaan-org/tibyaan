@@ -26,6 +26,13 @@ final class ManifestWriter {
     // records it on the paged findAll(Pageable) variant, Volume 5 section 4.10.3).
     private static final String PAGED_ANNOTATION = "paged";
 
+    // The declared security contract a read's controller surface carries (Volume 6 section 3.5; the
+    // provider compiles it, Volume 5 section 4.14). requiredAuthorities is the complete any-of literal
+    // sequence; securityUnverifiable marks a declared contract the tool could not compile. Absent means
+    // no declaration was found, which is NOT a claim the read is unprotected (see docs/SECURITY.md).
+    private static final String REQUIRED_AUTHORITIES_ANNOTATION = "requiredAuthorities";
+    private static final String SECURITY_UNVERIFIABLE_ANNOTATION = "securityUnverifiable";
+
     private ManifestWriter() {
     }
 
@@ -68,6 +75,20 @@ final class ManifestWriter {
         // entity (Volume 6 section 3.1). Absent otherwise, so unviewed capabilities are unchanged.
         viewOf(capability).ifPresent(view ->
                 out.append("      \"view\": ").append(quote(view)).append(",\n"));
+        // The declared security contract (Volume 6 section 3.5), after output and its refinements: a
+        // compiled any-of authority array, or the unverifiable marker, or neither (absent). Additive and
+        // present only when a contract is declared, so every capability with no contract is byte-identical.
+        requiredAuthoritiesOf(capability).ifPresent(authorities -> {
+            out.append("      \"requiredAuthorities\": [");
+            for (int i = 0; i < authorities.size(); i++) {
+                out.append(quote(authorities.get(i)));
+                out.append(i < authorities.size() - 1 ? ", " : "");
+            }
+            out.append("],\n");
+        });
+        if (isSecurityUnverifiable(capability)) {
+            out.append("      \"securityUnverifiable\": true,\n");
+        }
         Map<String, Type> inputs = capability.inputs();
         if (inputs.isEmpty()) {
             out.append("      \"inputs\": []\n");
@@ -104,9 +125,47 @@ final class ManifestWriter {
         String base = capability.inputs().isEmpty()
                 ? "Read " + entity + "."
                 : "Read " + entity + " by " + String.join(", ", capability.inputs().keySet()) + ".";
-        return viewOf(capability)
+        String read = viewOf(capability)
                 .map(view -> base + " Returns the " + view + " view of " + entity + ".")
                 .orElse(base);
+        return read + securityClause(capability);
+    }
+
+    // The security clause the description carries (Volume 6 section 3.5), since the description is the
+    // surface most MCP clients show an agent directly. A compiled contract lists the any-of authorities;
+    // an unverifiable one warns and names the reason; an absent contract adds nothing.
+    private static String securityClause(Capability capability) {
+        Optional<List<String>> authorities = requiredAuthoritiesOf(capability);
+        if (authorities.isPresent()) {
+            return " Requires any of the declared authorities: " + String.join(", ", authorities.get()) + ".";
+        }
+        return securityUnverifiableReason(capability)
+                .map(reason -> " Carries a declared security contract that could not be structurally "
+                        + "verified (" + reason + "); resolve it before exposing this tool.")
+                .orElse("");
+    }
+
+    // The compiled any-of authority sequence, when the read carries a fully-parsed contract.
+    private static Optional<List<String>> requiredAuthoritiesOf(Capability capability) {
+        for (Annotation annotation : capability.annotations()) {
+            if (annotation.key().equals(REQUIRED_AUTHORITIES_ANNOTATION)) {
+                return Optional.of(annotation.values());
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static boolean isSecurityUnverifiable(Capability capability) {
+        return securityUnverifiableReason(capability).isPresent();
+    }
+
+    private static Optional<String> securityUnverifiableReason(Capability capability) {
+        for (Annotation annotation : capability.annotations()) {
+            if (annotation.key().equals(SECURITY_UNVERIFIABLE_ANNOTATION) && !annotation.values().isEmpty()) {
+                return Optional.of(annotation.values().get(0));
+            }
+        }
+        return Optional.empty();
     }
 
     // The view type simple name, when the capability carries the backend's one known annotation.

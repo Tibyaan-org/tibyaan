@@ -66,6 +66,48 @@ class OpenApiBackendGoldenTest {
         assertGoldenAndValid(listIr(), out, "list.json");
     }
 
+    @Test
+    void declaredSecurityContractRendersAsVendorExtensionsAndStaysValid(@TempDir Path out) throws IOException {
+        new OpenApiBackend().generate(securityIr(), new GenerationContext(out));
+        String actual = normalize(Files.readString(out.resolve("openapi.json")));
+
+        // The vendor extensions are valid OpenAPI 3.x (never the native securitySchemes vocabulary, which
+        // would fabricate a credential type the IR does not carry, Volume 6 section 4.3).
+        SwaggerParseResult parsed = new OpenAPIV3Parser().readContents(actual, null, null);
+        assertThat(parsed.getOpenAPI()).as("document parses as OpenAPI 3.x").isNotNull();
+        assertThat(parsed.getMessages()).as("no OpenAPI validation messages").isEmpty();
+
+        // A compiled contract: the authorities extension and the summary clause; an unverifiable one: the
+        // marker extension and its clause. Never securitySchemes, never a native security requirement.
+        assertThat(actual)
+                .contains("\"x-tibyan-required-authorities\"")
+                .contains("480012")
+                .contains("Requires any of the declared authorities: 480012, 480013.")
+                .contains("\"x-tibyan-security-unverifiable\": true")
+                .contains("could not be structurally verified (unparseable-expression)")
+                .doesNotContain("securitySchemes")
+                .doesNotContain("\"security\"");
+    }
+
+    // Two reads carrying declared-security annotations (Volume 6 section 4.3): one COMPILED, one
+    // SECURITY-UNVERIFIABLE. Distinct entities so the two GET operations are independent.
+    private static CapabilityModel securityIr() {
+        Entity warehouse = new Entity("Warehouse", "Warehouse",
+                List.of(Field.of("id", Primitive.LONG, false)), List.of(), Metadata.empty());
+        Entity report = new Entity("Report", "Report",
+                List.of(Field.of("id", Primitive.LONG, false)), List.of(), Metadata.empty());
+        Capability getWarehouse = new Capability("getWarehouse", CapabilityKind.READ,
+                inputs("id", Primitive.LONG), Type.entityRef("Warehouse"), false, true,
+                new BindingRef("WarehouseService#findById"),
+                List.of(new Annotation("requiredAuthorities", List.of("480012", "480013"))));
+        Capability getReport = new Capability("getReport", CapabilityKind.READ,
+                inputs("id", Primitive.LONG), Type.entityRef("Report"), false, true,
+                new BindingRef("ReportService#findById"),
+                List.of(new Annotation("securityUnverifiable", List.of("unparseable-expression"))));
+        return new CapabilityModel("secured-app", "0.1",
+                List.of(warehouse, report), List.of(getWarehouse, getReport), List.of(), Metadata.empty());
+    }
+
     private static void assertGoldenAndValid(CapabilityModel ir, Path out, String golden) throws IOException {
         new OpenApiBackend().generate(ir, new GenerationContext(out));
         String actual = normalize(Files.readString(out.resolve("openapi.json")));

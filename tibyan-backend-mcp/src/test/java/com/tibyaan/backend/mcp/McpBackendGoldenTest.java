@@ -82,6 +82,27 @@ class McpBackendGoldenTest {
         assertThat(actual).isEqualTo(expected);
     }
 
+    @Test
+    void surfacesTheDeclaredSecurityContract(@TempDir Path outputRoot) throws IOException {
+        new McpBackend().generate(securityIr(), new GenerationContext(outputRoot));
+
+        String manifest = normalize(Files.readString(outputRoot.resolve("tibyan/capabilities.json")));
+
+        // A compiled contract: the any-of authority array (verbatim, never transformed) after the output,
+        // plus the description clause the surface most MCP clients show (Volume 6 section 3.5).
+        assertThat(manifest)
+                .contains("\"requiredAuthorities\": [\"480012\", \"480013\"]")
+                .contains("Requires any of the declared authorities: 480012, 480013.");
+        // An unverifiable contract: the binary marker and the warn-and-name-the-reason clause. Never a
+        // partial authority list, never silently treated as unprotected.
+        assertThat(manifest)
+                .contains("\"securityUnverifiable\": true")
+                .contains("could not be structurally verified (unparseable-expression); resolve it before "
+                        + "exposing this tool.");
+        // Absence adds nothing: a read with no declared contract carries neither field (byte-identical).
+        assertThat(manifest).doesNotContain("\"requiredAuthorities\": []");
+    }
+
     private static void assertMatchesGolden(Path outputRoot, String relativePath) throws IOException {
         String actual = normalize(Files.readString(outputRoot.resolve(relativePath)));
         String expected = normalize(readGolden("/golden/mcp/" + relativePath));
@@ -181,5 +202,30 @@ class McpBackendGoldenTest {
         return new CapabilityModel(
                 "erp-backend", "0.1",
                 List.of(contact), List.of(listContact), List.of(), Metadata.empty());
+    }
+
+    // Two reads carrying declared-security annotations (Volume 6 section 3.5): one COMPILED with a
+    // two-authority any-of sequence, one SECURITY-UNVERIFIABLE with a reason token. A third read with no
+    // annotation would be ABSENT and carry neither field.
+    private static CapabilityModel securityIr() {
+        Entity warehouse = new Entity("Warehouse", "Warehouse",
+                List.of(Field.of("id", Primitive.LONG, false)), List.of(), Metadata.empty());
+        Entity report = new Entity("Report", "Report",
+                List.of(Field.of("id", Primitive.LONG, false)), List.of(), Metadata.empty());
+
+        Map<String, Type> warehouseInputs = new LinkedHashMap<>();
+        warehouseInputs.put("id", Primitive.LONG);
+        Capability getWarehouse = new Capability("getWarehouse", CapabilityKind.READ, warehouseInputs,
+                Type.entityRef("Warehouse"), false, true, new BindingRef("WarehouseService#findById"),
+                List.of(new Annotation("requiredAuthorities", List.of("480012", "480013"))));
+
+        Map<String, Type> reportInputs = new LinkedHashMap<>();
+        reportInputs.put("id", Primitive.LONG);
+        Capability getReport = new Capability("getReport", CapabilityKind.READ, reportInputs,
+                Type.entityRef("Report"), false, true, new BindingRef("ReportService#findById"),
+                List.of(new Annotation("securityUnverifiable", List.of("unparseable-expression"))));
+
+        return new CapabilityModel("secured-app", "0.1",
+                List.of(warehouse, report), List.of(getWarehouse, getReport), List.of(), Metadata.empty());
     }
 }

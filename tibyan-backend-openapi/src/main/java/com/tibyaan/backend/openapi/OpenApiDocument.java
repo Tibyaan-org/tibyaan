@@ -32,6 +32,8 @@ final class OpenApiDocument {
     private static final String VIEW_ANNOTATION = "view";
     private static final String PARTIAL_ANNOTATION = "partial";
     private static final String PAGED_ANNOTATION = "paged";
+    private static final String REQUIRED_AUTHORITIES_ANNOTATION = "requiredAuthorities";
+    private static final String SECURITY_UNVERIFIABLE_ANNOTATION = "securityUnverifiable";
     private static final String SCHEMAS_REF = "#/components/schemas/";
 
     private final CapabilityModel ir;
@@ -93,15 +95,57 @@ final class OpenApiDocument {
     private Map<String, Object> pathItem(Capability capability) {
         Map<String, Object> operation = new LinkedHashMap<>();
         operation.put("operationId", capability.name());
-        operation.put("summary", description(capability));
+        operation.put("summary", description(capability) + securityClause(capability));
         if (!capability.outputMultiple()) {
             operation.put("parameters", List.of(pathParameter(capability)));
         }
         operation.put("responses", responses(capability));
+        // The declared security contract as a vendor extension (Volume 6 section 4.3): never the native
+        // securitySchemes vocabulary, which would fabricate a credential type/flow/scope the IR does not
+        // carry. Additive and present only when a contract is declared, so absent operations are identical.
+        requiredAuthoritiesOf(capability).ifPresent(authorities ->
+                operation.put("x-tibyan-required-authorities", new ArrayList<>(authorities)));
+        if (securityUnverifiableReason(capability).isPresent()) {
+            operation.put("x-tibyan-security-unverifiable", Boolean.TRUE);
+        }
 
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("get", operation);
         return item;
+    }
+
+    // The security clause the operation summary carries (Volume 6 section 4.3), the human half of the
+    // two-audience disclosure. A compiled contract states its any-of authorities and that the credential
+    // shape is not modeled; an unverifiable one warns and names the reason; an absent contract adds nothing.
+    private String securityClause(Capability capability) {
+        Optional<List<String>> authorities = requiredAuthoritiesOf(capability);
+        if (authorities.isPresent()) {
+            return " Requires any of the declared authorities: " + String.join(", ", authorities.get())
+                    + ". The application's security layer matches these literally; how a caller acquires "
+                    + "and presents them is not modeled.";
+        }
+        return securityUnverifiableReason(capability)
+                .map(reason -> " A declared security contract exists on this operation that could not be "
+                        + "structurally verified (" + reason + "); resolve it before relying on this operation.")
+                .orElse("");
+    }
+
+    private static Optional<List<String>> requiredAuthoritiesOf(Capability capability) {
+        for (Annotation annotation : capability.annotations()) {
+            if (annotation.key().equals(REQUIRED_AUTHORITIES_ANNOTATION)) {
+                return Optional.of(annotation.values());
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static Optional<String> securityUnverifiableReason(Capability capability) {
+        for (Annotation annotation : capability.annotations()) {
+            if (annotation.key().equals(SECURITY_UNVERIFIABLE_ANNOTATION) && !annotation.values().isEmpty()) {
+                return Optional.of(annotation.values().get(0));
+            }
+        }
+        return Optional.empty();
     }
 
     private Map<String, Object> pathParameter(Capability capability) {
