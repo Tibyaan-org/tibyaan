@@ -699,3 +699,66 @@ Byte-identical proven, not asserted: the generated MCP tool sources, `tibyan/cap
 OpenAPI document were generated on the current build and on the pre-build commit and compared with
 `diff -r`: zero differences. mis-bound stays 0, and there is nothing for the new traces to mis-bind here
 because neither fires.
+
+### 8.15 Controller-Authority census and forecast (pms-backend, read-only, 2026-07-19)
+
+Phase Controller-Authority (Volume 5, section 4.14; the first real-user-requested phase) was designed
+from a full read-only census of the three benchmarks. This section records the pms half and the pms
+forecast. No tool change was made in this session.
+
+The controller census:
+
+- Concrete controller beans: 36 (27 `@RestController`, 9 `@Controller` whose handlers return
+  `ResponseEntity`), plus 42 GENERATED `@Controller` interfaces (the OpenAPI-generator split idiom: the
+  interface carries `@RequestMapping(method = RequestMethod.GET)` and the `@PathVariable`/`@RequestParam`
+  annotations; the concrete class implements it and carries the body and the security annotation). One
+  controller file is unparseable (the WebSocket STOMP controller, a `$IMPORT_LINE` placeholder defect) and
+  is already named by the E1 skip list; 35 of 36 concrete controllers parse.
+- GET endpoints: roughly 90 distinct (89 `@RequestMapping(method = GET)` declarations, 6 of them
+  duplicated between a standalone reports controller and its dead generated interface, plus 7 direct
+  `@GetMapping` in the lease controller). For context: POST 59, PUT 16, DELETE 23, PATCH 16.
+- GET parameter shapes: roughly 20 by-id (exactly one `@PathVariable`, `Long` or `String`), roughly 40
+  filtered (`@RequestParam` filters plus a hand-rolled `pageNum`/`pageSize`/`pageOffset` Integer triple;
+  Spring `Pageable` appears nowhere), roughly 11 no-parameter (mostly "me"-scoped reads that pull the
+  caller id from a request context, not parameters), 0 `@RequestBody`-on-GET.
+- GET return types: every GET returns `ResponseEntity<X>`; X is a per-resource `*ResultSet` envelope
+  (roughly 45), a `*VTO` (roughly 30), summary or chart types (roughly 7), generated `*200Response`
+  wrappers (2), `List<...>` (2), `byte[]` (2), `Integer` (1).
+- GET bodies: overwhelmingly one-statement `return ResponseEntity.ok(service.method(args));` (roughly 80
+  of 90); the remainder are two-to-three-statement bodies (a request-context read first). No try/catch,
+  no assembly logic in GET handlers.
+- Security: `@Secured` ONLY. 119 occurrences, all method-level, all on controllers (none on services),
+  every value a statically-imported `public static final String` role constant from the user module
+  (`PROPERTY_MANAGER_ROLE = "1"`, `SUPERINTENDENT_ROLE = "2"`, `RESIDENT_ROLE = "3"`), in one-to-three
+  element arrays. ZERO `@PreAuthorize`, `@PostAuthorize`, `@RolesAllowed`, `@PreFilter`, `@PostFilter`.
+  Enablement: `@EnableMethodSecurity(securedEnabled = true)` in the in-tree security-adapter library; no
+  legacy `@EnableGlobalMethodSecurity`. URL layer: one active `SecurityFilterChain` (public paths
+  `permitAll`, then `anyRequest().authenticated()`), which the tool never reads, and which is why absence
+  of a method-level declaration is never presented as "unprotected".
+- The two live anchors, verified from source: `UnitControllerImpl#_getUnitById` is exactly
+  `return ResponseEntity.ok(unitService.findById(unitId));` under
+  `@Secured({PROPERTY_MANAGER_ROLE, SUPERINTENDENT_ROLE})`, with its GET mapping and `@PathVariable` on
+  the generated `UnitController` interface; `LeaseControllerImpl#_getLeaseById` is exactly
+  `return ResponseEntity.ok(leaseService.findById(leaseId));` under `@Secured({PROPERTY_MANAGER_ROLE})`,
+  mapping on the generated `LeaseController` interface. Those two service methods ARE the discovered
+  bindings of getUnit and getLease.
+
+Forecast (after the Controller-Authority build, stated before it):
+
+- discovered 2 (by-id 2, list 0), UNCHANGED; failed, skipped, partial rows UNCHANGED; mis-bound 0.
+- getUnit gains `requiredAuthorities ["1", "2"]` and getLease gains `requiredAuthorities ["1"]`: both
+  anchors are strict one-statement delegations, both `@Secured` declarations are single-mechanism
+  method-level, every constant resolves in-tree to a single string literal, and the modern-enablement
+  gate passes. The compiled values are the literal strings "1" and "2", carried verbatim; the tool never
+  prettifies them into the constant names, because the literal is what the security layer matches.
+- The MCP manifest and the OpenAPI document change ADDITIVELY on exactly those two capabilities (the new
+  field plus one description clause each; `x-tibyan-required-authorities` on the OpenAPI operations);
+  every other byte is identical. The goldens update deliberately with a visible diff, the E2 view-field
+  precedent.
+- Assumption to verify at build: no OTHER GET handler invokes `unitService.findById` or
+  `leaseService.findById` (the associated-endpoint sweep must find exactly one route each). A second
+  associated route would move the state to `securityUnverifiable (conflicting-declarations)` per the
+  composition rule, and finding one is a forecast deviation to record, not to absorb silently.
+- Everything else is inert here: the roughly 40 filtered GETs refuse as deferred filtered reads and their
+  `@Secured` contracts attach to nothing (no orphan authorities); the `*ResultSet` list endpoints stay
+  outside rule 4.10's pool exactly as before; the unparseable WebSocket controller stays a named E1 skip.

@@ -218,3 +218,85 @@ new capabilities. What the build changed is honesty, not coverage: 10 entities a
 having no identifier, and 3 guarded reads now say precisely why they are refused. The remaining
 user-facing coverage (the guarded and aggregate-enrichment reads) is Attestation territory, not more
 discovery rules.
+
+## 7. Controller-Authority census and forecast (counts and shapes only, 2026-07-19)
+
+Phase Controller-Authority (Volume 5, section 4.14; the first real-user-requested phase) was designed
+from a full read-only census of the three benchmarks. This section records this benchmark's half,
+redacted as always: counts and structural shapes only, synthetic names where an example is needed.
+
+### 7.1 The controller and security census
+
+- Controllers: 40 `@RestController` implementation classes over 38 OpenAPI-generated `@Controller`
+  INTERFACES (the same split idiom as pms-backend: the generated interface carries
+  `@RequestMapping(method = RequestMethod.GET)` and the parameter annotations; the implementation carries
+  the body and the security annotation). All parse clean at Java 17.
+- GET endpoints: 70 (all `@RequestMapping(method = GET)` on the interfaces; zero `@GetMapping` on
+  controllers). For context: POST 29, PUT 62, DELETE 21, plus a handful of PATCH.
+- GET parameter shapes: roughly 22 by-id (exactly one `@PathVariable`; ids are `Long`, a minority
+  `Integer`, a few `String`, no `UUID`); the dominant remainder is filtered list GETs carrying roughly 8
+  to 12 `@RequestParam` filters each (roughly 240 `@RequestParam` declarations in total, with a
+  hand-rolled page-number/page-size/page-offset Integer trio and two ordering enums; Spring `Pageable`
+  appears nowhere); a minority of no-parameter lookup GETs; zero `@RequestBody`-on-GET.
+- GET return types: every GET returns `ResponseEntity<X>`; X is a per-entity `*ResultSet` list envelope
+  (roughly 44; the shape is a `_list` plus `total` pagination wrapper, one bespoke class per entity), a
+  single `*VTO` detail view (roughly 23), one raw `List<view>`, one binary `Resource`, one
+  principal/context object. Notably NO controller GET returns a raw entity class; the controller surface
+  is uniformly view-shaped.
+- GET bodies: 100 percent one-statement delegation, `return ResponseEntity.ok(service.method(args));`,
+  with zero try/catch, zero branching, zero mapping in any controller body.
+- Security, the headline consistent with pms: `@Secured` ONLY. 177 occurrences across 30 of the 40
+  implementation classes, ALL method-level, ALL on controllers (services carry zero security
+  annotations). Every usage carries EXACTLY ONE constant (`@Secured(CONST)` or
+  `@Secured(value = {CONST})`): a statically star-imported `public static final String` from a per-module
+  scopes holder class, whose initializer is a single string literal, a 6-digit numeric permission code
+  (synthetic analogue: `SC_READ_WIDGET = "480012"`). No multi-authority arrays, no `ROLE_` prefixes, no
+  privilege-word strings. ZERO `@PreAuthorize`, `@PostAuthorize`, `@RolesAllowed`, `@PreFilter`,
+  `@PostFilter`; there is no SpEL security expression anywhere in the codebase.
+- Enablement: `@EnableMethodSecurity(securedEnabled = true)` on a configuration class in an IN-TREE
+  shared library module of the reactor; ZERO `@EnableGlobalMethodSecurity`. The modern-enablement gate of
+  the compiled set (Volume 5, section 4.14.4) passes. One `SecurityFilterChain` with `requestMatchers`
+  rules exists (never read by the tool; the reason absence is not "unprotected").
+- Roughly 10 implementation classes carry NO method security (auth flows, self-profile, internal
+  service-to-service controllers), falling back to the URL chain; one module's scopes holder class exists
+  but is entirely commented out, so its controllers are method-security-free. Real-world ABSENT states on
+  a secured application.
+
+### 7.2 The fronting census of the 4 discovered capabilities
+
+Each discovered capability's binding was traced to its controller fronting (strict anchor means: a GET
+handler whose body is exactly one statement delegating verbatim to the binding, per section 4.14.2):
+
+- Capability 1 (view-returning, section 4.2): fronted by EXACTLY ONE strict anchor carrying a
+  single-constant `@Secured` whose constant resolves in-tree to a single string literal (a numeric code).
+  COMPILES a one-element `requiredAuthorities` sequence.
+- Capability 2 (view-returning, section 4.2): NO fronting controller GET exists; the read is consumed
+  only by an internal inter-service proxy. ABSENT.
+- Capabilities 3 and 4 (entity-returning, section 4.1): NO fronting controller GET exists for either; one
+  lives in a module that ships no controller at all, the other in an adapter library consumed only by
+  repository code. ABSENT. This is structural, not incidental: no controller GET in this codebase returns
+  a raw entity class, so an entity-returning service read can never be the verbatim delegate of a GET
+  endpoint here.
+- The AMBIGUOUS entity (the correct AMBIGUOUS_BINDING refusal from section 6.1): its two competing view
+  reads are fronted by TWO DISTINCT strict one-statement anchors on two distinct controllers (a public
+  route and an internal route), NEITHER carrying `@Secured`. Under the pooling decision the anchors are
+  NOT a tiebreaker, so the entity stays AMBIGUOUS: the live case proving the no-precedence rule matters
+  on a real app.
+
+### 7.3 Forecast (after the Controller-Authority build, stated before it)
+
+- Row (projected): discovered 4 (by-id 4, list 0), UNCHANGED. Failed, deferred, partial rows UNCHANGED.
+  mis-bound 0, now including the extended security-contract sense: no authority attaches to any
+  capability except capability 1's own single compiled literal.
+- Capability 1 gains `requiredAuthorities` with its one literal code; capabilities 2, 3, and 4 stay
+  ABSENT (no method-security declaration found on any associated route; NOT a claim of unprotectedness,
+  the URL chain gates the app). Generated output changes ADDITIVELY on exactly one capability's entries
+  in the MCP manifest and the OpenAPI document; everything else byte-identical.
+- The AMBIGUOUS entity stays AMBIGUOUS (anchors are never tiebreakers), and no `securityUnverifiable`
+  marker is forecast anywhere: every declaration on a fronting anchor of a discovered capability is
+  single-mechanism, single-constant, literal-resolving, and agreement is trivial (one anchor each).
+- The dominant filtered GET surface (the `*ResultSet` list endpoints with their `@RequestParam` filters
+  and `@Secured` codes) stays refused per the E6b verdict, and its 170-plus declared codes attach to
+  NOTHING (no orphan authorities). Stated for scale: this app declares its security richly, and almost
+  all of that declaration sits on reads beyond the structural ceiling; the by-id slice the tool can carry
+  is real but small, exactly one compiled contract today.

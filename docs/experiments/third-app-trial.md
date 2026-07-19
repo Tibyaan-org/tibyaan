@@ -737,3 +737,60 @@ invent an identifier.
 Byte-identical proven, not asserted: all 25 generated MCP tool sources, `tibyan/capabilities.json`, and
 the OpenAPI document were generated on the current build and on the pre-build commit and compared with
 `diff -r`: zero differences. mis-bound stays 0.
+
+## 21. Controller-Authority census and forecast (erp-backend, read-only, 2026-07-19)
+
+Phase Controller-Authority (Volume 5, section 4.14) was designed from a full read-only census of the
+three benchmarks. This section records the erp half and the erp forecast. No tool change was made in this
+session.
+
+The controller census:
+
+- Controller classes: 29 `@RestController` concrete classes (no `@Controller` view controllers). 14 of
+  them split into a PLAIN in-tree interface carrying the `@GetMapping`/parameter annotations plus an
+  `Impl` carrying `@RestController` and the bodies (the mapping is never duplicated on the impl); 15 are
+  standalone with `@GetMapping` directly on the class. Bean names are qualified to avoid collisions
+  (`adminProductController` versus `salesProductController`); Product, ProductCategory, Brand, Contact,
+  Account, Transaction, Quote, and Delivery each have BOTH an admin and a sales controller. All
+  controller sources parse clean.
+- GET endpoints: 104, all via `@GetMapping` (zero `@RequestMapping(method = GET)`). For context: POST 27,
+  PUT 2, DELETE 21, PATCH 20.
+- GET parameter shapes: 30 by-id (exactly one `@PathVariable`, typically `UUID`), 7 path-id plus
+  `Pageable`, 2 enum-keyed path variables (`EmailTemplateType`), 22 `@RequestParam` filtered (1 to 10
+  filter params, all `required = false`), 29 no-parameter, 13 `Pageable`-only, 1 mixed. `Pageable` is
+  pervasive (roughly 40 signatures); `@RequestBody`-on-GET is 0.
+- GET return types: 102 of 104 return `ResponseEntity<X>` (X: entity 21, DTO 6, `Page<Entity>` 35,
+  `Page<DTO>` 4, `List<Entity>` 16, `List<DTO>` 15, `List<String>` 2, `byte[]` 3); 2 return raw types
+  (`byte[]`, `SseEmitter`). Entity-typed GETs dominate (72 of 104), consistent with erp's
+  entity-returning service idiom.
+- GET bodies: 39 are pure one-statement delegations (`return ResponseEntity.ok(service.x(...));`); 65
+  wrap the one service call in try/catch status-mapping boilerplate or a trivial null-check branch; none
+  contains business logic.
+- Security, the headline: ZERO. No `@PreAuthorize`, `@PostAuthorize`, `@Secured`, `@RolesAllowed`,
+  `@PreFilter`, `@PostFilter`, no `@EnableMethodSecurity`, no `SecurityFilterChain`, and no Spring
+  Security dependency in the pom at all. erp is the security-absent benchmark: the phase's extractor must
+  produce clean ABSENT states here, not crash and not invent.
+- The pooling evidence (why the phase pools instead of minting per-endpoint capabilities): every one of
+  the 25 discovered capabilities' service methods has at least one controller GET delegating to it, and
+  several have MORE than one. `transactionService.findById` is invoked by FOUR controller methods (admin
+  and sales `findById`, both one-statement strict anchors, plus admin and sales `findDetailsById`, both
+  NON-strict associated endpoints whose bodies nest the load inside a mapping call);
+  `productService.findById` and `accountService.findById` are each fronted by both an admin and a sales
+  controller. A capability-per-endpoint model would emit up to four indistinguishable tools for one read.
+
+Forecast (after the Controller-Authority build, stated before it):
+
+- discovered 25 (by-id 16, list 9), UNCHANGED; failed, list-refused, partial rows UNCHANGED; mis-bound 0.
+- Output BYTE-IDENTICAL: with zero security declarations anywhere, every capability's security state is
+  ABSENT, which emits no field, no marker, and no description change. erp is the negative control proving
+  the phase adds nothing where nothing is declared.
+- The composition rule is exercised live and invisibly: Transaction's four associated endpoints (two
+  strict, two non-strict) carry zero declarations, so the state is ABSENT; had any one of them declared a
+  contract, the non-strict routes would force `securityUnverifiable (conflicting-declarations)`, and that
+  exact shape is fixture CA-13's third case.
+- The anchor machinery finds real strict anchors here (the 39 one-statement GETs, including by-id and
+  list-all delegations to discovered bindings) and attaches nothing, which is the designed no-op. The 65
+  try/catch bodies are associated-but-non-strict endpoints and, with no declarations, change nothing.
+- Nothing else moves: filtered and Pageable-carrying GETs stay deferred exactly as rule 4.10 already
+  classifies their service methods; the enum-keyed EmailTemplate GET anchors nothing by-id (the entity has
+  no by-id capability; its listEmailTemplate is unaffected).
