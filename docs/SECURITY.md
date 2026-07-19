@@ -36,6 +36,33 @@ That makes network exposure of the MCP endpoint your decision, and the most impo
   because the tool calls the service method directly through the execution adapter. Assume every exposed
   read is reachable by anyone who can reach the endpoint, and gate the endpoint accordingly.
 
+## The declared authority contract in the manifest (phase Controller-Authority, designed, pending build)
+
+Once the Controller-Authority phase is built (Volume 5, section 4.14; designed 2026-07-19), the manifest can
+carry the security contract your application DECLARES on its own endpoints: a capability may list
+`requiredAuthorities` (the literal authority strings your security annotations require, any-of semantics,
+compiled only from expressions the tool can fully parse) or be marked `securityUnverifiable` (a declared
+contract exists that the tool could not compile completely; treat it as gated until a human resolves it).
+
+Read the three states precisely, because their honesty depends on it:
+
+- `requiredAuthorities` present: your application declares that a caller must hold at least one of these
+  authorities for this read. The tool carries the declaration; it does not enforce it.
+- `securityUnverifiable` present: a security declaration exists on this read's surface that the tool could
+  not compile (an expression beyond the parseable set, a conflict between routes, an unresolvable
+  constant). Do not expose this capability through a layer that intends to honor declared security until
+  you have resolved what the declaration means.
+- Neither present: NO method-security declaration was found on the read's binding or its controller
+  endpoints. This is NOT a statement that the read is unprotected: URL-level rules (your
+  `SecurityFilterChain`, request matchers, filters) are invisible to this analysis, and the tool never
+  reads them.
+
+What does not change: the runtime still enforces nothing. The generated layer still bypasses your HTTP
+security entirely (the adapter calls the service bean, not your controller), which is exactly why the
+declared contract is carried at all: so YOUR enforcement layer, the orchestration or gateway in front of
+the MCP endpoint, can apply the declared requirements before invoking a capability. Gating the endpoint
+(the section above) remains your responsibility either way.
+
 ## What fail-loud does and does not protect against
 
 Tibyan's fail-loud, never-guess discipline protects the integrity of the mapping: a generated tool is

@@ -80,6 +80,19 @@ Every name a backend puts on a surface (a tool name, the manifest output token, 
 
 What this will never do: a backend never invents a disambiguator of its own (the display name is decided once, in the provider, so every backend agrees); and no backend surfaces the raw `key` on a tool or schema name, which would leak a package path into an agent-facing surface. The key is identity, carried in the IR for resolution and validation; the display name is what a surface shows.
 
+### 3.5 Surfacing the declared security contract (phase Controller-Authority; designed 2026-07-19, pending ratification)
+
+A capability may carry a `requiredAuthorities` annotation (the compiled, literal, any-of authority sequence declared by the application's own security annotations) or a `securityUnverifiable` annotation (a declared contract exists that could not be compiled), per Volume 5, section 4.14. Without surfacing them, the generated tool would hide from its consumer exactly the fact the requesting adopter needs: what the application declares a caller must hold before this read is invoked. This subsection decides the MCP surface, in the smallest-honest-surface pattern of the `view` (3.1) and `outputMultiple` (3.3) precedents.
+
+- Manifest field, compiled state (required). A tool entry for a capability carrying `requiredAuthorities` gains one field, `"requiredAuthorities"`, a JSON array of the literal strings in their compiled order, placed after `"output"` and its refinements (`"view"`, `"outputMultiple"`, `"paged"`). Semantics, stated here once for every consumer: the application declares that invoking this read requires the caller to hold AT LEAST ONE of the listed authorities (any-of), matched literally by the application's security layer. The strings are verbatim, however opaque; the backend never transforms, prettifies, or reorders them.
+- Manifest field, unverifiable state (required). A tool entry for a capability carrying `securityUnverifiable` gains one field, `"securityUnverifiable": true`. The reason token is NOT a manifest field: the machine-actionable fact is binary (this tool must not be treated as carrying no contract, and must not be exposed by a consumer honoring declared security until a human resolves the declaration); the reason belongs to the human surfaces (the description clause below, and the scan survey's located detail).
+- Absence (required, and the honesty pivot). A capability with neither annotation gets NEITHER field: no `false`, no empty array, no null. Absence means exactly "no method-security declaration was found on this capability's binding or its associated controller endpoints", and it is NOT a claim the read is unprotected: URL-level security (filter chains, request matchers) is real, lives in configuration code the tool does not read, and is invisible to this analysis. That definition lives here and in docs/SECURITY.md, once, rather than in a per-entry disclaimer, which keeps every unaffected entry byte-identical (the additive-field discipline of 3.1 and 3.3).
+- Description (added, and justified as in 3.1 and 3.3). The description is the surface most MCP clients actually show an agent, so it must not stay silent where a field speaks. A compiled capability's description gains one deterministic clause: `Requires any of the declared authorities: 1, 2.` An unverifiable capability's gains: `Carries a declared security contract that could not be structurally verified (<reason>); resolve it before exposing this tool.` An absent capability's description is unchanged.
+- One-off, not a passthrough. As with `view`, `outputMultiple`, and `paged`, the backend surfaces exactly the two security annotations it understands how to present. This is the fourth and fifth understood annotation; a sixth is a new deliberate decision here.
+- Enforcement is explicitly NOT this surface's job. The manifest carries the declared contract; the runtime does not validate tokens or authorities this phase (the named deferral is Volume 7, section 8, gap 9). The consuming orchestration layer enforces, which is precisely the requesting adopter's architecture.
+
+The runtime's manifest loader tolerates both new fields explicitly on its manifest types (the same `@JsonIgnoreProperties` tolerance the `view` field proved), verified by a loader test in the build; runtime behavior is otherwise unchanged.
+
 ### 3.2 Future backends (direction)
 
 | Backend | Output | Note |
@@ -139,6 +152,21 @@ This realizes the E4 seam recorded when the backend shipped (section 4): a list 
 4. Filtered inputs do not arise. E4 discovers no filtered list read (Volume 5, section 4.10.2), so the backend renders no opaque filter parameters and makes no unverified "filter by X" claim. When filtered reads are modeled in a later phase, how their inputs render (a query parameter with a copied name, and whether the description states the semantics are not verified) is that phase's decision, inheriting this same honesty rule; it is named here, not designed here.
 
 What this will never claim: a page envelope shape the IR does not model (only an array of the element, plus a paged disclosure); a filter parameter the IR does not carry; or, through the array's items, any more than the element schema already honestly claims under section 4.1.
+
+### 4.3 The declared security contract in OpenAPI (phase Controller-Authority; designed 2026-07-19, pending ratification)
+
+The OpenAPI backend must surface the same two security states the MCP manifest surfaces (section 3.5), and the design question is whether to use OpenAPI's native security vocabulary (`securitySchemes` plus per-operation `security` requirements) or a vendor extension. Argued and decided: VENDOR EXTENSION, not the native vocabulary.
+
+The native vocabulary is rejected because using it would fabricate claims the IR does not carry. An OpenAPI `security` requirement must reference a named scheme in `components/securitySchemes`, and a scheme must declare its TYPE: `http` (with a scheme like bearer), `apiKey` (with a location and parameter name), `oauth2` (with flows, token URLs, and scopes), or `openIdConnect` (with a discovery URL). The IR knows none of that: the compiled `requiredAuthorities` are literal strings the application's security layer matches against granted authorities, and NOTHING structural says how a caller acquires them, what the credential looks like, or on which header it travels. Mapping authorities onto OAuth2 scopes is the tempting near-fit and is exactly the lie the partiality rule (section 4.1) forbids: an authority is not a scope, the app may not use OAuth2 at all, and a generated `flows` object with an invented token URL would be pure fabrication. A reader of the generated document must never be more confident than the IR.
+
+The rule, following section 4.1's two-audiences discipline (condition 6):
+
+1. Compiled state: the GET operation carries `x-tibyan-required-authorities`, a JSON array of the literal strings in compiled order, and its `description` gains the deterministic clause `Requires any of the declared authorities: 1, 2. The application's security layer matches these literally; how a caller acquires and presents them is not modeled.`
+2. Unverifiable state: the operation carries `x-tibyan-security-unverifiable: true` and the description clause `A declared security contract exists on this operation that could not be structurally verified (<reason>); resolve it before relying on this operation.`
+3. Absent state: no extension, no clause, byte-identical operation. Absence means no method-security declaration was found, never that the operation is unprotected; the document-level `info.description` is NOT extended to say this (it would churn every golden for a disclosure that belongs to the tool's documentation), so the definition lives in section 3.5 and docs/SECURITY.md.
+4. No `security` field and no `securitySchemes` component are ever emitted, in any state. When a future phase learns the credential shape from evidence (or a human attests it), the native vocabulary becomes that phase's decision.
+
+What this rule will never claim: a security scheme type, flow, token URL, or credential location the IR does not carry; a scope where the source declared an authority; or, through absence, that an operation is publicly invocable.
 
 ## 5. Templates and testing
 
