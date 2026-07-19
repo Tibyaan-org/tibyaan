@@ -21,6 +21,7 @@ import com.tibyaan.core.ir.Type;
 import com.tibyaan.plugin.ProviderInput;
 import com.tibyaan.plugin.SourceAnalyzer;
 import com.tibyaan.provider.spring.EntityOutcome.Cause;
+import com.tibyaan.provider.spring.extractors.ControllerSecurity;
 import com.tibyaan.provider.spring.extractors.DisplayNames;
 import com.tibyaan.provider.spring.extractors.EntityExtractor;
 import com.tibyaan.provider.spring.extractors.ExtractedEntity;
@@ -194,6 +195,15 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
         // any get<E> result. Identifier-independent: an entity with no usable id can still yield list<E>.
         ListReads listReads = discoverListReads(repositories, serviceSources, resolver, capabilities,
                 displayByKey);
+
+        // Controller-authority (phase Controller-Authority, section 4.14): a decorator pass over the
+        // discovered pool. It never mints or removes a capability; it attaches the declared security
+        // contract each read's controller surface carries (a compiled any-of authority sequence, an
+        // unverifiable marker, or nothing), so a security-free app is byte-identical. Run last, after
+        // both discovery pools are final, because it reads capabilities and adds nothing to them but an
+        // annotation. Identity and binding are re-anchored through the key resolver and the single
+        // @Service implementation rule, so no read ever carries another read's authorities.
+        capabilities = ControllerSecurity.decorate(parsed.units(), serviceSources, capabilities, typeMapper);
 
         // Partial-model integrity: close the model (drop references to absent entities, section 4.7),
         // then finalize (mark partial entities and enrich their outcomes, section 4.9). Both run once
