@@ -326,3 +326,38 @@ number. Recorded by counts and shapes only; no real name, route, or authority va
   single authority; the pervasive filtered-list surface (its many `@Secured` codes) attaches to NOTHING,
   because those reads are refused and have no capability to decorate (no orphan authorities). The tool
   declares one honest by-id contract and refuses the rest.
+
+## 8. Attestation forecast: the attestable ceiling (counts and shapes only, 2026-07-20)
+
+Phase Attestation (Volume 5, section 4.15) restated against this benchmark's standing census (sections
+6.1 and 7), redacted as always: counts and shape categories only. The vocabulary: ATTESTABLE UP TO N
+GIVEN A KNOWLEDGEABLE HUMAN, never a promise, and here the knowledgeable human is the adopting team, not
+the tool's maintainer, which makes this app the truest test of the assertion experience.
+
+- AT-0 (structural floor and envelope unwrap): the per-entity list-envelope wrappers (the `_list` plus
+  `total` shape, roughly 44 envelope list endpoints) become visible-but-refused-filtered via the T2 body
+  tie where their service bodies expose the repository access; the twin-proxy and delegation-built
+  wrappers with no in-tree persistence tie refuse as OPAQUE_WRAPPER, counted. New discoveries forecast: 0.
+  Discovered stays 4, mis-bound 0.
+- AT-1 (predicate attestation): attestable up to 8: the 6 soft-delete-guarded by-id reads (3 helper-hop,
+  3 inline; the human asserts the guard's existence condition, the tool has already verified everything
+  else including mutation-freedom through the ratified walks) and the 2 real user-facing filtered query
+  reads the deferral census identified (of the 31 deferred reads, only those 2 are genuine query
+  capabilities; the other 29 are event-handler enums, notification inserts, and request-context
+  accessors, structurally excluded or non-reads).
+- AT-2 (shape attestation): attestable up to 12: the aggregate-enrichment reads (a verified
+  by-primary-key load plus proxy or repository enrichment feeding a composite mapper), each attested for
+  its enrichment sentence over the structurally proven load.
+- AT-3 (boundary, deferred): up to 15 delegation reads (the Feign and cross-service facades, where
+  read-only-ness itself must be asserted) wait for AT-3's separate ratification with its stronger guards.
+  Security contracts: 0 unverifiable today (section 7.4: one compiled, rest absent).
+- EXCLUDED: the 1 hardcoded stub (no read exists to describe), the 10 internal polymorphic-subtype rows
+  (no read to attest), the AMBIGUOUS entity (attestation never selects bindings; its two competing view
+  reads stay a refusal), and every write and MQ consumer.
+
+The ceiling in one line: 4 verified + up to 20 attestable now (AT-1 8, AT-2 12), + up to 15 more behind
+AT-3's own ratification. Attested counts are reported separately from discovered, never summed; every
+existing discovered row stays byte-identical through every sub-phase, and movement is a regression
+finding. The open verification named in the design applies doubly here: this app's attester is a real
+adopting team, and their real attestation rate, decline rate, and staleness churn are the numbers that
+will decide whether AT-2 and beyond proceed.

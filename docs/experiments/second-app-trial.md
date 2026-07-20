@@ -864,3 +864,70 @@ accuracy): section 8.10's module attribution was backwards against the source it
 transparent parseable `*ResultSet` reads in "property, lease, billing" and listed chat among the unparseable
 modules, whereas the billing service impls were the corrupted ones and the chat service impls parsed; the
 GET denominator is exactly 89 (the ledger's "~90"); the `*ResultSet` reads count 33 (the ledger's "~35").
+
+## 10. Attestation forecast: the attestable ceiling (pms-backend, read-only, 2026-07-20)
+
+Phase Attestation (Volume 5, section 4.15) was designed with pms as the motivating case: the maintainer,
+testing as a real adopter, hit the filter ceiling here (5 tools of an 89-GET read surface, section 9) and
+the written trigger fired. This section restates the refusal ledger in the new vocabulary, per attestable
+category, and states the ceiling honestly: ATTESTABLE UP TO N GIVEN A KNOWLEDGEABLE HUMAN, never a
+promise. All numbers are against the repaired copy (section 9) and the 2026-07-20 coverage census (89
+GETs exact).
+
+Per sub-phase, at the GET-endpoint denominator:
+
+- AT-0 (structural floor and envelope unwrap), the RE-BASED E6a forecast: the ratified 2026-07-02 E6a
+  forecast (section 8.10, roughly 12 visible and roughly 23 parse-skipped) predated the parse repair; on
+  the repaired copy ALL of pms parses, so all roughly 33 `*ResultSet` service reads become
+  VISIBLE-BUT-REFUSED-FILTERED via the T2 body tie, and ZERO stay parse-skipped. New discoveries: 0
+  (every envelope read is filtered, exactly as the E6a design predicted). The P1b floor matcher changes
+  Tenant's near-miss wording to the ratified inner-fetch refusal; counts byte-identical. Discovered stays
+  5, mis-bound 0.
+- AT-1 (predicate attestation): attestable up to 44 endpoints: the 43 FILTERED GETs (the envelope list
+  reads, the filtered-direct reads, the me-scoped paginated reads) plus Tenant's existence-condition by-id
+  read (the P1b inner-fetch shape, attested as "returns the tenant with this id only if it has an
+  associated user"). The 16-read semantic sample (2026-07-20 census) is the honest calibration: a
+  knowledgeable attester could cleanly attest about 10 of 16 and should honestly DECLINE about 6 of 16,
+  whose semantics no one-sentence assertion can carry truthfully (dual-identity columns: billing tenantId
+  stores User ids; staffId stores staff-or-user depending on write path; hidden inner-join existence
+  filters on nullable associations). Extrapolated, the realistic AT-1 outcome is roughly two thirds of
+  the ceiling, and the declined third is the attester's honesty working, not a defect.
+- AT-2 (shape attestation): attestable up to 7 more: the aggregate by-id endpoints (Building, Property,
+  ChatRoom, the payments summary, and the Ticket, Group, Event enrichment shapes), each with its
+  structurally proven by-primary-key load and an attested enrichment sentence. Opaque-wrapper residue
+  after AT-0 is expected near zero here (every `*ResultSet` ties via T2 on this app).
+- AT-3 (boundary, deferred): 1 candidate today, getVendor's security contract (unverifiable,
+  conflicting-declarations, section 9); pms has no delegation reads. Not attestable until AT-3 is
+  separately ratified.
+- EXCLUDED, staying refused regardless of attestation: the 9 context reads (me-scoped, the missing
+  runtime principal cannot be asserted into existence), the 10 binary and stub endpoints (downloads,
+  counters, the health stub, the two hardcoded empty-ResultSet stubs: no read exists to describe), and
+  the 3 String-to-Long coercion shapes (a structural tolerance decision, named, not attestation).
+
+Accounting note (stated honestly rather than forced to add up): the 89-GET buckets predate the parse
+re-baseline, so they do not close cleanly against the post-repair numbers. The pre-repair census bucketed
+2 backed-by-discovered, 43 filtered, 19 by-id-blocked, 10 binary and stub, 9 context, 6
+unparseable-backed; the repair promoted 3 by-id-blocked reads (Staff, User, Vendor) to discovered and
+resolved the 6 unparseable-backed into their real buckets, so the by-id-blocked, filtered, and residual
+reads redistribute across the attestable and excluded columns. The exact partition of all 89 is precisely
+what AT-0's complete worklist produces; until it runs, the ceiling below is APPROXIMATE, and the roughly
+11 endpoints not itemized in the attestable-or-excluded lists above are the reclassified
+by-id-blocked and unparseable-backed reads AT-0 assigns.
+
+The ceiling, stated in one line: 5 verified + up to 44 (AT-1) + up to 7 (AT-2) = ATTESTABLE UP TO
+roughly 56 of 89 GETs, about 63 percent of the whole surface and about three quarters of the genuinely
+tool-worthy reads, IF a knowledgeable human attests everything attestable, which the sample says a
+truthful attester will not do. Attested counts are reported SEPARATELY from discovered, never summed:
+the health line becomes "discovered 5, attested K, mis-bound 0, attestation-drift 0".
+
+The hard bar, extended: every existing discovered row (the 5 verified reads, their bindings, their
+security contracts) stays byte-identical through every Attestation sub-phase; movement is a regression
+finding that stops the build. Mis-bound 0 continues to cover bindings and carriage; the truth of an
+attested sentence is the named asserter's, labeled as such on every surface.
+
+THE OPEN VERIFICATION, named: the real attestation rate (attested versus declined versus
+refused-at-intake), the time per attestation, and the staleness churn under real development are
+unmeasurable without a real attesting human. The first-use measurement is pre-registered in the design
+(Volume 5, section 4.15.11): per-entry time, assist usage, intake refusals, declines with reasons, and
+one month of invalidation counts. pms, with the maintainer as the knowledgeable human, is the designated
+first measurement.

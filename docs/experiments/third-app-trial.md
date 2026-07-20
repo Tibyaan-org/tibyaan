@@ -814,3 +814,37 @@ negative control, byte-identical.
   Product and Account by both admin and sales controllers), and with zero declarations everywhere the
   composition rule landed on ABSENT for all 25. mis-bound 0. erp confirms the phase adds nothing where
   nothing is declared.
+
+## 23. Attestation forecast: the attestable ceiling (erp-backend, read-only, 2026-07-20)
+
+Phase Attestation (Volume 5, section 4.15) restated against this benchmark's standing refusal ledger
+(sections 12, 15, 16), in the new vocabulary: ATTESTABLE UP TO N GIVEN A KNOWLEDGEABLE HUMAN, never a
+promise.
+
+- AT-0 (structural floor and envelope unwrap): INERT here, as the ratified E6a forecast already states
+  (section 16): erp uses no wrapper types (its reads return `Page<E>`, `List<E>`, `Page<NameIdDTO>`
+  directly), so transparency recognizes nothing new. The P1b floor matcher confirms Delivery's custom
+  query as a clean by-primary-key load (section 14) with the read still refused on its mapper; counts
+  byte-identical. Discovered stays 25, mis-bound 0.
+- AT-1 (predicate attestation): attestable up to roughly 30: the filtered reads of the section 15 census
+  (derived-query filters, custom-`@Query` filters like `searchByFields`, and the domain-parameter list
+  reads E4 defers by name). Named nuance, recorded for the roadmap: the DERIVED-QUERY subset
+  (`findByNameContainingIgnoreCase`, `findByParentId`, `findByAccountType`) is the one family whose
+  meaning a future STRUCTURAL rule could verify from the framework contract (the section 4.11.3
+  exception); if that rule is ever built, those reads move from the attestable column to the verified
+  column, the preferred direction, and the attestable ceiling shrinks accordingly. Attesting them first
+  and verifying them later is honest in both states.
+- AT-2 (shape attestation): attestable up to roughly 14: the roughly 9 projection and view lists
+  (`Page<NameIdDTO>`, `List<XxxReadDTO>`) and the roughly 5 transformed-body reads (the
+  `findCompleted()` post-filter shape, the manual `PageImpl` reconstructions, Delivery's implicit-this
+  mapper read), each attested for what it returns, with the tool still refusing any whose body mutation
+  check fails.
+- AT-3 (boundary, deferred): 0 candidates today: erp declares no security at all (section 21) and has no
+  delegation reads.
+- EXCLUDED: the binary and scalar returns (`byte[]` reports, `SseEmitter`, `List<String>` helpers), the
+  AMBIGUOUS_BINDING pairs (Quote, ProductCategory list pair: attestation never selects bindings), and
+  every write.
+
+The ceiling in one line: 25 verified + up to roughly 44 attestable (AT-1 roughly 30, AT-2 roughly 14).
+Attested counts are reported separately from discovered, never summed; every existing discovered row
+stays byte-identical through every sub-phase, and movement is a regression finding.
