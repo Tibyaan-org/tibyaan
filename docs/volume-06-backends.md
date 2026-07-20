@@ -69,7 +69,7 @@ Runtime note, and the one deferred piece named honestly. To invoke a list read, 
 
 ### 3.4 Display names and collision disambiguation (phase Entity Identity; built 2026-07-13)
 
-Every name a backend puts on a surface (a tool name, the manifest output token, an OpenAPI component, a path, a `$ref`, and the synthesized descriptions, summaries, and operationIds that embed the entity name) derives from the entity's display `name` (Volume 4, section 3.7; the disambiguation rule that produces it is Volume 5, section 4.12). This subsection records what that means for the two built backends and the survey, and why no backend needs a new field. On a collision the disambiguated name flows through every one of these together (`Read CrmNote by id.`), so the surfaces stay mutually consistent.
+Every name a backend puts on a surface for a VERIFIED capability (a tool name, the manifest output token, an OpenAPI component, a path, a `$ref`, and the synthesized descriptions, summaries, and operationIds that embed the entity name) derives from the entity's display `name` (Volume 4, section 3.7; the disambiguation rule that produces it is Volume 5, section 4.12). Phase Attestation (sections 3.6 and 4.4) carves one exception: an ATTESTED capability's tool name and operationId are its human-minted, reserved-prefixed `attested_<name>`, and its OpenAPI path derives from that minted name, not from an entity, so attested reads sharing a subject entity never collide on a path or a name; the entity references such a capability emits still resolve by key to a display name as usual. This subsection records what that means for the two built backends and the survey, and why no backend needs a new field. On a collision the disambiguated name flows through every one of these together (`Read CrmNote by id.`), so the surfaces stay mutually consistent.
 
 - MCP. The tool name is the capability name, `get<display name>`; the manifest `output` renders `ENTITY_REF(<display name>)`. Both already read the display `name`, so no manifest field is added. When a simple name is unique (every single-context app, and both public benchmarks), the display name is the simple name and the manifest is byte-identical: `getProduct`, `output: ENTITY_REF(Product)`. When simple names collide, the disambiguated names flow straight through: two reads of same-named entities become `getCrmNote` and `getSupportNote`, with `output` fields `ENTITY_REF(CrmNote)` and `ENTITY_REF(SupportNote)`. Capability-name uniqueness (Volume 4, rule 2) holds by construction, so the two tools never collide.
 - OpenAPI. The schema rule (section 4) names a component by the entity, the path `/<resource>` by the entity, and an entity `$ref` by the entity; all three now read the display `name`. Two colliding `Note` entities therefore produce two distinct components `CrmNote` and `SupportNote`, two distinct paths, and `$ref`s that each point at the right one, so the `$ref` collision that simple-name schemas would have produced cannot arise. For a unique simple name the component, path, and `$ref` are byte-identical to today (`Product`, `/product/{id}`, `#/components/schemas/Product`). No schema rule changes; only the string each rule reads is the display name instead of the raw simple name, and the two coincide except on collision.
@@ -80,7 +80,7 @@ Every name a backend puts on a surface (a tool name, the manifest output token, 
 
 What this will never do: a backend never invents a disambiguator of its own (the display name is decided once, in the provider, so every backend agrees); and no backend surfaces the raw `key` on a tool or schema name, which would leak a package path into an agent-facing surface. The key is identity, carried in the IR for resolution and validation; the display name is what a surface shows.
 
-### 3.5 Surfacing the declared security contract (phase Controller-Authority; designed 2026-07-19, pending ratification)
+### 3.5 Surfacing the declared security contract (phase Controller-Authority; built 2026-07-19)
 
 A capability may carry a `requiredAuthorities` annotation (the compiled, literal, any-of authority sequence declared by the application's own security annotations) or a `securityUnverifiable` annotation (a declared contract exists that could not be compiled), per Volume 5, section 4.14. Without surfacing them, the generated tool would hide from its consumer exactly the fact the requesting adopter needs: what the application declares a caller must hold before this read is invoked. This subsection decides the MCP surface, in the smallest-honest-surface pattern of the `view` (3.1) and `outputMultiple` (3.3) precedents.
 
@@ -92,6 +92,18 @@ A capability may carry a `requiredAuthorities` annotation (the compiled, literal
 - Enforcement is explicitly NOT this surface's job. The manifest carries the declared contract; the runtime does not validate tokens or authorities this phase (the named deferral is Volume 7, section 8, gap 9). The consuming orchestration layer enforces, which is precisely the requesting adopter's architecture.
 
 The runtime's manifest loader tolerates both new fields explicitly on its manifest types (the same `@JsonIgnoreProperties` tolerance the `view` field proved), verified by a loader test in the build; runtime behavior is otherwise unchanged.
+
+### 3.6 Surfacing an attested capability (phase Attestation; designed 2026-07-20, pending ratification)
+
+A capability may carry an `Attestation` (Volume 4, section 3.8): a human's claim, its provenance, and its structural fingerprint. The MCP surface must satisfy the E6b verdict at the level agents act on, the name and the signature, not only in prose (Volume 5, section 4.15.6). The rule:
+
+1. THE NAME. The tool name is `attested_<name>`, the reserved prefix applied by the backend from the IR name, which core validation already guarantees carries it (Volume 4, rule 9). No verified tool may wear the prefix; no attested tool may shed it. An agent or an orchestrator can classify every tool's epistemic class from the tool list alone, before reading any description.
+2. THE MANIFEST FIELDS, additive per the standing precedent (view, outputMultiple, paged, requiredAuthorities): an attested tool gains `"attested": true` and an `"attestation"` object carrying, character-exactly, `category`, `resultSemantic`, `assertedBy`, `origin`, `date`, and `fingerprint`. A verified tool gains neither field, so every existing manifest byte is unchanged (the byte-identity guard, fixture ATT-11).
+3. THE INPUTS. Every input carries a per-input `"description"` in the manifest, verbatim: its attested meaning sentence for a domain filter, or the fixed `Paging or ordering parameter.` for a `paging`-marked one, or a plain structural description for the proven `id`. There is no input whose meaning is unstated on the surface (the `paging` mark travels as its fixed description, closing the modeled-opaque hole the mark would otherwise reopen), and an input with no coverage cannot reach the backend (intake refuses it upstream, Volume 5, section 4.15.4, condition 4). This is the precise inversion of the rejected modeled-opaque shape, where a name stood in the schema with its meaning unclaimed. The loader-tolerance test at build covers the per-input `description` field as well as the top-level `attested`/`attestation` fields.
+4. THE DESCRIPTION leads with the class: `Human-attested, not tool-verified. <resultSemantic> Asserted by <assertedBy> (<origin>), <date>.` The label is the first sentence because truncation must never strip the class. Deterministic, built only from the attestation's own fields.
+5. ONE-OFF, not a passthrough, as always: the backend surfaces the `Attestation` component it understands; nothing else changes.
+
+The runtime's manifest loader tolerates the new fields explicitly (the additive-field discipline, a loader test at build); registration honors the `tibyan.attested.expose` property (Volume 7); invocation is unchanged (the binding is structural, resolved and invoked exactly as any verified capability's).
 
 ### 3.2 Future backends (direction)
 
@@ -153,7 +165,7 @@ This realizes the E4 seam recorded when the backend shipped (section 4): a list 
 
 What this will never claim: a page envelope shape the IR does not model (only an array of the element, plus a paged disclosure); a filter parameter the IR does not carry; or, through the array's items, any more than the element schema already honestly claims under section 4.1.
 
-### 4.3 The declared security contract in OpenAPI (phase Controller-Authority; designed 2026-07-19, pending ratification)
+### 4.3 The declared security contract in OpenAPI (phase Controller-Authority; built 2026-07-19)
 
 The OpenAPI backend must surface the same two security states the MCP manifest surfaces (section 3.5), and the design question is whether to use OpenAPI's native security vocabulary (`securitySchemes` plus per-operation `security` requirements) or a vendor extension. Argued and decided: VENDOR EXTENSION, not the native vocabulary.
 
@@ -167,6 +179,19 @@ The rule, following section 4.1's two-audiences discipline (condition 6):
 4. No `security` field and no `securitySchemes` component are ever emitted, in any state. When a future phase learns the credential shape from evidence (or a human attests it), the native vocabulary becomes that phase's decision.
 
 What this rule will never claim: a security scheme type, flow, token URL, or credential location the IR does not carry; a scope where the source declared an authority; or, through absence, that an operation is publicly invocable.
+
+### 4.4 Attested operations in OpenAPI (phase Attestation; designed 2026-07-20, pending ratification)
+
+The OpenAPI rendering of an attested capability mirrors the MCP rule (section 3.6) with the document's own vocabulary, inheriting the section 4.1 honesty baseline:
+
+0. THE PATH (the defect an earlier draft left open: the entity-derived path rule of section 4 collides when attested reads share a subject entity). An attested operation's path is `/attested/<minted name>` (for example `/attested/searchTenants`), derived from the reserved-prefixed minted name, never from the subject entity. Because minted names are unique across all capabilities (Volume 4, rule 2), the path is unique; two attested reads of Tenant get two distinct paths, and no attested path can collide with a verified `/<entity>` or `/<entity>/{id}` path. The backend independently checks that no two emitted operations share a path-plus-method and fails loud if they do, so a path collision can never silently overwrite one operation with another.
+1. The `operationId` is the prefixed name (`attested_searchTenants`), so the class is readable in the operation identity itself, and the operation `summary` leads with `Human-attested, not tool-verified.` followed by the `resultSemantic` verbatim and the provenance sentence.
+2. The operation carries `x-tibyan-attested: true` and `x-tibyan-attestation` with the component's fields character-exact (the machine half; the summary is the human half, both always, per the two-audiences discipline of section 4.1 condition 6).
+3. Every input renders as a QUERY parameter for a filtered read (a filter is not a path segment), except a structurally-proven `id` which stays a path parameter on the item-shaped path. Each parameter carries, as its `description`: its human meaning sentence verbatim for a domain filter, or the fixed `Paging or ordering parameter.` for a `paging`-marked one (the mark travels; no parameter ever stands in the document with its meaning unstated). No parameter without a covered meaning can exist, because intake refused it upstream (Volume 5, section 4.15.4, condition 4).
+4. The response schema claims only what is proven or explicitly attested: a structurally tied element renders as today (the entity `$ref` or the view's permissive object); a shape-attested response is a PERMISSIVE object whose `description` carries the attested shape sentence and which declines to enumerate fields, exactly the section 4.1 condition 3 posture, because the attestation asserts meaning, never a field inventory.
+5. Nothing else changes; a document with no attested capability is byte-identical.
+
+What this rule will never claim: an attested filter as a verified one (the label is in the operationId, the summary, and the extension); a field inventory the IR does not model; or an attested operation mixed silently among verified ones (the prefix orders them apart in every alphabetical listing).
 
 ## 5. Templates and testing
 

@@ -36,9 +36,9 @@ That makes network exposure of the MCP endpoint your decision, and the most impo
   because the tool calls the service method directly through the execution adapter. Assume every exposed
   read is reachable by anyone who can reach the endpoint, and gate the endpoint accordingly.
 
-## The declared authority contract in the manifest (phase Controller-Authority, designed, pending build)
+## The declared authority contract in the manifest (phase Controller-Authority, built 2026-07-19)
 
-Once the Controller-Authority phase is built (Volume 5, section 4.14; designed 2026-07-19), the manifest can
+With the Controller-Authority phase built (Volume 5, section 4.14; built 2026-07-19), the manifest can
 carry the security contract your application DECLARES on its own endpoints: a capability may list
 `requiredAuthorities` (the literal authority strings your security annotations require, any-of semantics,
 compiled only from expressions the tool can fully parse) or be marked `securityUnverifiable` (a declared
@@ -62,6 +62,51 @@ security entirely (the adapter calls the service bean, not your controller), whi
 declared contract is carried at all: so YOUR enforcement layer, the orchestration or gateway in front of
 the MCP endpoint, can apply the declared requirements before invoking a capability. Gating the endpoint
 (the section above) remains your responsibility either way.
+
+## Attested capabilities: who owns what (phase Attestation, designed, pending build)
+
+Once the Attestation phase is built (Volume 5, section 4.15; designed 2026-07-20), a capability can exist
+in a THIRD state alongside tool-verified and refused: HUMAN-ATTESTED. A person on your team asserts the
+semantics the tool cannot prove (what a filter means, what an opaque read returns), the assertion lives in
+a reviewed, committed file in your repository (`tibyan/attestations.json`), and the tool carries it
+character-exactly, labeled on every surface, with the asserter's name, the origin of the words, the date,
+and a structural fingerprint of the code it was asserted against.
+
+The division of responsibility, stated plainly so nobody discovers it in an incident review:
+
+- THE TOOL GUARANTEES FAITHFUL CARRIAGE OF YOUR FILE: the claim you ship is exactly the claim in your
+  committed `tibyan/attestations.json`, character for character, attached to exactly the method the entry
+  targets, labeled `attested_` in the tool name itself and human-attested in every description and
+  document, never presented as verified, never counted among the verified capabilities, and invalidated
+  loudly the moment the fingerprinted code changes. The tool does not authenticate who typed an entry (it
+  cannot tell an original authoring from a later edit); the integrity of the file, that each entry says
+  what its named asserter stands behind, is owned by your normal code review and version control, which is
+  exactly why the record is a committed, reviewed file and not an ephemeral tool state.
+- Attested capabilities EXECUTE exactly like verified ones, with the same access; the label changes what
+  the tool CLAIMS about a call, never how the call is made (the binding is structural either way).
+- THE ASSERTER OWNS THE CLAIM'S TRUTH. If the assertion is false (the filter matches by containment, the
+  attester wrote "prefix"), the tool cannot know, will carry the false sentence exactly, and an agent will
+  act on it. Attesting is publishing documentation an agent executes against: review attestations with the
+  same seriousness as code, because the provenance line names the asserter, not the tool.
+- The blast radius is bounded, and the bound is stated at its true strength, not overstated: before any
+  assertion is accepted, the tool runs a read-safety check over everything it read (the target body and
+  what it structurally resolves through) and refuses if it sees a write there, so no write is visible in
+  the code the tool read, and the binding is always structural (never a wrong write through that code,
+  never a wrong binding). The honest residue, stated openly: a write hidden BELOW what the tool read (in a
+  hand-written repository or query-builder implementation, exactly the code the assertion covers) is not
+  caught. So the guarantee is "no write in what the tool read," not "no write anywhere." That residue is
+  smallest for a directly-typed read and largest for a remote delegation, which is why attested authority
+  contracts and remote delegations, where a false assertion would breach a SECURITY boundary rather than
+  mislabel data, are deliberately DEFERRED to their own sub-phase (AT-3) with a mandatory read-only
+  affirmation, and are not attestable until it is ratified.
+- If the tool's structural evidence contradicts an assertion, at intake or after a code change, the
+  attestation is REFUSED loudly and nothing ships; the tool never silently prefers either side.
+- Two exposure controls, with two defaults. `tibyan.attested.expose=false` gives a verified-only surface:
+  no attested capability is registered at all. And attested reads whose declared security the tool marked
+  `securityUnverifiable` do NOT register by default (the adapter bypasses your controller security gate, so
+  a read whose only declared gate is both unverifiable and bypassed should not ship without a deliberate
+  choice); set `tibyan.attested.exposeSecurityUnverifiable=true` to include them once you have resolved
+  what their declared security means.
 
 ## What fail-loud does and does not protect against
 
