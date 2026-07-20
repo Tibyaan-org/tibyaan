@@ -320,11 +320,15 @@ bottom).
 - Job: put the measured record in front of the visitor with its qualifiers attached, in the same
   breath.
 - The numbers, exactly as the docs support them:
-  - "31 verified capabilities across three real, unmodified applications. Zero wrong bindings, on
-    every run." (erp 25, pms 2, private enterprise 4; sources: third-app-trial.md,
-    second-app-trial.md, enterprise-benchmark.md, STATUS.md.)
+  - "34 verified capabilities across three real applications. Zero wrong bindings, on
+    every run." (erp 25, pms 5, private enterprise 4; sources: third-app-trial.md,
+    second-app-trial.md section 9, enterprise-benchmark.md, STATUS.md. pms re-baselined 2026-07-20
+    from 2 to 5 after the adopter repaired copy-artifact parse defects; the "unmodified" adjective is
+    dropped here because the pms copy's corrupted files were repaired, though the tool still rewrites
+    no business code.)
   - Three benchmark rows: ERP app, 25 entities, 25 capabilities (16 by-id, 9 list). PMS app, 43
-    entities, 2 capabilities (view-heavy idiom, most refused by name). "A real multi-module
+    entities, 5 capabilities (view-heavy idiom, most refused by name; re-baselined 2026-07-20 from 2
+    after the adopter repaired copy-artifact parse defects). "A real multi-module
     enterprise Spring application": 169 modules, 111 entities surveyed, 4 verified capabilities.
     Each row shows mis-bound 0.
   - The qualifier, verbatim in spirit from the README: "Read these numbers honestly. Coverage is
@@ -696,7 +700,7 @@ grep for the pattern, not just the sentence.
 
 | Banned claim | Why |
 |---|---|
-| "Works on any app" / "any Spring app" | Coverage is idiom-bound; pms discovered 2 of 43. The docs actively disprove "any" |
+| "Works on any app" / "any Spring app" | Coverage is idiom-bound; pms discovered 5 of 43 (re-baselined 2026-07-20 from 2). The docs actively disprove "any" |
 | "Full coverage" / "your whole backend" | The structural ceiling is a first-class fact; the filtered majority is refused |
 | "Just add a dependency" | The honest line is a dependency AND a build plugin AND a build. Volume 1's "one dependency" goal line is vision, not the present mechanic |
 | "In minutes" as a promise | No timing was ever measured or claimed in the docs |
@@ -752,7 +756,7 @@ Flagged-and-cut claims (compelling, NOT usable):
 | X-2 | "AI-operable platform" for v1 | Operable includes actions and workflows (Volume 1 section 1); v1 is read-only. Reserve "operable" for the labeled vision section, use "agents can query it safely" for the present |
 | X-3 | Any uptime, latency, or "minutes to running" figure | Never measured in the docs |
 | X-4 | "Trusted by [enterprise]" or naming the private benchmark's industry | Redaction is absolute; even the industry is identifying detail |
-| X-5 | "27 capabilities" (the README headline) | Stale by one benchmark: the current supported total is 31 across three apps (C-4). Site uses 31; README update is a separate task |
+| X-5 | "27 capabilities" (the README headline) | Stale: the current supported total is 34 across three apps (erp 25, pms 5, private 4; pms re-baselined 2026-07-20, second-app-trial.md section 9). Site uses 34; the README headline update (27 to 30 two-app, or 34 three-app) is a separate, still-pending task |
 | X-6 | "Never wrong" unscoped | Always scope to bindings and to the measured record: "zero wrong bindings across every run on three real applications" |
 
 ---

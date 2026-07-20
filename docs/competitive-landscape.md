@@ -142,9 +142,12 @@ Rindler's failure mode, implied by its own architecture, is that an inferred map
 stale, so an agent occasionally acts incorrectly against a live site, and the verifier plus the claimed
 self-healing loop exist to catch and repair that (recovery quality is the vendor's claim, unverified).
 Tibyaan's failure mode is refusal: anything it cannot prove is never generated, so the failure surface
-is coverage, not correctness. The measured record: 27 capabilities across two real, unmodified
-benchmark apps with zero wrong bindings on every run of every phase (Volume 13, "The structural
-ceiling"; per-entity ledgers in docs/experiments/second-app-trial.md and third-app-trial.md). The cost
+is coverage, not correctness. The measured record: 30 capabilities across two real benchmark apps
+with zero wrong bindings on every run of every phase (erp-backend 25, pms-backend 5; pms was
+re-baselined 2026-07-20 from 2 to 5 after the adopter repaired copy-artifact parse defects, and the
+"unmodified" claim is about Tibyaan never rewriting the system, which holds, the tool touches no
+business code; Volume 13, "The structural ceiling"; per-entity ledgers in
+docs/experiments/second-app-trial.md, section 9, and third-app-trial.md). The cost
 is equally measured: on the view-heavy pms benchmark Tibyaan discovers 2 reads out of a 43-entity app
 and refuses the rest by name, because that app's idiom sits almost entirely above the structural
 ceiling (docs/experiments/second-app-trial.md; Volume 5, section 4.11.5). The tradeoff, stated without

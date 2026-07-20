@@ -8,6 +8,13 @@ totals: discovered, failed loudly by cause, and mis-bound. Discovered rising whi
 zero is the project's health metric; mis-bound greater than zero becomes the top priority over
 everything.
 
+RE-BASELINED 2026-07-20 (see section 9): the adopter repaired the 27 placeholder-corrupted source files
+(they carried trivially-repairable `$IMPORT`/`nimport` tokens, an artifact of the benchmark copy, not
+genuinely unparseable code), so the app now parses 100 percent clean and the STANDING baseline is now
+discovered 5 (by-id: getUnit, getLease, getStaff, getUser, getVendor), skipped-by-parse 0, mis-bound 0.
+The dated 2026-07-02 baseline below (discovered 2, skipped-by-parse 27) is preserved as the accurate record
+of the corrupted copy every prior phase was measured against; section 9 is the current baseline.
+
 Date of the baseline run: 2026-07-02. This is an evidence-gathering experiment, not a build. No
 tool code was changed. The target app was read only, never compiled, never built, and never
 added to the reactor. The only outcome that would have forced a hard stop, a mis-bound
@@ -790,3 +797,70 @@ number.
   anchor's [1, 2] and getLease exactly its own [1], never swapped, never crossed. A wrong authority would
   be a mis-bind, and there is none. The bindings are unchanged (UnitServiceImpl#findById,
   LeaseServiceImpl#findById), hand-verified against source.
+
+## 9. RE-BASELINE (2026-07-20): the parse defects were repaired, discovered 2 to 5
+
+The standing pms baseline is re-based here. This is an EXTERNAL event, not a tool phase: the adopter
+repaired the 27 placeholder-corrupted source files, so the app now parses 100 percent clean. Every dated
+row above (2026-07-02 through 2026-07-19) measured the CORRUPTED copy and stands as an accurate record of
+that state; from 2026-07-20 the standing baseline is the clean copy recorded here.
+
+Honest finding, stated plainly because it matters for benchmark integrity: the "27 unparseable files" were
+NOT genuinely unparseable business code. They carried trivially-repairable placeholder tokens
+(`$IMPORT`/`$IMPORT_LINE` bare lines, and a `nimport` mangle where a template's `\n` lost its backslash),
+confined to the import block of each file, class bodies intact, at most 1 to 2 bad lines each. They were an
+artifact of how the benchmark copy was produced, not a property of the real application. A meaningful part
+of pms's apparent hostility (the standing "skipped-by-parse 27") was therefore an artifact; repairing it
+unlocked three real by-id reads that were always there, locked behind corrupted service files.
+
+New standing baseline (measured 2026-07-20, tool unchanged from the 0.2.0 line plus the Controller-Authority
+build):
+
+- discovered 5 (by-id 5, list 0): getUnit, getLease, getStaff, getUser, getVendor. The three new reads,
+  Staff, User, and Vendor, are each the clean by-primary-key-load-then-map shape rule 4.2 already discovers
+  (StaffServiceImpl#getStaffById, UserServiceImpl#getUserById, VendorServiceImpl#getVendorById, each a
+  one-hop `selectById` through a hand-written repository to a Spring Data `findById`, mapped once to a VTO),
+  previously invisible only because their service files did not parse.
+- failed 38 (COMPOSITE_KEY 3, NO_BACKING_METHOD 35), list-refused 0, skipped-by-parse 0 (was 27), partial 0,
+  mis-bound 0. Entities found (parseable) 43, unchanged: the corrupted files were services and one
+  controller, never entity files, which is why the entity denominator held at 43 while three bindings were
+  locked.
+- Deferred list reads 9 (was 3): now that billing, vendor, chat, staff, and the other repaired modules
+  parse, more filtered `*ResultSet` and `List<VTO>` reads are visible and correctly DEFERRED. This is
+  honest visibility, not new coverage; those reads are the filtered majority and stay refused as before.
+
+Declared security (phase Controller-Authority): `declared 4 (compiled 3, unverifiable 1)`.
+
+- getUnit compiled `["1", "2"]`, getLease `["1"]`, getStaff `["1"]`, each from a strict one-statement
+  controller anchor under `@Secured` role constants resolving in-tree, mis-bound 0 (each carries exactly its
+  own anchor's authorities).
+- getVendor is `unverifiable (conflicting-declarations)`, hand-verified as correct: its only fronting GET,
+  `VendorControllerImpl#_getVendorById(String vendorId)`, takes a STRING path variable and calls
+  `vendorService.getVendorById(Long.parseLong(vendorId))` in a two-statement body, so it is an associated
+  but NON-STRICT anchor (the argument is a coercion, not the verbatim id; the body is not the one-statement
+  delegation). The `@Secured({PROPERTY_MANAGER_ROLE})` on it is clean, but the tool will not certify a
+  contract through a route whose id forwarding it cannot prove, so it marks the read unverifiable rather
+  than attach an authority it did not verify. A ratified `String`-to-`Long` id-coercion tolerance (a named,
+  cheap future decision) would flip this to compiled `["1"]`.
+- getUser is ABSENT: no method-level security declaration was found on its fronting route (not a claim it is
+  unprotected; the app gates every request behind a `SecurityFilterChain` the tool does not read).
+
+What did NOT change, and why the headline is still honest: mis-bound 0. The filtered majority is untouched,
+43 filtered GET endpoints across the app (enumerated 2026-07-20; the ledger's earlier "~40" figure), the
+roughly 33 `*ResultSet` envelope reads, the aggregate reads (Building, Property, ChatRoom), the me-scoped
+context reads, and Tenant's inner-`JOIN FETCH` custom query, all stay correctly refused. Those are the
+Attestation territory: a structural tool tops out here, and the honest path to the filtered surface is
+human-attested semantics, not a guess. The parse repair is rung 1 of the coverage ladder (Volume 13,
+Attestation section, and the 2026-07-20 coverage census); it moved discovered 2 to 5, and the filtered
+volume still needs Attestation.
+
+Impact on the project-wide totals: the two-public-benchmark supported total moves 27 to 30 (erp-backend 25,
+pms-backend 5), and the three-benchmark total moves 31 to 34 (plus the private enterprise benchmark 4).
+These are standing-fact updates; the historical "27 capabilities" is preserved as the v1-complete milestone
+record (measured 2026-07-02 against the corrupted pms copy).
+
+Ledger correction folded in from the 2026-07-20 census (now moot since all files parse, recorded for
+accuracy): section 8.10's module attribution was backwards against the source it described, it placed the
+transparent parseable `*ResultSet` reads in "property, lease, billing" and listed chat among the unparseable
+modules, whereas the billing service impls were the corrupted ones and the chat service impls parsed; the
+GET denominator is exactly 89 (the ledger's "~90"); the `*ResultSet` reads count 33 (the ledger's "~35").
