@@ -1,6 +1,7 @@
 package com.tibyaan.backend.openapi;
 
 import com.tibyaan.core.ir.Annotation;
+import com.tibyaan.core.ir.Attestation;
 import com.tibyaan.core.ir.Capability;
 import com.tibyaan.core.ir.CapabilityModel;
 import com.tibyaan.core.ir.Entity;
@@ -35,6 +36,7 @@ final class OpenApiDocument {
     private static final String REQUIRED_AUTHORITIES_ANNOTATION = "requiredAuthorities";
     private static final String SECURITY_UNVERIFIABLE_ANNOTATION = "securityUnverifiable";
     private static final String SCHEMAS_REF = "#/components/schemas/";
+    private static final String ATTESTED_PREFIX = "attested_";
 
     private final CapabilityModel ir;
     private final Map<String, Entity> entitiesByName;
@@ -78,14 +80,27 @@ final class OpenApiDocument {
         ordered.sort(Comparator.comparing(this::pathOf).thenComparing(Capability::name));
         Map<String, Object> paths = new LinkedHashMap<>();
         for (Capability capability : ordered) {
-            paths.put(pathOf(capability), pathItem(capability));
+            String path = pathOf(capability);
+            // The backend independently checks that no two emitted operations share a path (Volume 6
+            // section 4.4 condition 0): a collision can never silently overwrite one operation with another.
+            if (paths.containsKey(path)) {
+                throw new IllegalStateException("two capabilities emit the same OpenAPI path '" + path
+                        + "'; a path collision would silently drop an operation (Volume 6 section 4.4)");
+            }
+            paths.put(path, pathItem(capability));
         }
         return paths;
     }
 
     // A list read has no id input, so its path is the collection path with no path parameter
-    // (Volume 6 section 4.2); a by-id read keeps the item path with the single id parameter.
+    // (Volume 6 section 4.2); a by-id read keeps the item path with the single id parameter. An attested
+    // read's path is derived from its minted name, never the subject entity (Volume 6 section 4.4
+    // condition 0), so two attested reads of one entity never collide on a path.
     private String pathOf(Capability capability) {
+        if (capability.hasAttestation()) {
+            String base = "/attested/" + capability.name().substring(ATTESTED_PREFIX.length());
+            return idInputName(capability).map(id -> base + "/{" + id + "}").orElse(base);
+        }
         if (capability.outputMultiple()) {
             return "/" + lowerFirst(entityName(capability));
         }
@@ -93,6 +108,9 @@ final class OpenApiDocument {
     }
 
     private Map<String, Object> pathItem(Capability capability) {
+        if (capability.hasAttestation()) {
+            return attestedPathItem(capability);
+        }
         Map<String, Object> operation = new LinkedHashMap<>();
         operation.put("operationId", capability.name());
         operation.put("summary", description(capability) + securityClause(capability));
@@ -148,6 +166,82 @@ final class OpenApiDocument {
         return Optional.empty();
     }
 
+    // An attested operation (Volume 6 section 4.4): the class is in the operationId and the summary; the
+    // machine half is x-tibyan-attested and x-tibyan-attestation; every input is a query parameter (a
+    // filter is not a path segment) except a structurally-proven id, which stays a path parameter; the
+    // response claims only what is structurally tied. Nothing else changes; a document with no attested
+    // capability is byte-identical.
+    private Map<String, Object> attestedPathItem(Capability capability) {
+        Attestation attestation = capability.attestation();
+        Map<String, Object> operation = new LinkedHashMap<>();
+        operation.put("operationId", capability.name());
+        operation.put("summary", "Human-attested, not tool-verified. " + attestation.resultSemantic()
+                + " Asserted by " + attestation.assertedBy() + " (" + attestation.origin().token() + "), "
+                + attestation.date() + ".");
+        List<Object> parameters = attestedParameters(capability);
+        if (!parameters.isEmpty()) {
+            operation.put("parameters", parameters);
+        }
+        operation.put("responses", responses(capability));
+        operation.put("x-tibyan-attested", Boolean.TRUE);
+        operation.put("x-tibyan-attestation", attestationObject(attestation));
+
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("get", operation);
+        return item;
+    }
+
+    private List<Object> attestedParameters(Capability capability) {
+        Optional<String> idInput = idInputName(capability);
+        List<Object> parameters = new ArrayList<>();
+        for (Map.Entry<String, Type> input : capability.inputs().entrySet()) {
+            boolean isId = idInput.filter(input.getKey()::equals).isPresent();
+            Map<String, Object> parameter = new LinkedHashMap<>();
+            parameter.put("name", input.getKey());
+            parameter.put("in", isId ? "path" : "query");
+            parameter.put("required", isId ? Boolean.TRUE : Boolean.FALSE);
+            parameter.put("schema", typeSchema(input.getValue()));
+            parameter.put("description", attestedInputDescription(capability, input.getKey()));
+            parameters.add(parameter);
+        }
+        return parameters;
+    }
+
+    private static Map<String, Object> attestationObject(Attestation attestation) {
+        Map<String, Object> object = new LinkedHashMap<>();
+        object.put("category", attestation.category().token());
+        object.put("resultSemantic", attestation.resultSemantic());
+        object.put("assertedBy", attestation.assertedBy());
+        object.put("origin", attestation.origin().token());
+        object.put("date", attestation.date());
+        object.put("fingerprint", attestation.fingerprint());
+        return object;
+    }
+
+    private String attestedInputDescription(Capability capability, String input) {
+        String coverage = capability.attestation().parameterMeanings().get(input);
+        if (Attestation.PAGING_MARK.equals(coverage)) {
+            return "Paging or ordering parameter.";
+        }
+        if (Attestation.ID_MARK.equals(coverage)) {
+            return "The " + entityName(capability) + " identifier.";
+        }
+        return coverage;
+    }
+
+    // The input covered by the reserved id mark (a structurally-proven identifier), if any.
+    private static Optional<String> idInputName(Capability capability) {
+        if (!capability.hasAttestation()) {
+            return Optional.empty();
+        }
+        for (Map.Entry<String, String> meaning : capability.attestation().parameterMeanings().entrySet()) {
+            if (Attestation.ID_MARK.equals(meaning.getValue())) {
+                return Optional.of(meaning.getKey());
+            }
+        }
+        return Optional.empty();
+    }
+
     private Map<String, Object> pathParameter(Capability capability) {
         String name = inputName(capability);
         Map<String, Object> parameter = new LinkedHashMap<>();
@@ -174,6 +268,11 @@ final class OpenApiDocument {
     }
 
     private String okDescription(Capability capability) {
+        if (capability.hasAttestation()) {
+            return capability.outputMultiple()
+                    ? "An attested list of " + entityName(capability) + "."
+                    : "An attested read of " + entityName(capability) + ".";
+        }
         if (capability.outputMultiple()) {
             return "A list of " + entityName(capability) + ".";
         }

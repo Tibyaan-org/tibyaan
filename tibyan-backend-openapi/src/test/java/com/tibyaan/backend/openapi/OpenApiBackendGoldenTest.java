@@ -99,11 +99,11 @@ class OpenApiBackendGoldenTest {
         Capability getWarehouse = new Capability("getWarehouse", CapabilityKind.READ,
                 inputs("id", Primitive.LONG), Type.entityRef("Warehouse"), false, true,
                 new BindingRef("WarehouseService#findById"),
-                List.of(new Annotation("requiredAuthorities", List.of("480012", "480013"))));
+                List.of(new Annotation("requiredAuthorities", List.of("480012", "480013"))), null);
         Capability getReport = new Capability("getReport", CapabilityKind.READ,
                 inputs("id", Primitive.LONG), Type.entityRef("Report"), false, true,
                 new BindingRef("ReportService#findById"),
-                List.of(new Annotation("securityUnverifiable", List.of("unparseable-expression"))));
+                List.of(new Annotation("securityUnverifiable", List.of("unparseable-expression"))), null);
         return new CapabilityModel("secured-app", "0.1",
                 List.of(warehouse, report), List.of(getWarehouse, getReport), List.of(), Metadata.empty());
     }
@@ -145,7 +145,7 @@ class OpenApiBackendGoldenTest {
                 List.of(), Metadata.empty());
         Capability getUnit = new Capability("getUnit", CapabilityKind.READ, inputs("id", Primitive.LONG),
                 Type.entityRef("Unit"), false, true, new BindingRef("UnitServiceImpl#findById"),
-                List.of(new Annotation("view", List.of("UnitVTO"))));
+                List.of(new Annotation("view", List.of("UnitVTO"))), null);
         return new CapabilityModel("pms-backend", "0.1",
                 List.of(unit), List.of(getUnit), List.of(), Metadata.empty());
     }
