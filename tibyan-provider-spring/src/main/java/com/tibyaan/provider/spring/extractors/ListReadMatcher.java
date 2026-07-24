@@ -285,23 +285,25 @@ public final class ListReadMatcher {
         }
         MethodCallExpr access = repoAccesses.get(0);
         String repoType = repoFields.get(receiverFieldName(access));
+        // Cardinality first (V): E6a's list route surfaces COLLECTION reads. A single-entity access behind
+        // a wrapper (a by-id shape: findById, selectById, or any repository method whose declared return is
+        // not a collection) is a by-id candidate, owned by 4.1/4.2/P1b, and is left to the by-id path and
+        // its entity outcome, never surfaced here as a list refusal or an opaque wrapper.
+        if (!accessReturnsCollection(access, repoType)) {
+            return Result.notList();
+        }
         Optional<SpringDataRepo> repo = catalog.springDataRepo(repoType);
-        // O, opaque refusal: a persistence-shaped access whose repository does not resolve to a Spring Data
+        // O, opaque refusal: a COLLECTION access whose repository does not resolve to a Spring Data
         // repository of an in-tree entity. The tie cannot be proven without reading the wrapper's internals
         // or trusting its name (fixture E6a-3). Counted, never guessed.
         if (repo.isEmpty() || repo.get().entityKey() == null) {
-            return Result.opaque("the wrapper return '" + wrapper + "' is built from an access on '"
+            return Result.opaque("the wrapper return '" + wrapper + "' is built from a collection access on '"
                     + repoType + "', which does not resolve to a Spring Data repository of an in-tree "
                     + "entity; the read's tie to an entity cannot be proven without reading the wrapper's "
                     + "internals or trusting its name (E6a, OPAQUE_WRAPPER)");
         }
         String elementKey = repo.get().entityKey();
         String elementSimple = lastSegment(elementKey);
-        // Cardinality: a by-id single read behind a wrapper (the name trap notwithstanding) belongs to the
-        // by-id path, not the list route.
-        if (PK_READS.contains(access.getNameAsString())) {
-            return Result.notList();
-        }
         // V, visibility is not discovery. The only discovery is a clean unfiltered framework findAll of the
         // tied entity behind a GENERIC wrapper whose type argument is that entity (T1), the one shape where
         // the collection payload is provable without reading the wrapper. Every other collection read (a
@@ -325,6 +327,33 @@ public final class ListReadMatcher {
                 + "' (E6a visibility); its body is not a clean unfiltered findAll of " + elementSimple
                 + " behind a generic wrapper of it, so it is deferred as a filtered or transformed list "
                 + "read, refused exactly as any other (E6a, then section 4.10)");
+    }
+
+    // Whether the persistence access is a COLLECTION read (a list-shaped read E6a's list route surfaces),
+    // decided from the repository method's DECLARED return type, never guessed from the method name. The
+    // framework findAll is a collection by contract; a framework by-primary-key read is a single; any other
+    // repository method is a collection only when its declared return type is a recognized container. A
+    // method the tool cannot locate on the repository interface is treated as a single read (left to the
+    // by-id path), never surfaced as a list refusal.
+    private boolean accessReturnsCollection(MethodCallExpr access, String repoType) {
+        String name = access.getNameAsString();
+        if (name.equals(FIND_ALL)) {
+            return true;
+        }
+        if (PK_READS.contains(name) || repoType == null) {
+            return false;
+        }
+        int arguments = access.getArguments().size();
+        Optional<ClassOrInterfaceDeclaration> declaration = catalog.declaration(repoType);
+        if (declaration.isEmpty()) {
+            return false;
+        }
+        for (MethodDeclaration method : declaration.get().getMethods()) {
+            if (method.getNameAsString().equals(name) && method.getParameters().size() == arguments) {
+                return CONTAINERS.contains(lastSegment(method.getType().asString()));
+            }
+        }
+        return false;
     }
 
     // Every parameter is a framework paging type (Pageable or Sort); no domain parameter that would make
