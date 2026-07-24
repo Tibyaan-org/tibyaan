@@ -1004,3 +1004,66 @@ coercion 3 to 2). The ceiling is therefore restated as an ESTIMATE of roughly 57
 rather than a computed 56, and it stays explicitly approximate until AT-0's worklist produces the exact
 partition. This is the same conclusion the section 10 accounting note reached, now with the specific
 numbers corrected and the reason recorded.
+
+## 12. AT-0 actual: the structural floor and envelope unwrap, built and measured (pms-backend, 2026-07-24)
+
+AT-0 built the two already-ratified rules (E6a envelope transparency, Volume 5 section 4.11.7; the P1b
+strict by-primary-key custom-query matcher, section 4.2.10), provider-only, no core change and no
+attestation machinery. This section records the actual run against the re-baselined pms copy (the repaired
+source, section 9), the worklist section 11 said AT-0 would produce.
+
+Headline invariants, all held: discovered 5 (by-id 5, list 0), BYTE-IDENTICAL to the section 9 baseline
+(getUnit, getLease, getStaff, getUser, getVendor, same bindings); mis-bound 0; skipped-by-parse 0; ZERO
+new discoveries. P1b discovers zero: pms has clean by-primary-key `@Query` shapes, but every one that
+feeds a discoverable read fails the strict rule (Tenant's `findByIdWithRelations` fails on its inner
+`JOIN FETCH t.user`, an existence filter, exactly the P1b-5 refusal), so the floor draws its line and adds
+no capability, precisely the ratified forecast.
+
+The E6a visibility gain (the AT-0 product, the completed worklist). The wrapper reads that were previously
+NOT_LIST (silently unseen by the list survey) are now named deferrals. The list survey's E6a-surfaced
+partition:
+
+- 51 `*ResultSet` reads refuse as MULTI-READ ASSEMBLY: each builds its wrapper from more than one
+  repository access (the data query plus a count/total query), which 4.10 condition 7 refuses (more than
+  one repository access is not a single provable read). These are the filtered list reads the E6 census
+  called out; they are now visible and countable rather than unseen.
+- 5 reads refuse OPAQUE_WRAPPER: `getMyActiveLease` (LeaseVTO), `getPaymentsSummary` (PaymentsSummary),
+  `getCostsByCategory` and `getPaymentsCollection` (ChartSeries aggregates), and `findByEmail`
+  (UserProxyResult). Each is a single collection access on a hand-written repository interface
+  (`LeaseRepository`, `RentalPaymentRepository`, `CostRepository`, `UserRepository`) that does not resolve
+  to a Spring Data repository of an in-tree entity, so the tie to an entity is not structurally provable.
+  These are the aggregate and proxy reads (AT-2 SHAPE and AT-3 BOUNDARY territory); AT-0 makes them
+  visible and refuses them honestly, never guessing a tie from the wrapper's name.
+- 9 `List<VTO>` reads stay deferred as view/projection list reads (4.10.6); these were already deferred
+  before E6a (the return type is a recognized container of a non-entity), so they are not an E6a change.
+
+Correction to the 2026-07-02 E6a forecast (section 8.10), recorded honestly. That forecast, written against
+the corrupted copy, predicted the `*ResultSet` reads would surface as "visible-but-refused-filtered" via a
+body tie to a Spring Data repository of E. The repaired copy shows two refinements: (1) the `*ResultSet`
+reads refuse more precisely as MULTI-READ ASSEMBLIES (they carry a count query alongside the data query),
+a 4.10 condition-7 refusal, not a plain filtered-parameter refusal; and (2) the tie the forecast assumed
+(a direct Spring Data repository of E) does not hold for pms's hand-written repository interfaces, whose
+Spring Data delegate sits one hop away (the same one-hop shape the discovered reads use via
+`selectById`/`RepositoryImpl`), so the single-access aggregate reads refuse OPAQUE_WRAPPER rather than
+filtered-deferred. The invariants the forecast asserted (discovered byte-identical, mis-bound 0, visibility
+gained, zero discoveries) all hold; only the deferral labels are more precise. E6a's implemented tie is the
+direct Spring Data resolution; resolving the one-hop hand-written-interface delegation for E6a is a named,
+build-deferred refinement (no benchmark case turns on it: the multi-read reads refuse on condition 7 first,
+and the single-access aggregate reads are AT-2/AT-3 semantics the human attests, not reads a wider tie
+should discover).
+
+A build-time correction, flagged (rule 13, and it changed a matching outcome so it is not merely
+diagnostic). The first E6a cut decided list-vs-by-id from the framework read names (`findById`), so pms's
+`selectById`-shaped by-id reads were wrongly surfaced as OPAQUE_WRAPPER list-deferrals, including
+`getUserById` and `getVendorById`, which the by-id path already discovers (getUser, getVendor). This was a
+deviation from the ratified section 4.11.7 (V): a single-entity tie is a by-id candidate owned by
+4.1/4.2/P1b, never the list route. The fix decides cardinality from the repository method's DECLARED return
+type, so a non-collection access is left to the by-id path and never surfaced. This dropped the opaque
+count from 22 to the 5 genuine aggregate/proxy collection reads and removed the contradiction of a
+discovered read appearing as a deferral. The exact worklist above is the post-fix, ratified-faithful
+partition.
+
+`mvn clean verify` is green, the MCP and OpenAPI goldens and the example-app e2e byte-identical (getProduct
+unchanged: the example app has no wrapper or custom-query shapes). The worklist this section records is the
+input AT-1 consumes: the 51 multi-read and 5 opaque reads are the visible refusals a human can later attest
+for what their predicates and shapes mean.

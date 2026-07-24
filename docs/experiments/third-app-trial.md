@@ -848,3 +848,25 @@ promise.
 The ceiling in one line: 25 verified + up to roughly 44 attestable (AT-1 roughly 30, AT-2 roughly 14).
 Attested counts are reported separately from discovered, never summed; every existing discovered row
 stays byte-identical through every sub-phase, and movement is a regression finding.
+
+## 24. AT-0 actual: the structural floor and envelope unwrap, built and measured (erp-backend, 2026-07-24)
+
+AT-0 built the E6a envelope transparency rule (Volume 5 section 4.11.7) and the P1b strict by-primary-key
+custom-query matcher (section 4.2.10). erp is the honest negative control for both.
+
+Headline invariants, all held: discovered 25 (by-id 16, list 9), BYTE-IDENTICAL to the standing baseline;
+mis-bound 0; skipped-by-parse 0; ZERO new discoveries; list-refused 1 (ProductCategory LIST_AMBIGUOUS,
+unchanged).
+
+E6a is inert on erp, exactly as the section 16 census predicted: erp uses no wrapper or envelope return
+types (its reads return `Page<E>`, `List<E>`, or `Page<NameIdDTO>` directly, all recognized or deferred by
+name by 4.10), so the E6a return-type gate never engages. The E6a-surfaced deferral count (OPAQUE_WRAPPER
+plus multi-read assembly plus E6a-visibility) is 0. Every list deferral erp already had is unchanged.
+
+P1b discovers zero on erp, the ratified negative control: erp has clean by-primary-key `@Query` shapes in
+abundance, but its view-returning consumer (Delivery) is blocked by an unrelated implicit-this mapper, and
+its other custom-query reads feed entity-returning `findById` methods that 4.1 already discovers without
+reading their bodies. The strict matcher draws its line and adds nothing, so erp is byte-identical.
+
+`mvn clean verify` green; the MCP and OpenAPI goldens and the e2e byte-identical. erp confirms AT-0 moves no
+number where there is no wrapper and no strict-passing custom query, which is the whole of erp.
