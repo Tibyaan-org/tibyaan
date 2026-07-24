@@ -16,16 +16,51 @@ import java.util.List;
 public final class ToolRegistrar {
 
     private final ObjectMapper objectMapper;
+    private final boolean exposeAttested;
+    private final boolean exposeSecurityUnverifiable;
 
+    /** The default policy (Volume 5 section 4.15.7): attested tools expose, security-unverifiable do not. */
     public ToolRegistrar(ObjectMapper objectMapper) {
+        this(objectMapper, true, false);
+    }
+
+    /**
+     * @param exposeAttested             whether attested tools register at all ({@code tibyan.attested.expose},
+     *                                   default true: committing the reviewed attestations file is the opt-in)
+     * @param exposeSecurityUnverifiable whether an ATTESTED tool whose declared security is unverifiable
+     *                                   registers ({@code tibyan.attested.exposeSecurityUnverifiable}, default
+     *                                   FALSE: the security-boundary stake defaults closed, the G8 default)
+     */
+    public ToolRegistrar(ObjectMapper objectMapper, boolean exposeAttested,
+            boolean exposeSecurityUnverifiable) {
         this.objectMapper = objectMapper;
+        this.exposeAttested = exposeAttested;
+        this.exposeSecurityUnverifiable = exposeSecurityUnverifiable;
     }
 
     public List<ToolCallback> register(CapabilitiesManifest manifest, ExecutionAdapter executionAdapter) {
         List<ToolCallback> callbacks = new ArrayList<>();
         for (CapabilityDescriptor descriptor : manifest.tools()) {
+            if (excluded(descriptor)) {
+                continue;
+            }
             callbacks.add(new CapabilityToolCallback(descriptor, executionAdapter, objectMapper));
         }
         return callbacks;
+    }
+
+    // The two attested-exposure controls (Volume 5 section 4.15.7); a verified tool always registers, its
+    // invocation and registration unchanged. An attested tool registers unless the wholesale control is
+    // off, and an attested-and-security-unverifiable tool defaults CLOSED: its only declared gate is both
+    // unverifiable and bypassed by the direct bean invocation (Volume 7 gap 9), so it does not register
+    // without an explicit opt-in.
+    private boolean excluded(CapabilityDescriptor descriptor) {
+        if (!descriptor.attested()) {
+            return false;
+        }
+        if (!exposeAttested) {
+            return true;
+        }
+        return descriptor.securityUnverifiable() && !exposeSecurityUnverifiable;
     }
 }

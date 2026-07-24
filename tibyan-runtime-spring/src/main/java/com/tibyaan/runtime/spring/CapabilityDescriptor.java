@@ -19,9 +19,20 @@ public record CapabilityDescriptor(
         String description,
         String binding,
         String output,
-        List<InputDescriptor> inputs) {
+        List<InputDescriptor> inputs,
+        boolean attested,
+        boolean securityUnverifiable) {
 
     public CapabilityDescriptor {
         inputs = inputs == null ? List.of() : List.copyOf(inputs);
+    }
+
+    /**
+     * The verified-tool arity (no attestation, no unverifiable marker), for the common case and for
+     * existing callers. A verified manifest omits both flags, so they default false.
+     */
+    public CapabilityDescriptor(String name, String description, String binding, String output,
+            List<InputDescriptor> inputs) {
+        this(name, description, binding, output, inputs, false, false);
     }
 }
