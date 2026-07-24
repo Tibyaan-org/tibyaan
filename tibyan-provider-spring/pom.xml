@@ -23,7 +23,10 @@
       Volume 12 section 5: a provider may depend on tibyan-plugin-api and tibyan-core only,
       plus its own analysis library (JavaParser, Volume 16). It depends on no backend and no
       runtime, and never on another plugin. It does not depend on the example app: the test
-      reads that app's source files, it does not link against the compiled module.
+      reads that app's source files, it does not link against the compiled module. Jackson is
+      added for the attestation intake (phase Attestation, Volume 5 section 4.15.3): it reads
+      the adopter's committed tibyan/attestations.json. CLAUDE.md permits Jackson in non-core
+      modules; it is a leaf library, not another plugin, so the inward-dependency rule holds.
     -->
     <dependencies>
         <dependency>
@@ -40,6 +43,10 @@
             <groupId>com.github.javaparser</groupId>
             <artifactId>javaparser-core</artifactId>
             <version>${javaparser.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
         </dependency>
 
         <dependency>

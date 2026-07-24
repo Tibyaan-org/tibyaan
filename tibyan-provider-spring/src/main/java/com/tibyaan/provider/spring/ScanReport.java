@@ -3,6 +3,7 @@ package com.tibyaan.provider.spring;
 import com.tibyaan.core.ir.CapabilityModel;
 import com.tibyaan.provider.spring.EntityOutcome.Cause;
 import com.tibyaan.provider.spring.EntityOutcome.Status;
+import com.tibyaan.provider.spring.attest.IntakeRefusal;
 import com.tibyaan.provider.spring.extractors.SkippedField;
 
 import java.util.List;
@@ -40,7 +41,8 @@ public record ScanReport(
         List<ParseSkip> parseSkips,
         List<SkippedField> skippedFields,
         List<ListOutcome> listOutcomes,
-        List<DeferredListRead> deferredListReads) {
+        List<DeferredListRead> deferredListReads,
+        List<IntakeRefusal> attestationRefusals) {
 
     public ScanReport {
         if (model == null) {
@@ -51,6 +53,15 @@ public record ScanReport(
         skippedFields = skippedFields == null ? List.of() : List.copyOf(skippedFields);
         listOutcomes = listOutcomes == null ? List.of() : List.copyOf(listOutcomes);
         deferredListReads = deferredListReads == null ? List.of() : List.copyOf(deferredListReads);
+        attestationRefusals = attestationRefusals == null ? List.of() : List.copyOf(attestationRefusals);
+    }
+
+    /**
+     * The attested capabilities in the model (phase Attestation, Volume 5 section 4.15). Counted
+     * SEPARATELY from discovered and never summed into it: the verified count stays pure forever.
+     */
+    public long attestedCount() {
+        return model.capabilities().stream().filter(com.tibyaan.core.ir.Capability::hasAttestation).count();
     }
 
     /** The number of entities for which a by-id capability was discovered. */

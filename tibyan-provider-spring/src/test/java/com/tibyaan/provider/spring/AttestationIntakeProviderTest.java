@@ -1,0 +1,299 @@
+package com.tibyaan.provider.spring;
+
+import com.tibyaan.core.ir.Attestation;
+import com.tibyaan.core.ir.AttestationCategory;
+import com.tibyaan.core.ir.AttestationOrigin;
+import com.tibyaan.core.ir.Capability;
+import com.tibyaan.core.ir.Type;
+import com.tibyaan.core.semantic.SemanticValidator;
+import com.tibyaan.provider.spring.attest.IntakeRefusal;
+import com.tibyaan.plugin.ProviderInput;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * Phase Attestation AT-1: the PREDICATE intake, end to end through the provider (Volume 5 section 4.15).
+ * The fixture is copied to a temp source root so a real {@code tibyan/attestations.json} can be authored
+ * beside it and stamped with the real slice fingerprint the tool computes, exactly as {@code tibyan attest}
+ * would. This proves the mechanism: intake validation, the fingerprint lifecycle, the read-safety refusal,
+ * the coverage guards, and the carriage of the human's words into an attested capability. Fixtures ATT-1,
+ * ATT-3, ATT-6, ATT-7, ATT-8, and the intake refusal battery.
+ */
+class AttestationIntakeProviderTest {
+
+    private static final Path FIXTURE =
+            Path.of("src", "test", "resources", "fixtures", "attest-predicate", "AttestPredicate.java");
+    private static final String FILTER_TARGET =
+            "com.example.attest.TenantServiceImpl#getAllByFilter(String,Integer)";
+    private static final String GUARD_TARGET =
+            "com.example.attest.TenantServiceImpl#getActiveTenant(Long)";
+    private static final String UNSAFE_TARGET =
+            "com.example.attest.TenantServiceImpl#getAllByFilterUnsafe(String)";
+
+    private final SpringCapabilityProvider provider = new SpringCapabilityProvider();
+    private final SemanticValidator validator = new SemanticValidator();
+
+    // ---------- positive: the reference attestation carries and validates ----------
+
+    @Test
+    void att1_aFilteredReadWithACompletePredicateAttestationDiscoversAnAttestedCapability(@TempDir Path root)
+            throws IOException {
+        copyFixture(root);
+        String fingerprint = fingerprint(root, FILTER_TARGET);
+        writeAttestations(root, filterEntry(fingerprint));
+
+        ScanReport report = provider.scan(new ProviderInput(root));
+
+        Capability attested = capability(report, "attested_searchTenants");
+        assertThat(attested.binding().value()).isEqualTo("TenantServiceImpl#getAllByFilter");
+        assertThat(attested.output()).isEqualTo(Type.entityRef("Tenant"));
+        assertThat(attested.outputMultiple()).isTrue();
+        assertThat(report.attestationRefusals()).isEmpty();
+        assertThat(report.attestedCount()).isEqualTo(1);
+
+        Attestation attestation = attested.attestation();
+        assertThat(attestation.category()).isEqualTo(AttestationCategory.PREDICATE);
+        assertThat(attestation.origin()).isEqualTo(AttestationOrigin.HUMAN_AUTHORED);
+        assertThat(attestation.assertedBy()).isEqualTo("a.elseginy");
+        assertThat(attestation.resultSemantic())
+                .isEqualTo("Returns the tenants matching the given filters.");
+        assertThat(attestation.parameterMeanings())
+                .containsEntry("fullName",
+                        "Matches tenants whose full name contains this text, case-insensitive.")
+                .containsEntry("pageNum", Attestation.PAGING_MARK);
+        assertThat(attestation.fingerprint()).isEqualTo(fingerprint);
+
+        // The attested capability is a valid model member (rules 8 and 9 hold), and it is NOT summed into
+        // discovered: no by-id capability was minted for this refused read.
+        assertThat(validator.validate(report.model()).isValid()).isTrue();
+        assertThat(report.discoveredCount()).isZero();
+    }
+
+    @Test
+    void att3_aGuardedByIdViewReadAttestsAsAnAttestedSingleRead(@TempDir Path root) throws IOException {
+        copyFixture(root);
+        String fingerprint = fingerprint(root, GUARD_TARGET);
+        writeAttestations(root, "[" + guardEntry(fingerprint) + "]");
+
+        ScanReport report = provider.scan(new ProviderInput(root));
+
+        Capability attested = capability(report, "attested_getActiveTenant");
+        assertThat(attested.binding().value()).isEqualTo("TenantServiceImpl#getActiveTenant");
+        assertThat(attested.output()).isEqualTo(Type.entityRef("Tenant"));
+        assertThat(attested.outputMultiple()).as("a by-id read is single, not a list").isFalse();
+        assertThat(attested.attestation().parameterMeanings()).containsEntry("id", Attestation.ID_MARK);
+        assertThat(validator.validate(report.model()).isValid()).isTrue();
+    }
+
+    // ---------- the fingerprint lifecycle (ATT-8) ----------
+
+    @Test
+    void att8_changingTheFingerprintedBodyInvalidatesTheAttestationLoudly(@TempDir Path root)
+            throws IOException {
+        copyFixture(root);
+        String fingerprint = fingerprint(root, FILTER_TARGET);
+        writeAttestations(root, filterEntry(fingerprint));
+        assertThat(provider.scan(new ProviderInput(root)).attestedCount()).isEqualTo(1);
+
+        // Change the fingerprinted method body: append a statement to getAllByFilter.
+        Path source = root.resolve("AttestPredicate.java");
+        String changed = Files.readString(source).replace(
+                "return new TenantResultSet(tenantRepository.findByFilters(fullName, pageNum));",
+                "int touched = pageNum + 1;\n        return new TenantResultSet("
+                        + "tenantRepository.findByFilters(fullName, touched));");
+        Files.writeString(source, changed);
+
+        ScanReport report = provider.scan(new ProviderInput(root));
+        assertThat(report.attestedCount()).as("a stale attestation never carries").isZero();
+        assertThat(report.attestationRefusals())
+                .anySatisfy(refusal -> {
+                    assertThat(refusal.cause()).isEqualTo(IntakeRefusal.Cause.STALE_ATTESTATION);
+                    assertThat(refusal.detail()).contains("the code changed since attestation");
+                });
+    }
+
+    // ---------- the intake refusal battery (ATT-6, ATT-7) ----------
+
+    @Test
+    void att6_missingFingerprintRefuses_neverSilentlyCompleted(@TempDir Path root) throws IOException {
+        copyFixture(root);
+        writeAttestations(root, filterEntry(null));
+        assertRefused(root, IntakeRefusal.Cause.MISSING_FINGERPRINT);
+    }
+
+    @Test
+    void att7_aMutatingBodyRefusesReadSafety(@TempDir Path root) throws IOException {
+        copyFixture(root);
+        String fingerprint = fingerprint(root, UNSAFE_TARGET);
+        String entry = entry(UNSAFE_TARGET, "predicate", "searchUnsafe",
+                "Returns tenants, and also deletes.",
+                "\"fullName\":\"Matches the full name.\"", null, "a.elseginy", "human-authored", fingerprint);
+        writeAttestations(root, "[" + entry + "]");
+        assertRefused(root, IntakeRefusal.Cause.READ_SAFETY);
+    }
+
+    @Test
+    void anUnresolvableTargetRefuses(@TempDir Path root) throws IOException {
+        copyFixture(root);
+        String entry = entry("com.example.attest.Nope#ghost(String)", "predicate", "x", "y.",
+                "\"a\":\"b\"", null, "a.elseginy", "human-authored", "sha256:whatever");
+        writeAttestations(root, "[" + entry + "]");
+        assertRefused(root, IntakeRefusal.Cause.UNRESOLVED_TARGET);
+    }
+
+    @Test
+    void anUncoveredDomainParameterRefuses(@TempDir Path root) throws IOException {
+        copyFixture(root);
+        String fingerprint = fingerprint(root, FILTER_TARGET);
+        String entry = entry(FILTER_TARGET, "predicate", "searchTenants", "Returns tenants.",
+                "\"pageNum\":\"paging\"", null, "a.elseginy", "human-authored", fingerprint);
+        writeAttestations(root, "[" + entry + "]");
+        assertRefused(root, IntakeRefusal.Cause.COVERAGE);
+    }
+
+    @Test
+    void aMeaningKeyThatIsNotAnInputRefuses(@TempDir Path root) throws IOException {
+        copyFixture(root);
+        String fingerprint = fingerprint(root, FILTER_TARGET);
+        String entry = entry(FILTER_TARGET, "predicate", "searchTenants", "Returns tenants.",
+                "\"fullName\":\"m\",\"pageNum\":\"paging\",\"ghost\":\"x\"", null, "a.elseginy",
+                "human-authored", fingerprint);
+        writeAttestations(root, "[" + entry + "]");
+        assertRefused(root, IntakeRefusal.Cause.COVERAGE);
+    }
+
+    @Test
+    void thePagingMarkOnADomainParameterRefuses(@TempDir Path root) throws IOException {
+        copyFixture(root);
+        String fingerprint = fingerprint(root, FILTER_TARGET);
+        String entry = entry(FILTER_TARGET, "predicate", "searchTenants", "Returns tenants.",
+                "\"fullName\":\"paging\",\"pageNum\":\"paging\"", null, "a.elseginy", "human-authored",
+                fingerprint);
+        writeAttestations(root, "[" + entry + "]");
+        assertRefused(root, IntakeRefusal.Cause.COVERAGE);
+    }
+
+    @Test
+    void aShapeCategoryRefusesAsNotYetBuilt(@TempDir Path root) throws IOException {
+        copyFixture(root);
+        String fingerprint = fingerprint(root, FILTER_TARGET);
+        String entry = entry(FILTER_TARGET, "shape", "searchTenants", "Returns tenants.",
+                "\"fullName\":\"m\",\"pageNum\":\"paging\"", "Tenant", "a.elseginy", "human-authored",
+                fingerprint);
+        writeAttestations(root, "[" + entry + "]");
+        assertRefused(root, IntakeRefusal.Cause.CATEGORY_NOT_BUILT);
+    }
+
+    @Test
+    void att9_anAiDraftOriginRefuses_theAssistBoundaryBindsNow(@TempDir Path root) throws IOException {
+        copyFixture(root);
+        String fingerprint = fingerprint(root, FILTER_TARGET);
+        String entry = entry(FILTER_TARGET, "predicate", "searchTenants", "Returns tenants.",
+                "\"fullName\":\"m\",\"pageNum\":\"paging\"", null, "a.elseginy", "ai-draft", fingerprint);
+        writeAttestations(root, "[" + entry + "]");
+        assertRefused(root, IntakeRefusal.Cause.PROVENANCE);
+    }
+
+    @Test
+    void twoEntriesTargetingTheSameReadRefuseTheSecond(@TempDir Path root) throws IOException {
+        copyFixture(root);
+        String fingerprint = fingerprint(root, FILTER_TARGET);
+        String one = entry(FILTER_TARGET, "predicate", "searchTenants", "Returns tenants.",
+                "\"fullName\":\"m\",\"pageNum\":\"paging\"", null, "a.elseginy", "human-authored", fingerprint);
+        String two = entry(FILTER_TARGET, "predicate", "searchAgain", "Returns tenants again.",
+                "\"fullName\":\"m\",\"pageNum\":\"paging\"", null, "a.elseginy", "human-authored", fingerprint);
+        writeAttestations(root, "[" + one + "," + two + "]");
+        assertThat(provider.scan(new ProviderInput(root)).attestationRefusals())
+                .anySatisfy(r -> assertThat(r.cause()).isEqualTo(IntakeRefusal.Cause.DUPLICATE_TARGET));
+    }
+
+    @Test
+    void att11_noAttestationsFileMeansTheModelIsUnchanged(@TempDir Path root) throws IOException {
+        copyFixture(root);
+        ScanReport report = provider.scan(new ProviderInput(root));
+        assertThat(report.attestedCount()).isZero();
+        assertThat(report.attestationRefusals()).isEmpty();
+        assertThat(report.model().capabilities()).noneMatch(Capability::hasAttestation);
+    }
+
+    // ---------- helpers ----------
+
+    private void assertRefused(Path root, IntakeRefusal.Cause cause) {
+        ScanReport report = provider.scan(new ProviderInput(root));
+        assertThat(report.attestedCount()).as("a refused entry produces no capability").isZero();
+        assertThat(report.attestationRefusals())
+                .as("expected a refusal with cause " + cause)
+                .anySatisfy(refusal -> assertThat(refusal.cause()).isEqualTo(cause));
+    }
+
+    private String fingerprint(Path root, String target) {
+        Optional<String> fingerprint = provider.attestationFingerprint(new ProviderInput(root), target);
+        assertThat(fingerprint).as("the target must resolve to compute a fingerprint").isPresent();
+        return fingerprint.get();
+    }
+
+    private static Capability capability(ScanReport report, String name) {
+        return report.model().capabilities().stream()
+                .filter(c -> c.name().equals(name))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no capability named " + name + "; capabilities were "
+                        + report.model().capabilities().stream().map(Capability::name).toList()
+                        + "; refusals were " + report.attestationRefusals()));
+    }
+
+    private static void copyFixture(Path root) throws IOException {
+        Files.write(root.resolve("AttestPredicate.java"), Files.readAllBytes(FIXTURE));
+    }
+
+    private static void writeAttestations(Path root, String json) throws IOException {
+        Path dir = root.resolve("tibyan");
+        Files.createDirectories(dir);
+        Files.write(dir.resolve("attestations.json"), json.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String filterEntry(String fingerprint) {
+        return "[" + entry(FILTER_TARGET, "predicate", "searchTenants",
+                "Returns the tenants matching the given filters.",
+                "\"fullName\":\"Matches tenants whose full name contains this text, case-insensitive.\","
+                        + "\"pageNum\":\"paging\"",
+                null, "a.elseginy", "human-authored", fingerprint) + "]";
+    }
+
+    private static String guardEntry(String fingerprint) {
+        return entry(GUARD_TARGET, "predicate", "getActiveTenant",
+                "Returns the tenant with this id only if it is not deleted; otherwise not found.",
+                "\"id\":\"id\"", null, "a.elseginy", "human-authored", fingerprint);
+    }
+
+    // Builds one raw entry as JSON. A null fingerprint omits the field entirely (the missing-fingerprint
+    // case); a null subjectEntity omits it (a pure predicate).
+    private static String entry(String target, String category, String name, String resultSemantic,
+                                String parameters, String subjectEntity, String assertedBy, String origin,
+                                String fingerprint) {
+        StringBuilder provenance = new StringBuilder("{\"assertedBy\":\"" + assertedBy + "\",\"origin\":\""
+                + origin + "\",\"date\":\"2026-07-24\"");
+        if (fingerprint != null) {
+            provenance.append(",\"fingerprint\":\"").append(fingerprint).append("\"");
+        }
+        provenance.append("}");
+        StringBuilder entry = new StringBuilder("{")
+                .append("\"target\":\"").append(target).append("\",")
+                .append("\"category\":\"").append(category).append("\",")
+                .append("\"name\":\"").append(name).append("\",")
+                .append("\"resultSemantic\":\"").append(resultSemantic).append("\",")
+                .append("\"parameters\":{").append(parameters).append("},");
+        if (subjectEntity != null) {
+            entry.append("\"subjectEntity\":\"").append(subjectEntity).append("\",");
+        }
+        entry.append("\"provenance\":").append(provenance).append("}");
+        return entry.toString();
+    }
+}

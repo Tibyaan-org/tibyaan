@@ -21,6 +21,10 @@ import com.tibyaan.core.ir.Type;
 import com.tibyaan.plugin.ProviderInput;
 import com.tibyaan.plugin.SourceAnalyzer;
 import com.tibyaan.provider.spring.EntityOutcome.Cause;
+import com.tibyaan.provider.spring.attest.AttestationFile;
+import com.tibyaan.provider.spring.attest.AttestationIntake;
+import com.tibyaan.provider.spring.attest.AttestationRecord;
+import com.tibyaan.provider.spring.attest.IntakeRefusal;
 import com.tibyaan.provider.spring.extractors.ControllerSecurity;
 import com.tibyaan.provider.spring.extractors.DisplayNames;
 import com.tibyaan.provider.spring.extractors.EntityExtractor;
@@ -196,6 +200,17 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
         ListReads listReads = discoverListReads(repositories, serviceSources, resolver, capabilities,
                 displayByKey);
 
+        // Attestation intake (phase Attestation, section 4.15): read the adopter's committed
+        // tibyan/attestations.json and, for each entry, either add an attested capability or record a
+        // located refusal. Run after both discovery pools are final (so name uniqueness is checked against
+        // every verified capability) and BEFORE controller-authority decoration, so an attested read's
+        // declared-security contract composes exactly as a verified read's does (section 4.15.8). Additive:
+        // with no record file the model and every outcome are byte-identical (fixture ATT-11).
+        AttestationIntake.Result intake = runAttestationIntake(sourceRoot, parsed.units(), resolver,
+                repositories, capabilities, displayByKey);
+        capabilities.addAll(intake.attested());
+        List<IntakeRefusal> attestationRefusals = intake.refusals();
+
         // Controller-authority (phase Controller-Authority, section 4.14): a decorator pass over the
         // discovered pool. It never mints or removes a capability; it attaches the declared security
         // contract each read's controller surface carries (a compiled any-of authority sequence, an
@@ -214,7 +229,49 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
                 moduleName(sourceRoot), IR_VERSION, finalized.entities(), capabilities,
                 dedupeAndSort(finalized.relations()), Metadata.empty());
         return new ScanReport(model, finalized.outcomes(), parsed.skips(), finalized.skippedFields(),
-                listReads.outcomes(), listReads.deferrals());
+                listReads.outcomes(), listReads.deferrals(), attestationRefusals);
+    }
+
+    /**
+     * Computes the current structural fingerprint of an attestation target's slice (phase Attestation,
+     * Volume 5 section 4.15.4). This is the value the {@code tibyan attest} CLI stamps into an entry
+     * against the current code; the scan then recomputes and compares it. Empty when the target does not
+     * resolve to exactly one in-tree declaration.
+     */
+    public Optional<String> attestationFingerprint(ProviderInput input, String target) {
+        ParseResults parsed = parseJavaSources(input.sourceRoot());
+        TypeReferenceResolver resolver = TypeReferenceResolver.from(parsed.units());
+        RepositoryCatalog repositories = RepositoryCatalog.from(parsed.units(), resolver);
+        return new AttestationIntake(parsed.units(), resolver, repositories, typeMapper, Map.of())
+                .fingerprintFor(target);
+    }
+
+    // Runs the attestation intake (phase Attestation, section 4.15.4). A malformed record file is a single
+    // located refusal, never a silent skip; an absent file is no attestations at all. The intake never
+    // guesses: it either verifies an entry's structural frame and carries the human's words, or refuses.
+    private AttestationIntake.Result runAttestationIntake(Path sourceRoot, List<CompilationUnit> units,
+                                                          TypeReferenceResolver resolver,
+                                                          RepositoryCatalog repositories,
+                                                          List<Capability> discovered,
+                                                          Map<String, String> displayByKey) {
+        List<AttestationRecord> records;
+        try {
+            records = AttestationFile.read(sourceRoot);
+        } catch (AttestationFile.AttestationFileException e) {
+            return new AttestationIntake.Result(List.of(), List.of(new IntakeRefusal(
+                    "(" + AttestationFile.RELATIVE_PATH + ")", null,
+                    IntakeRefusal.Cause.MALFORMED_FILE, e.getMessage())));
+        }
+        if (records.isEmpty()) {
+            return new AttestationIntake.Result(List.of(), List.of());
+        }
+        Set<String> existingNames = new HashSet<>();
+        for (Capability capability : discovered) {
+            existingNames.add(capability.name());
+        }
+        AttestationIntake attestationIntake = new AttestationIntake(units, resolver, repositories,
+                typeMapper, displayByKey);
+        return attestationIntake.run(records, existingNames);
     }
 
     // A per-entity plan from pass 1: the entity key and simple name, and either a terminal failure
