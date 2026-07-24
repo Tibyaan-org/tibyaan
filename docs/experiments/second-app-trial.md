@@ -892,17 +892,27 @@ Per sub-phase, at the GET-endpoint denominator:
   stores User ids; staffId stores staff-or-user depending on write path; hidden inner-join existence
   filters on nullable associations). Extrapolated, the realistic AT-1 outcome is roughly two thirds of
   the ceiling, and the declined third is the attester's honesty working, not a defect.
-- AT-2 (shape attestation): attestable up to 7 more: the aggregate by-id endpoints (Building, Property,
-  ChatRoom, the payments summary, and the Ticket, Group, Event enrichment shapes), each with its
-  structurally proven by-primary-key load and an attested enrichment sentence. Opaque-wrapper residue
+- AT-2 (shape attestation): attestable up to 8 more (CORRECTED 2026-07-21 by the Gate 1 verification,
+  section 11; the earlier "7" was cited to an unrecorded census and was wrong): the aggregate by-id reads
+  `BuildingServiceImpl#findById`, `PropertyServiceImpl#findById`, `ChatRoomServiceImpl#getChatRoomById`,
+  `TicketServiceImpl#getTicketById`, `GroupServiceImpl#getGroupById`, `EventServiceImpl#getEventById`,
+  `UserManagementServiceImpl#getUserDetails`, and
+  `PropertyMgtProxyInternalServiceImpl#findPropertyByBuildingId`, each with its structurally proven
+  by-primary-key load and an attested enrichment sentence. The previously-listed "payments summary" is NOT
+  in this bucket: `getPaymentsSummary` performs no by-primary-key load at all (its only access is
+  `selectAllByFilters`), so it is a filtered read and belongs to the PREDICATE category. Opaque-wrapper residue
   after AT-0 is expected near zero here (every `*ResultSet` ties via T2 on this app).
 - AT-3 (boundary, deferred): 1 candidate today, getVendor's security contract (unverifiable,
   conflicting-declarations, section 9); pms has no delegation reads. Not attestable until AT-3 is
   separately ratified.
-- EXCLUDED, staying refused regardless of attestation: the 9 context reads (me-scoped, the missing
-  runtime principal cannot be asserted into existence), the 10 binary and stub endpoints (downloads,
-  counters, the health stub, the two hardcoded empty-ResultSet stubs: no read exists to describe), and
-  the 3 String-to-Long coercion shapes (a structural tolerance decision, named, not attestation).
+- EXCLUDED, staying refused regardless of attestation (counts CORRECTED 2026-07-21, section 11): the 11
+  context reads under the strict zero-argument reading (me-scoped, the missing runtime principal cannot be
+  asserted into existence; 13 if the two context reads whose shape is binary or scalar are counted here,
+  21 if context-reading paginated reads are included, and those wider readings overlap the filtered
+  count), the 9 declared binary and stub endpoints of which 8 are live-implemented (downloads, counters,
+  the health stub, the two hardcoded empty-ResultSet stubs: no read exists to describe), and the 2
+  controller-level String-to-Long coercion shapes, only 1 of them a by-id read (a structural tolerance
+  decision, named, not attestation).
 
 Accounting note (stated honestly rather than forced to add up): the 89-GET buckets predate the parse
 re-baseline, so they do not close cleanly against the post-repair numbers. The pre-repair census bucketed
@@ -914,8 +924,11 @@ what AT-0's complete worklist produces; until it runs, the ceiling below is APPR
 11 endpoints not itemized in the attestable-or-excluded lists above are the reclassified
 by-id-blocked and unparseable-backed reads AT-0 assigns.
 
-The ceiling, stated in one line: 5 verified + up to 44 (AT-1) + up to 7 (AT-2) = ATTESTABLE UP TO
-roughly 56 of 89 GETs, about 63 percent of the whole surface and about three quarters of the genuinely
+The ceiling, stated in one line as an ESTIMATE (not a computed count; the Gate 1 verification, section 11,
+corrected the per-category numbers and found the 89 denominator is a DECLARED count including roughly 7
+mappings on interfaces no class implements): 5 verified + up to roughly 45 (AT-1, the 43 filtered GETs plus
+Tenant's existence-condition read plus the reclassified payments summary) + up to 8 (AT-2) = ATTESTABLE UP
+TO roughly 57 of 89 declared GETs, about 64 percent of the declared surface and about three quarters of the genuinely
 tool-worthy reads, IF a knowledgeable human attests everything attestable, which the sample says a
 truthful attester will not do. Attested counts are reported SEPARATELY from discovered, never summed:
 the health line becomes "discovered 5, attested K, mis-bound 0, attestation-drift 0".
@@ -931,3 +944,63 @@ unmeasurable without a real attesting human. The first-use measurement is pre-re
 (Volume 5, section 4.15.11): per-entry time, assist usage, intake refusals, declines with reasons, and
 one month of invalidation counts. pms, with the maintainer as the knowledgeable human, is the designated
 first measurement.
+
+## 11. GATE 1: forecast traceability verification (pms-backend, read-only, 2026-07-21)
+
+Before ratifying the Attestation design (Volume 5, section 4.15), every number in its forecast was traced
+to a source: a committed census row, a ledger row, or an explicit counted sample. This section is that
+verification, and it is also the correction it forced. THE HEADLINE: the forecast FAILED traceability on
+its pms per-category counts, so ratification did NOT proceed and AT-0 was NOT built this session.
+
+THE ROOT CAUSE, stated plainly because it is a process finding, not just an arithmetic one: several pms
+numbers were cited to "the 2026-07-20 coverage census," a real, adversarially-verified 5-agent
+enumeration, which was NEVER RECORDED IN THIS LEDGER. It lived only in a session artifact. The project's
+own standard is that the ledgers are the published evidence and a stranger can audit the numbers without
+the source; a number whose only basis is an unrecorded run does not meet it. Re-verifying those numbers
+against source (2026-07-21, read-only) found that four of four were wrong.
+
+Traced and VERIFIED (committed source, unchanged):
+
+| Number | Claimed basis | Actual source | Verdict |
+|---|---|---|---|
+| pms 89 GET endpoints | 2026-07-20 census | section 9 correction ("GET denominator is exactly 89") | VERIFIED as a DECLARED count, see the caveat below |
+| pms discovered 5 | section 9 | section 9, measured re-baseline | VERIFIED |
+| pms 33 `*ResultSet` reads | section 9 | section 9 correction ("the `*ResultSet` reads count 33") | VERIFIED |
+| pms 43 filtered GETs | section 9 | section 9 ("43 filtered GET endpoints, enumerated 2026-07-20") | VERIFIED |
+| pms Tenant existence-condition read (+1 to 44) | P1b census | section 8.8 and Volume 5 section 4.2.10.1 (the inner-fetch refusal) | VERIFIED |
+| pms AT-0 visibility: all 33 become visible, 0 parse-skipped | re-based E6a | section 8.10 (the T2 census) plus section 9 (skipped-by-parse 0) | VERIFIED |
+| erp up to ~30 (AT-1) and ~14 (AT-2), ~44 total | ledger section 15 | section 15's census table (~30 filtered, ~9 projection, 5 transformed) | VERIFIED |
+| enterprise 6 guarded, 12 aggregate, 15 delegation | ledger section 6.1 | section 6.1's by-id census | VERIFIED |
+| enterprise 2 genuine filtered query reads of 31 deferred | ledger section 5 | section 5, RANK 3 | VERIFIED |
+
+Traced and UNSUPPORTED, corrected against source (2026-07-21 enumeration, read-only):
+
+| Number | Claimed basis | What source says | Verdict |
+|---|---|---|---|
+| AT-2 attestable "up to 7" aggregate by-id reads | 2026-07-20 census (unrecorded) | EIGHT, not seven. Six of the seven named are confirmed (Building, Property, ChatRoom, Ticket, Group, Event); the "payments summary" is REFUTED (`RentalPaymentServiceImpl#getPaymentsSummary` has NO by-primary-key load, its only access is `selectAllByFilters`, so it is a filtered read and belongs to the PREDICATE category, not SHAPE); and TWO were missed (`UserManagementServiceImpl#getUserDetails`, a by-pk load plus a second repository access plus view mutation, and `PropertyMgtProxyInternalServiceImpl#findPropertyByBuildingId`, three persistence accesses behind one id) | CORRECTED to 8 |
+| EXCLUDED "9 context reads" | 2026-07-20 census (unrecorded) | ELEVEN under the strict reading (zero-argument handler, identity from RequestContext in the handler or its service), 13 if the two context reads whose shape is binary or scalar are counted here, and 21 if context-reading paginated reads are included. Under no reading is it 9 | CORRECTED to 11 (strict), with the wider readings named |
+| EXCLUDED "10 binary and stub endpoints" | 2026-07-20 census (unrecorded) | NINE declared, of which 8 are live-implemented; the tenth was reachable only by double-counting an interface-only download that no class implements | CORRECTED to 9 declared, 8 live |
+| EXCLUDED "3 String-to-Long coercion shapes" | 2026-07-20 census (unrecorded) | TWO controller-level coercions (`_getVendorById`, `_getVendorsByBuilding`), and only ONE of those is a by-id read. The 3 came from conflating controller-level coercion with service-level coercion: at least nine other handlers pass a raw `String` through and the `Long.parseLong` happens one layer down in the service, which is a different shape | CORRECTED to 2 (1 strictly by-id) |
+
+Marked as an ESTIMATE with its basis named (not a census, and not correctable by enumeration):
+
+- "A knowledgeable attester could cleanly attest about 10 of 16 and should DECLINE about 6 of 16." This is
+  a JUDGMENT SAMPLE, not a count: 16 filtered reads were traced to their query builders on 2026-07-20 and
+  judged one by one for whether a single honest sentence could carry their semantics. Its basis is that
+  per-read tracing; its limit is that it is 16 of 43 and the judgment is one reviewer's. It stands as a
+  calibration estimate, explicitly labeled, never as a forecast count. The real rate is the phase's named
+  open verification and is unmeasurable without a real attesting human.
+
+One further caveat the verification surfaced, recorded so the denominator is not over-trusted: the 89 is a
+count of DECLARED GET mappings, and roughly seven of them sit on generated interfaces that NO concrete
+class implements (three admin controllers, three property controllers, one lease controller), so they are
+declared but not live. The live implemented GET surface is smaller than 89. Any percentage stated against
+89 is therefore a percentage of the declared surface, and the exact live partition is precisely what
+AT-0's worklist produces.
+
+Net effect on the pms ceiling: the AT-1 and AT-2 category counts move (AT-2 from 7 to 8, with one member
+reclassified from SHAPE to PREDICATE), and the excluded counts move (context 9 to 11, binary 10 to 9,
+coercion 3 to 2). The ceiling is therefore restated as an ESTIMATE of roughly 57 of 89 declared GETs
+rather than a computed 56, and it stays explicitly approximate until AT-0's worklist produces the exact
+partition. This is the same conclusion the section 10 accounting note reached, now with the specific
+numbers corrected and the reason recorded.
