@@ -1,5 +1,7 @@
 package com.tibyaan.core.semantic;
 
+import com.tibyaan.core.ir.Attestation;
+import com.tibyaan.core.ir.AttestationCategory;
 import com.tibyaan.core.ir.Capability;
 import com.tibyaan.core.ir.CapabilityKind;
 import com.tibyaan.core.ir.CapabilityModel;
@@ -45,6 +47,8 @@ public final class SemanticValidator {
         checkRelations(model, entityNames, errors);
         checkReadOnlyKind(model, errors);
         checkOutputMultiple(model, errors);
+        checkAttestationCompleteness(model, errors);
+        checkAttestedPrefix(model, errors);
 
         return new ValidationResult(errors);
     }
@@ -168,6 +172,100 @@ public final class SemanticValidator {
             }
         }
     }
+
+    // Rule 8 (Volume 4 section 5, rule 8; phase Attestation): an Attestation, when present, is complete,
+    // and completeness is decidable from the component's own fields plus the capability's inputs (which is
+    // why the component is first-class, not the Annotation hook). Every required field is present, the
+    // subject entity is present-and-in-the-model for a shape claim, and the parameterMeanings keyset EQUALS
+    // the capability's input set (per-input coverage, no uncovered input, no key naming a non-input). An
+    // attestation on a non-READ capability fails loud: the policy gate stands, structure is never asserted.
+    private void checkAttestationCompleteness(CapabilityModel model, List<String> errors) {
+        Set<String> entityNames = collectEntityNames(model);
+        for (Capability capability : model.capabilities()) {
+            Attestation attestation = capability.attestation();
+            if (attestation == null) {
+                continue;
+            }
+            String where = "attested capability '" + capability.name() + "'";
+            if (capability.kind() != CapabilityKind.READ) {
+                errors.add(where + " carries an attestation but has kind " + capability.kind()
+                        + "; an attestation on a write or action capability is refused (rule 8, the policy"
+                        + " gate stands)");
+            }
+            if (isBlank(attestation.resultSemantic())) {
+                errors.add(where + " has an empty resultSemantic (rule 8)");
+            }
+            if (isBlank(attestation.assertedBy())) {
+                errors.add(where + " has an empty assertedBy (rule 8)");
+            }
+            if (isBlank(attestation.date())) {
+                errors.add(where + " has an empty date (rule 8)");
+            }
+            if (isBlank(attestation.fingerprint())) {
+                errors.add(where + " has an empty fingerprint (rule 8)");
+            }
+            if (attestation.category().requiresSubjectEntity()) {
+                if (isBlank(attestation.subjectEntity())) {
+                    errors.add(where + " has category '" + attestation.category().token()
+                            + "' but no subjectEntity (rule 8)");
+                } else if (!entityNames.contains(attestation.subjectEntity())) {
+                    errors.add(where + " asserts subjectEntity '" + attestation.subjectEntity()
+                            + "', which is not an entity in the model (rule 8)");
+                }
+            }
+            checkParameterCoverage(capability, attestation, where, errors);
+        }
+    }
+
+    // Rule 8, the per-input completeness the component growth was purchased for: the keyset of
+    // parameterMeanings equals the capability's input set exactly. Every input is covered by a human
+    // sentence, the paging mark, or the id mark (any non-empty value counts as coverage here; that the
+    // mark is used only where structurally permitted is an intake-time check, Volume 5 section 4.15.2),
+    // and no key names an input the capability does not have.
+    private static void checkParameterCoverage(Capability capability, Attestation attestation, String where,
+                                               List<String> errors) {
+        Set<String> inputs = capability.inputs().keySet();
+        Set<String> covered = attestation.parameterMeanings().keySet();
+        for (String input : inputs) {
+            String coverage = attestation.parameterMeanings().get(input);
+            if (coverage == null || coverage.isBlank()) {
+                errors.add(where + " leaves input '" + input + "' uncovered in parameterMeanings (rule 8,"
+                        + " an uncovered name in a schema is the modeled-opaque claim the design rejects)");
+            }
+        }
+        for (String key : covered) {
+            if (!inputs.contains(key)) {
+                errors.add(where + " covers '" + key + "' in parameterMeanings, which is not one of its"
+                        + " inputs (rule 8, the keyset must equal the input set)");
+            }
+        }
+    }
+
+    // Rule 9 (Volume 4 section 5, rule 9; phase Attestation): the attested_ name prefix is reserved in
+    // both directions. An attested capability must carry it (the epistemic class is readable from the name
+    // alone, on every surface); a verified capability must not (the tool's prefixing never yields a false
+    // attested name). Either violation fails loud.
+    private static void checkAttestedPrefix(CapabilityModel model, List<String> errors) {
+        for (Capability capability : model.capabilities()) {
+            boolean prefixed = capability.name().startsWith(ATTESTED_PREFIX);
+            if (capability.hasAttestation() && !prefixed) {
+                errors.add("attested capability '" + capability.name() + "' must carry the reserved '"
+                        + ATTESTED_PREFIX + "' name prefix (rule 9)");
+            }
+            if (!capability.hasAttestation() && prefixed) {
+                errors.add("verified capability '" + capability.name() + "' carries the reserved '"
+                        + ATTESTED_PREFIX + "' name prefix but has no attestation (rule 9, the prefix is"
+                        + " reserved to attested capabilities in both directions)");
+            }
+        }
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    /** The reserved attested name prefix (Volume 5 section 4.15.6), enforced in both directions by rule 9. */
+    public static final String ATTESTED_PREFIX = "attested_";
 
     // Rule 6 (Volume 4 section 5): a capability with outputMultiple true must be of kind READ (MVP).
     // The element type is validated by rule 3 (checkTypeReferences already inspects every output),

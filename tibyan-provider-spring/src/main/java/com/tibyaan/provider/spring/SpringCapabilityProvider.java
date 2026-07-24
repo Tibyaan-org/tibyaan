@@ -528,7 +528,7 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
         // Section 4.2.5: output stays ENTITY_REF(E); the view's concrete shape is recorded as a hint.
         List<Annotation> annotations = List.of(new Annotation("view", List.of(candidate.view())));
         return new Capability(intent.capabilityName(), CapabilityKind.READ, inputs, output, false, true,
-                binding, annotations);
+                binding, annotations, null);
     }
 
     private static String discoveredDetail(Capability capability, Candidate candidate) {

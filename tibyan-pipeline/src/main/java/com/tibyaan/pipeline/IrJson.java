@@ -1,5 +1,6 @@
 package com.tibyaan.pipeline;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
@@ -9,7 +10,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.tibyaan.core.ir.Attestation;
 import com.tibyaan.core.ir.BindingRef;
+import com.tibyaan.core.ir.Capability;
 import com.tibyaan.core.ir.CapabilityModel;
 import com.tibyaan.core.ir.Type;
 
@@ -76,6 +79,15 @@ public final class IrJson {
         ObjectMapper mapper = new ObjectMapper();
         mapper.registerModule(module);
         mapper.enable(SerializationFeature.INDENT_OUTPUT);
+        // The optional Attestation component (Volume 4 section 3.8) is omitted when absent, so an
+        // attestation-free model serializes byte-identically to before this phase (fixture ATT-11). The
+        // override is scoped to the two attestation-bearing types, so no other record's serialization
+        // changes; Capability's other fields are never null, so only `attestation` is affected, and on
+        // Attestation only the optional `subjectEntity` is.
+        mapper.configOverride(Capability.class)
+                .setInclude(JsonInclude.Value.construct(JsonInclude.Include.NON_NULL, null));
+        mapper.configOverride(Attestation.class)
+                .setInclude(JsonInclude.Value.construct(JsonInclude.Include.NON_NULL, null));
         return mapper;
     }
 
