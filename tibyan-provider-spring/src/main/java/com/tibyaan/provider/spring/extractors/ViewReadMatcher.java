@@ -96,7 +96,7 @@ public final class ViewReadMatcher {
 
         String repoType = repoFields.get(receiverFieldName(load));
         MatchResult loadEvidence = checkByPrimaryKeyLoad(load, repoType, entity, intent.entityKey(),
-                intent.idType());
+                intent.idType(), intent.idInputName());
         if (!loadEvidence.matched()) {
             return loadEvidence;
         }
@@ -236,8 +236,10 @@ public final class ViewReadMatcher {
         }
         String repoType = repoFields.get(receiverFieldName(load));
         return checkByPrimaryKeyLoad(load, repoType, intent.entityName(), intent.entityKey(),
-                intent.idType());
+                intent.idType(), intent.idInputName());
     }
+
+    // (checkByPrimaryKeyLoad from the private-helper hop shares the same signature as the direct call.)
 
     // Condition 3: the body is exactly the load (with its Optional unwrap), in one of the two shapes.
     // Any additional statement, in any position, means this is not a bare load.
@@ -293,7 +295,7 @@ public final class ViewReadMatcher {
     // repository is a repository of THIS entity is decided by key (section 4.12.4): a colliding simple
     // name binds to the right entity or refuses, never both. The simple name is used only in messages.
     private MatchResult checkByPrimaryKeyLoad(MethodCallExpr load, String repoType, String entity,
-                                              String entityKey, Type idType) {
+                                              String entityKey, Type idType, String idFieldName) {
         String loadMethod = load.getNameAsString();
         Optional<SpringDataRepo> direct = catalog.springDataRepo(repoType);
         if (direct.isPresent()) {
@@ -307,14 +309,59 @@ public final class ViewReadMatcher {
                         + repo.idTypeAsWritten() + "', which does not match the entity's id (condition 4)");
             }
             if (!PK_READS.contains(loadMethod)) {
-                return MatchResult.nearMiss("'" + loadMethod + "' on '" + repoType
-                        + "' is not a framework by-primary-key read (condition 4)");
+                // P1b (section 4.2.10): a custom @Query on the Spring Data repository may serve as the
+                // by-primary-key load evidence when it is provably nothing but a by-pk select. Anything
+                // else refuses with its P1b reason; a non-@Query method keeps the framework-read message.
+                return p1bDirect(repoType, loadMethod, entity, idFieldName);
             }
             return MatchResult.match(null, "loads " + entity + " by primary key directly through "
                     + repoType + "#" + loadMethod + ", " + repoType + " extends a Spring Data repository of "
                     + entity + " (" + repo.idTypeAsWritten() + ")");
         }
-        return checkOneHop(repoType, loadMethod, entity, entityKey, idType);
+        return checkOneHop(repoType, loadMethod, entity, entityKey, idType, idFieldName);
+    }
+
+    // P1b for the direct (4a) load: consult the query method declared on the Spring Data repository. A
+    // verified by-primary-key @Query is a match; a present-but-refused @Query names its P1b reason; a
+    // method with no @Query keeps the framework-by-primary-key-read message.
+    private MatchResult p1bDirect(String repoType, String loadMethod, String entity, String idFieldName) {
+        Optional<MethodDeclaration> queryMethod = catalog.declaration(repoType)
+                .flatMap(decl -> singleParamMethod(decl, loadMethod));
+        if (queryMethod.isPresent()) {
+            P1bQueryMatcher.Verdict verdict = P1bQueryMatcher.evaluate(queryMethod.get(), entity, idFieldName);
+            if (verdict.kind() == P1bQueryMatcher.Kind.VERIFIED) {
+                return MatchResult.match(null, "loads " + entity + " by primary key directly through "
+                        + repoType + "#" + loadMethod + ", a custom @Query verified as a by-primary-key "
+                        + "select of " + entity + " (P1b)");
+            }
+            if (verdict.kind() == P1bQueryMatcher.Kind.REFUSED) {
+                return MatchResult.nearMiss(verdict.reason());
+            }
+        }
+        return MatchResult.nearMiss("'" + loadMethod + "' on '" + repoType
+                + "' is not a framework by-primary-key read (condition 4)");
+    }
+
+    // P1b for the one-hop delegate (4b): consult the delegate's query method on its Spring Data repository.
+    // Returns null when the query is VERIFIED (the caller continues to its entity-of and forward checks), a
+    // nearMiss carrying the P1b reason when REFUSED, and the framework-read message when there is no @Query.
+    private MatchResult p1bDelegate(String delegateRepoType, String delegateMethod, String entity,
+                                    String idFieldName, String repoType, String loadMethod) {
+        Optional<MethodDeclaration> queryMethod = catalog.declaration(delegateRepoType)
+                .flatMap(decl -> singleParamMethod(decl, delegateMethod));
+        if (queryMethod.isPresent()) {
+            P1bQueryMatcher.Verdict verdict = P1bQueryMatcher.evaluate(queryMethod.get(), entity, idFieldName);
+            if (verdict.kind() == P1bQueryMatcher.Kind.VERIFIED) {
+                return null;
+            }
+            if (verdict.kind() == P1bQueryMatcher.Kind.REFUSED) {
+                return MatchResult.nearMiss(verdict.reason());
+            }
+        }
+        return MatchResult.nearMiss("the load resolves through " + repoType + "#" + loadMethod
+                + ", whose implementation delegates to " + delegateRepoType + "#" + delegateMethod
+                + ", not a framework by-primary-key read; by-primary-key evidence unavailable, "
+                + "deferred pattern P1b");
     }
 
     // Whether a Spring Data repository is a repository of the entity with this key (section 4.12.4).
@@ -325,7 +372,7 @@ public final class ViewReadMatcher {
     // Condition 4b: the load calls a hand-written repository method whose single @Repository
     // implementation delegates in exactly one return statement to a Spring Data by-primary-key read.
     private MatchResult checkOneHop(String repoType, String loadMethod, String entity, String entityKey,
-                                    Type idType) {
+                                    Type idType, String idFieldName) {
         Optional<ClassOrInterfaceDeclaration> iface = catalog.declaration(repoType);
         if (iface.isEmpty() || !iface.get().isInterface()) {
             return MatchResult.nearMiss("the load target '" + repoType
@@ -349,13 +396,14 @@ public final class ViewReadMatcher {
             return MatchResult.nearMiss("'" + impl.getNameAsString() + "#" + loadMethod
                     + "' has no analyzable body (condition 4b)");
         }
-        return checkDelegationBody(implMethod.get(), impl, repoType, loadMethod, entity, entityKey);
+        return checkDelegationBody(implMethod.get(), impl, repoType, loadMethod, entity, entityKey,
+                idFieldName);
     }
 
     // The one-hop implementation body must be exactly: return <springDataField>.<pkRead>(<param>);
     private MatchResult checkDelegationBody(MethodDeclaration implMethod, ClassOrInterfaceDeclaration impl,
                                             String repoType, String loadMethod, String entity,
-                                            String entityKey) {
+                                            String entityKey, String idFieldName) {
         List<Statement> statements = implMethod.getBody().orElseThrow().getStatements();
         String implParam = implMethod.getParameter(0).getNameAsString();
         if (statements.size() != 1 || !statements.get(0).isReturnStmt()) {
@@ -376,10 +424,14 @@ public final class ViewReadMatcher {
                     + "' does not delegate to a repository field (condition 4b)");
         }
         if (!PK_READS.contains(delegate.getNameAsString())) {
-            return MatchResult.nearMiss("the load resolves through " + repoType + "#" + loadMethod
-                    + ", whose implementation delegates to " + delegateRepoType + "#"
-                    + delegate.getNameAsString() + ", not a framework by-primary-key read; "
-                    + "by-primary-key evidence unavailable, deferred pattern P1b");
+            // P1b (section 4.2.10): the one-hop delegate terminal may be a custom @Query, verified as a
+            // by-primary-key select. A refusal (or a non-@Query delegate) is terminal; a verified query
+            // falls through to the same entity-of and verbatim-forward checks a framework read faces.
+            MatchResult p1b = p1bDelegate(delegateRepoType, delegate.getNameAsString(), entity,
+                    idFieldName, repoType, loadMethod);
+            if (p1b != null) {
+                return p1b;
+            }
         }
         Optional<SpringDataRepo> sd = catalog.springDataRepo(delegateRepoType);
         if (sd.isEmpty() || !isRepositoryOf(sd.get(), entityKey)) {
