@@ -4,11 +4,13 @@ import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
+import com.github.javaparser.ast.body.Parameter;
 import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.FieldAccessExpr;
 import com.github.javaparser.ast.expr.MethodCallExpr;
 import com.github.javaparser.ast.stmt.BlockStmt;
+import com.github.javaparser.ast.stmt.ReturnStmt;
 import com.github.javaparser.ast.stmt.Statement;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 
@@ -41,6 +43,9 @@ public final class ListReadMatcher {
     private static final Set<String> PAGING_TYPES = Set.of("Pageable", "Sort");
     // The framework by-collection read; the only terminal this rule accepts (condition 4).
     private static final String FIND_ALL = "findAll";
+    // The framework by-primary-key single reads: a wrapper built from one of these is a by-id read (the
+    // 4.1/4.2 path), never E6a's list route.
+    private static final Set<String> PK_READS = Set.of("findById", "getById", "getReferenceById");
     // Condition 7: a list method that performs any of these is a write, not a read.
     private static final Set<String> MUTATIONS = Set.of(
             "save", "saveAll", "insert", "update", "delete", "deleteById", "deleteAll",
@@ -64,6 +69,11 @@ public final class ListReadMatcher {
         MATCH,
         /** A collection read the phase does not model, named with {@link Result#reason}. */
         DEFERRED,
+        /**
+         * E6a (section 4.11.7): a wrapper/envelope return whose tie to an entity cannot be proven without
+         * reading the wrapper's internals or trusting its name. Counted as a refusal, never guessed.
+         */
+        OPAQUE,
         /** Not a list-of-entity-or-view read at all (a scalar collection, a raw type, or not a collection). */
         NOT_LIST
     }
@@ -82,6 +92,10 @@ public final class ListReadMatcher {
 
         static Result deferred(String reason) {
             return new Result(Kind.DEFERRED, null, false, reason);
+        }
+
+        static Result opaque(String reason) {
+            return new Result(Kind.OPAQUE, null, false, reason);
         }
 
         static Result notList() {
@@ -104,7 +118,9 @@ public final class ListReadMatcher {
         }
         String container = returnType.getNameAsString();
         if (!CONTAINERS.contains(container)) {
-            return Result.notList();
+            // E6a (section 4.11.7): the return type is not a recognized collection container. It may be a
+            // wrapper/envelope hiding a list read; make it visible and classified, or refuse it opaque.
+            return evaluateEnvelope(returnType, container, source, resolver);
         }
         Optional<String> elementArg = singleTypeArgumentRaw(returnType);
         if (elementArg.isEmpty()) {
@@ -215,6 +231,124 @@ public final class ListReadMatcher {
         }
 
         return Result.match(elementName, paged);
+    }
+
+    // E6a (section 4.11.7): the envelope transparency rule. A read hidden behind an unrecognized wrapper
+    // return type W is made VISIBLE and classified, never discovered by the wrapper. The framing is the
+    // whole point: E6a changes a read from invisible to visible; it grants no discovery. Once visible the
+    // read passes through 4.10 unchanged, so a filtered or transformed body stays deferred as filtered,
+    // now countably. Visibility is never discovery: the ONLY match here is a clean, unfiltered framework
+    // findAll of E behind a generic wrapper whose single type argument is E (fixture E6a-1, absent from the
+    // benchmarks); every other collection read is a visible-but-deferred filtered read, and a wrapper with
+    // no provable tie to an entity is OPAQUE_WRAPPER. The tie is never read from the wrapper's fields and
+    // never trusted from its name.
+    private Result evaluateEnvelope(ClassOrInterfaceType returnType, String wrapper,
+                                    ServiceMethodSource source, TypeReferenceResolver resolver) {
+        if (SCALARS.contains(wrapper)) {
+            return Result.notList();
+        }
+        MethodDeclaration method = source.declaration();
+        // A return type that itself resolves to an in-tree entity is a by-id (4.1) entity return, and a
+        // wrapper whose single persistence access is a by-id read is a by-id (4.2) view; neither is E6a's
+        // list route. These stay with the by-id path and are not surfaced here.
+        Optional<String> asEntity = method.findCompilationUnit()
+                .flatMap(cu -> resolver.resolveEntityKey(returnType.asString(), cu));
+        if (asEntity.isPresent()) {
+            return Result.notList();
+        }
+        Optional<BlockStmt> body = method.getBody();
+        if (body.isEmpty()) {
+            return Result.notList();
+        }
+        Map<String, String> repoFields = repositoryFields(source.service());
+        List<MethodCallExpr> repoAccesses = body.get().findAll(MethodCallExpr.class).stream()
+                .filter(call -> {
+                    String field = receiverFieldName(call);
+                    return field != null && repoFields.containsKey(field);
+                })
+                .toList();
+        // No persistence access on a repository field: not a wrapper-list read E6a can see (a by-id view, a
+        // pure computation, or a cross-service delegation). Leave it to the by-id path; do not surface it.
+        if (repoAccesses.isEmpty()) {
+            return Result.notList();
+        }
+        // A mutation on a repository field is a write, not a read (condition 7): not a read to surface.
+        for (MethodCallExpr call : repoAccesses) {
+            if (MUTATIONS.contains(call.getNameAsString())) {
+                return Result.notList();
+            }
+        }
+        if (repoAccesses.size() != 1) {
+            return Result.deferred("the wrapper return '" + wrapper + "' is built from more than one "
+                    + "repository access; a multi-read assembly is not a single provable list read "
+                    + "(E6a, section 4.11.7)");
+        }
+        MethodCallExpr access = repoAccesses.get(0);
+        String repoType = repoFields.get(receiverFieldName(access));
+        Optional<SpringDataRepo> repo = catalog.springDataRepo(repoType);
+        // O, opaque refusal: a persistence-shaped access whose repository does not resolve to a Spring Data
+        // repository of an in-tree entity. The tie cannot be proven without reading the wrapper's internals
+        // or trusting its name (fixture E6a-3). Counted, never guessed.
+        if (repo.isEmpty() || repo.get().entityKey() == null) {
+            return Result.opaque("the wrapper return '" + wrapper + "' is built from an access on '"
+                    + repoType + "', which does not resolve to a Spring Data repository of an in-tree "
+                    + "entity; the read's tie to an entity cannot be proven without reading the wrapper's "
+                    + "internals or trusting its name (E6a, OPAQUE_WRAPPER)");
+        }
+        String elementKey = repo.get().entityKey();
+        String elementSimple = lastSegment(elementKey);
+        // Cardinality: a by-id single read behind a wrapper (the name trap notwithstanding) belongs to the
+        // by-id path, not the list route.
+        if (PK_READS.contains(access.getNameAsString())) {
+            return Result.notList();
+        }
+        // V, visibility is not discovery. The only discovery is a clean unfiltered framework findAll of the
+        // tied entity behind a GENERIC wrapper whose type argument is that entity (T1), the one shape where
+        // the collection payload is provable without reading the wrapper. Every other collection read (a
+        // derived query, a @Query, a selectAllByFilters, a transformed or aggregated body, or a clean
+        // findAll behind a non-generic wrapper whose collection-ness is unprovable) is visible-but-deferred
+        // as filtered, refused exactly as 4.10 refuses it. Never a wrong-entity: the tie is to the entity
+        // the repository access proves, never the wrapper's name.
+        boolean cleanFindAll = access.getNameAsString().equals(FIND_ALL)
+                && access.getArguments().isEmpty()
+                && hasNoDomainParameters(method)
+                && returnFlowsFromAccess(body.get(), access);
+        boolean genericTieToElement = singleTypeArgumentRaw(returnType)
+                .flatMap(arg -> method.findCompilationUnit()
+                        .flatMap(cu -> resolver.resolveEntityKey(arg, cu)))
+                .map(elementKey::equals)
+                .orElse(false);
+        if (cleanFindAll && genericTieToElement) {
+            return Result.match(elementKey, false);
+        }
+        return Result.deferred("the read of " + elementSimple + " is seen through the wrapper '" + wrapper
+                + "' (E6a visibility); its body is not a clean unfiltered findAll of " + elementSimple
+                + " behind a generic wrapper of it, so it is deferred as a filtered or transformed list "
+                + "read, refused exactly as any other (E6a, then section 4.10)");
+    }
+
+    // Every parameter is a framework paging type (Pageable or Sort); no domain parameter that would make
+    // the read filtered.
+    private static boolean hasNoDomainParameters(MethodDeclaration method) {
+        for (Parameter parameter : method.getParameters()) {
+            if (!PAGING_TYPES.contains(lastSegment(parameter.getType().asString()))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // The body is a single return whose expression subtree contains the persistence access: the collection
+    // provably flows out of the method, wrapped, without an intervening statement that could transform it.
+    private static boolean returnFlowsFromAccess(BlockStmt body, MethodCallExpr access) {
+        List<Statement> statements = body.getStatements();
+        if (statements.size() != 1 || !statements.get(0).isReturnStmt()) {
+            return false;
+        }
+        ReturnStmt returnStmt = statements.get(0).asReturnStmt();
+        return returnStmt.getExpression()
+                .map(expression -> expression.findAll(MethodCallExpr.class).contains(access))
+                .orElse(false);
     }
 
     // The single type argument as written (possibly qualified), or empty for a raw type or a

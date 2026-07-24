@@ -603,7 +603,7 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
                         .computeIfAbsent(displayByKey.getOrDefault(result.entity(), result.entity()),
                                 key -> new ArrayList<>())
                         .add(new ListCandidate(source.method().toBinding(), result.paged()));
-                case DEFERRED -> deferrals.add(
+                case DEFERRED, OPAQUE -> deferrals.add(
                         new DeferredListRead(source.method().signature(), result.reason()));
                 case NOT_LIST -> { }
             }
