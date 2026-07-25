@@ -1,8 +1,11 @@
 package com.tibyaan.provider.spring.attest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -19,7 +22,9 @@ public final class AttestationFile {
     /** The path of the record relative to the scanned source root. */
     public static final String RELATIVE_PATH = "tibyan/attestations.json";
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .enable(SerializationFeature.INDENT_OUTPUT)
+            .setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
     private AttestationFile() {
     }
@@ -46,6 +51,19 @@ public final class AttestationFile {
         } catch (IOException e) {
             throw new AttestationFileException("could not read or parse " + RELATIVE_PATH + ": "
                     + e.getMessage(), e);
+        }
+    }
+
+    /** Writes the record entries back to the file (the {@code tibyan attest} stamp action). */
+    public static void write(Path sourceRoot, List<AttestationRecord> records) {
+        Path file = sourceRoot.resolve(RELATIVE_PATH);
+        try {
+            if (file.getParent() != null) {
+                Files.createDirectories(file.getParent());
+            }
+            Files.write(file, MAPPER.writeValueAsBytes(records));
+        } catch (IOException e) {
+            throw new UncheckedIOException("could not write " + RELATIVE_PATH, e);
         }
     }
 

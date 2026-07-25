@@ -246,6 +246,52 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
                 .fingerprintFor(target);
     }
 
+    /** The outcome of stamping one entry: its target, whether it resolved, and the fingerprint if so. */
+    public record StampOutcome(String target, boolean resolved, String fingerprint) {
+    }
+
+    /**
+     * Stamps the fingerprint (and, when a date is given, the date) into every resolvable entry of the
+     * adopter's record and writes it back (the {@code tibyan attest} action, Volume 5 section 4.15.3). The
+     * fingerprint is computed over the current code, so it co-arrives with the code it pins; an unresolved
+     * entry is left untouched and reported. This is the only path that stamps a fingerprint; a
+     * hand-authored entry without one is refused at intake, never silently completed.
+     */
+    public List<StampOutcome> stampAttestations(ProviderInput input, String date) {
+        Path root = input.sourceRoot();
+        List<AttestationRecord> records = AttestationFile.read(root);
+        ParseResults parsed = parseJavaSources(root);
+        TypeReferenceResolver resolver = TypeReferenceResolver.from(parsed.units());
+        RepositoryCatalog repositories = RepositoryCatalog.from(parsed.units(), resolver);
+        AttestationIntake intake = new AttestationIntake(parsed.units(), resolver, repositories, typeMapper,
+                Map.of());
+        List<AttestationRecord> stamped = new ArrayList<>();
+        List<StampOutcome> outcomes = new ArrayList<>();
+        for (AttestationRecord record : records) {
+            Optional<String> fingerprint = record.target() == null
+                    ? Optional.empty()
+                    : intake.fingerprintFor(record.target());
+            if (fingerprint.isPresent()) {
+                AttestationRecord.Provenance prior = record.provenance();
+                String assertedBy = prior == null ? null : prior.assertedBy();
+                String origin = prior == null || prior.origin() == null ? "human-authored" : prior.origin();
+                String stampedDate = date != null ? date : (prior == null ? null : prior.date());
+                AttestationRecord.Provenance provenance = new AttestationRecord.Provenance(assertedBy,
+                        origin, stampedDate, fingerprint.get());
+                stamped.add(new AttestationRecord(record.target(), record.category(), record.name(),
+                        record.resultSemantic(), record.parameters(), record.subjectEntity(), provenance));
+                outcomes.add(new StampOutcome(record.target(), true, fingerprint.get()));
+            } else {
+                stamped.add(record);
+                outcomes.add(new StampOutcome(record.target(), false, null));
+            }
+        }
+        if (!stamped.isEmpty()) {
+            AttestationFile.write(root, stamped);
+        }
+        return outcomes;
+    }
+
     // Runs the attestation intake (phase Attestation, section 4.15.4). A malformed record file is a single
     // located refusal, never a silent skip; an absent file is no attestations at all. The intake never
     // guesses: it either verifies an entry's structural frame and carries the human's words, or refuses.

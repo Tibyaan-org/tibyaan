@@ -1,10 +1,12 @@
 package com.tibyaan.cli;
 
 import com.tibyaan.core.ir.Annotation;
+import com.tibyaan.core.ir.Attestation;
 import com.tibyaan.core.ir.Capability;
 import com.tibyaan.core.ir.CapabilityModel;
 import com.tibyaan.core.ir.Entity;
 import com.tibyaan.provider.spring.DeferredListRead;
+import com.tibyaan.provider.spring.attest.IntakeRefusal;
 import com.tibyaan.provider.spring.EntityOutcome;
 import com.tibyaan.provider.spring.EntityOutcome.Cause;
 import com.tibyaan.provider.spring.ListOutcome;
@@ -114,14 +116,49 @@ final class CliOutput {
         // sequence or its unverifiable reason. A security-free app emits nothing here and stays identical.
         printSecurity(report.model());
 
+        // Attestation (Volume 5 section 4.15): the attested outcome class, reported SEPARATELY and never
+        // summed into discovered, plus the intake worklist (refusals with their cause and location). Both
+        // emitted only when attestations are present, so a scan with no record file is byte-identical.
+        printAttested(report);
+
+        long attested = report.attestedCount();
+        boolean anyAttestation = attested > 0 || !report.attestationRefusals().isEmpty();
         System.out.println("Totals: discovered " + report.totalDiscoveredCount()
                 + " (by-id " + report.discoveredCount() + ", list " + report.listDiscoveredCount() + ")"
+                + (anyAttestation ? ", attested " + attested : "")
                 + ", failed " + report.failedCount() + byCause(report.failuresByCause())
                 + ", list-refused " + report.listRefusedCount()
                 + ", skipped-by-parse " + report.skippedByParseCount()
                 + ", partial " + report.partialEntityCount()
                 + " (" + report.skippedFieldCount() + " fields skipped)"
-                + ", mis-bound 0");
+                + ", mis-bound 0"
+                + (anyAttestation ? ", attestation-drift 0" : ""));
+    }
+
+    // The attestation survey (Volume 5 section 4.15.8): attested capabilities are their own outcome class,
+    // labeled human-attested, counted separately from discovered, never summed. The intake refusals are the
+    // worklist: each names its cause and located reason so a sincere first attempt's refusal is data, not a
+    // silent drop. Emitted only when a record file was present, so a scan without one is byte-identical.
+    private static void printAttested(ScanReport report) {
+        List<Capability> attested = report.model().capabilities().stream()
+                .filter(Capability::hasAttestation)
+                .collect(Collectors.toList());
+        if (!attested.isEmpty()) {
+            System.out.println("Attested, human-attested not tool-verified (" + attested.size() + "):");
+            for (Capability capability : attested) {
+                Attestation a = capability.attestation();
+                System.out.println("  @ " + capability.name() + " -> " + capability.binding().value()
+                        + " [" + a.category().token() + "]: " + a.resultSemantic()
+                        + " (asserted by " + a.assertedBy() + ", " + a.origin().token() + ", " + a.date() + ")");
+            }
+        }
+        if (!report.attestationRefusals().isEmpty()) {
+            System.out.println("Attestation refusals (" + report.attestationRefusals().size() + "):");
+            for (IntakeRefusal refusal : report.attestationRefusals()) {
+                System.out.println("  ! " + refusal.target() + " [" + refusal.cause() + "]: "
+                        + refusal.detail());
+            }
+        }
     }
 
     // The declared-security survey (Volume 5 section 4.14.5). Counts the capabilities carrying a compiled

@@ -17,6 +17,7 @@ import picocli.CommandLine.Command;
                 ScanCommand.class,
                 GenerateCommand.class,
                 ValidateCommand.class,
+                AttestCommand.class,
                 VersionCommand.class
         },
         exitCodeOnInvalidInput = 1,

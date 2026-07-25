@@ -36,7 +36,7 @@ class MarkdownReportTest {
         ScanReport report = new ScanReport(EMPTY_MODEL,
                 List.of(discovered, adminFailed, orderFailed),
                 List.of(new ParseSkip("Foo.java", "(line 1,col 1) Parse error")),
-                List.of(), List.of(), List.of());
+                List.of(), List.of(), List.of(), List.of());
 
         String md = MarkdownReport.render(report, "demo-app");
 
@@ -60,7 +60,7 @@ class MarkdownReportTest {
         EntityOutcome failed = new EntityOutcome("Admin", Status.FAILED, Cause.NO_BACKING_METHOD,
                 "no service method backs read capability 'getAdmin'. Looked at services.", List.of());
         ScanReport report = new ScanReport(EMPTY_MODEL,
-                List.of(failed), List.of(), List.of(), List.of(), List.of());
+                List.of(failed), List.of(), List.of(), List.of(), List.of(), List.of());
 
         String md = MarkdownReport.render(report, "empty-app");
 
