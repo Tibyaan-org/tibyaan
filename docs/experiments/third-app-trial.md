@@ -870,3 +870,21 @@ reading their bodies. The strict matcher draws its line and adds nothing, so erp
 
 `mvn clean verify` green; the MCP and OpenAPI goldens and the e2e byte-identical. erp confirms AT-0 moves no
 number where there is no wrapper and no strict-passing custom query, which is the whole of erp.
+
+## 25. AT-1 actual: the attestation core and the PREDICATE category, built (erp-backend, 2026-07-25)
+
+AT-1 built the attestation core and the PREDICATE category. erp is a byte-identity control for it, exactly
+as it was for AT-0.
+
+Headline invariant, held: erp discovered 25 (by-id 16, list 9), BYTE-IDENTICAL to the standing baseline;
+mis-bound 0; list-refused 1 (ProductCategory LIST_AMBIGUOUS, unchanged); attested 0. erp carries no
+committed `tibyan/attestations.json`, so the intake reads no entries and the survey is character-identical
+to before the phase. AT-1 adds a separately counted outcome class and moves no verified number; movement
+would have been a regression that stops the build, and there was none.
+
+The mechanism was proven on fixture code, never against erp (the first-measurement discipline). erp's own
+attestable ceiling (section 23: up to roughly 30 filtered reads under AT-1) awaits a real erp attester,
+who is not this build; the derived-query subset remains the preferred future STRUCTURAL alternative that
+would move those reads from the attestable column to the verified column with no attestation at all.
+
+`mvn clean verify` green; the MCP and OpenAPI goldens and the e2e byte-identical.

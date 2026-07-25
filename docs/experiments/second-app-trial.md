@@ -1067,3 +1067,39 @@ partition.
 unchanged: the example app has no wrapper or custom-query shapes). The worklist this section records is the
 input AT-1 consumes: the 51 multi-read and 5 opaque reads are the visible refusals a human can later attest
 for what their predicates and shapes mean.
+
+## 13. AT-1 actual: the attestation core and the PREDICATE category, built (pms-backend, 2026-07-25)
+
+AT-1 built the attestation core (the first-class `Attestation` component in `tibyan-core`, core rules 8
+and 9, the committed `tibyan/attestations.json` intake, the SHA-256 fingerprint lifecycle) and the
+PREDICATE category. This section records the benchmark measurement and pre-registers the first real
+measurement.
+
+Headline invariant, held: pms discovered 5 (by-id 5, list 0), BYTE-IDENTICAL to the AT-0 baseline
+(getUnit, getLease, getStaff, getUser, getVendor, same bindings); mis-bound 0; skipped-by-parse 0. The
+survey Totals line is character-identical to the AT-0 row: pms carries NO committed `attestations.json`,
+so the intake reads no entries, adds no attested capability, and prints no attested block. ATTESTED IS 0.
+The phase is provably additive: with no record file the model and every outcome are byte-identical
+(fixture ATT-11), and the two exposure controls plus the survey attested class only appear once a record
+exists.
+
+THE MECHANISM IS PROVEN ON FIXTURE CODE, NOT ON THE BENCHMARK. Per the ratified first-measurement
+discipline, no attestation was authored against pms this session; the end-to-end proof (intake,
+validation, the fingerprint lifecycle, the IR, both backends, the survey, all carriage fixtures) runs on
+synthetic fixture code (`attest-predicate`, and the CLI `attest`-then-`scan` flow), so the first pms
+numbers are not polluted by tool-authored guesses.
+
+THE FIRST REAL MEASUREMENT, pre-registered and PENDING: pms-with-the-maintainer, a later interactive
+session. The maintainer works through the pms PREDICATE worklist (the AT-0 refusal ledger, section 12: 51
+multi-read `*ResultSet` reads and the filtered single reads), attesting each read's filter or guard
+meaning or declining it, item by item, through the real `tibyan attest` and intake mechanism now built.
+That session records, per entry, the attested count, the declined count with reasons, the intake-refusal
+count with causes, and the real attestation rate against the Gate-1-corrected forecast (section 10: up to
+roughly 45 predicate reads, with the 16-read judgment sample predicting a truthful attester declines
+about a third). Until that human runs the flow, the design's central quantity, the real attestation rate,
+is unmeasured and stated as unmeasured (section 4.15.11, the open verification). This build proved the
+mechanism carries a human's words character-exactly and refuses everything it cannot structurally frame;
+it did not, and could not, measure how many pms reads a knowledgeable human will actually attest.
+
+`mvn clean verify` is green, the MCP and OpenAPI goldens and the example-app e2e byte-identical
+(getProduct carries no attestation, so every existing manifest byte is unchanged).

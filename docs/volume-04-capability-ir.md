@@ -100,9 +100,9 @@ Why this is not IR growth in the sense the growth bar guards. The growth bar (se
 
 What this will never do: it does not change how any reference is shaped (a reference is still `ENTITY_REF(<name>)`); it does not rename any entity whose simple name is unique (no-collision apps, whatever their module count, and both public benchmarks stay byte-identical in generated output); it does not add a numeric or otherwise unreadable disambiguator (the display rule uses structural context, Volume 5, section 4.12); and it does not relax the never-guess bar (an unresolvable cross-context reference refuses, it does not pick a default).
 
-### 3.8 The Attestation component: the human-attested third category in the model (phase Attestation; designed 2026-07-20, pending ratification)
+### 3.8 The Attestation component: the human-attested third category in the model (phase Attestation; designed 2026-07-20, RATIFIED 2026-07-21, BUILT 2026-07-25 as AT-1)
 
-Status: designed, pending ratification; per rule 12 this frozen design is committed first and no code is written until it is ratified. The full phase design, the attestable set, the lifecycle, and the honesty argument are Volume 5, section 4.15; the backend surfaces are Volume 6, sections 3.6 and 4.4. This section is the model half: what the IR must carry so an attested capability can exist without ever blurring into a verified one.
+Status: RATIFIED and BUILT (AT-1, 2026-07-25); the component and rules 8 and 9 below are implemented in `tibyan-core` exactly as written, zero-dependency preserved. The full phase design, the attestable set, the lifecycle, and the honesty argument are Volume 5, section 4.15; the backend surfaces are Volume 6, sections 3.6 and 4.4. This section is the model half: what the IR must carry so an attested capability can exist without ever blurring into a verified one.
 
 The decision: Capability gains ONE optional first-class component, `Attestation`, absent on every verified capability. Its fields, all required when present:
 

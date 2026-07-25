@@ -63,12 +63,13 @@ declared contract is carried at all: so YOUR enforcement layer, the orchestratio
 the MCP endpoint, can apply the declared requirements before invoking a capability. Gating the endpoint
 (the section above) remains your responsibility either way.
 
-## Attested capabilities: who owns what (phase Attestation, designed, pending build)
+## Attested capabilities: who owns what (phase Attestation; AT-1 built 2026-07-24)
 
-Once the Attestation phase is built (Volume 5, section 4.15; designed 2026-07-20), a capability can exist
-in a THIRD state alongside tool-verified and refused: HUMAN-ATTESTED. A person on your team asserts the
-semantics the tool cannot prove (what a filter means, what an opaque read returns), the assertion lives in
-a reviewed, committed file in your repository (`tibyan/attestations.json`), and the tool carries it
+As of AT-1 (the attestation core plus the PREDICATE category; Volume 5, section 4.15), a capability can
+exist in a THIRD state alongside tool-verified and refused: HUMAN-ATTESTED. A person on your team asserts
+the semantics the tool cannot prove (in AT-1, what a filter or guard selects; the SHAPE and BOUNDARY
+categories are the later sub-phases AT-2 and AT-3), the assertion lives in a reviewed, committed file in
+your repository (`tibyan/attestations.json`), and the tool carries it
 character-exactly, labeled on every surface, with the asserter's name, the origin of the words, the date,
 and a structural fingerprint of the code it was asserted against.
 

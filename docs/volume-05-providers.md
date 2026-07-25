@@ -1110,7 +1110,7 @@ Existing discovered rows stay byte-identical everywhere except the forecast addi
 
 Build recommendation: BUILD, after ratification, unlike P1b and Discovery-Gap. Those discovered zero and moved no number; this phase changes real output on two of three benchmarks (compiled contracts on pms and the private benchmark) and delivers the first real user's actual request. The build session commits this ratified design first (rule 12), enables the ControllerExtractor, implements the anchor rule, the authority compiler, and the backend surfaces exactly as written here, runs fixtures CA-1 to CA-18, and re-runs all three benchmarks against this forecast.
 
-### 4.15 Attestation: the human-attested third category of knowledge (phase Attestation; designed 2026-07-20, pending ratification; sub-phases AT-0 to AT-4)
+### 4.15 Attestation: the human-attested third category of knowledge (phase Attestation; designed 2026-07-20, RATIFIED 2026-07-21; sub-phases AT-0 to AT-4; AT-0 BUILT 2026-07-24, AT-1 BUILT 2026-07-25; AT-2/3/4 standing as designed)
 
 This is the largest design in the project, and the first that is not a matching rule: it is a capability-AUTHORING mechanism. Per rule 12 this frozen design is committed first; each sub-phase's build is a separate later session implementing this text exactly. Until ratification, no attestation code is written.
 

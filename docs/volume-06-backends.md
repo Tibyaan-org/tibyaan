@@ -93,7 +93,7 @@ A capability may carry a `requiredAuthorities` annotation (the compiled, literal
 
 The runtime's manifest loader tolerates both new fields explicitly on its manifest types (the same `@JsonIgnoreProperties` tolerance the `view` field proved), verified by a loader test in the build; runtime behavior is otherwise unchanged.
 
-### 3.6 Surfacing an attested capability (phase Attestation; designed 2026-07-20, pending ratification)
+### 3.6 Surfacing an attested capability (phase Attestation; designed 2026-07-20, BUILT 2026-07-25 as AT-1)
 
 A capability may carry an `Attestation` (Volume 4, section 3.8): a human's claim, its provenance, and its structural fingerprint. The MCP surface must satisfy the E6b verdict at the level agents act on, the name and the signature, not only in prose (Volume 5, section 4.15.6). The rule:
 
@@ -180,7 +180,7 @@ The rule, following section 4.1's two-audiences discipline (condition 6):
 
 What this rule will never claim: a security scheme type, flow, token URL, or credential location the IR does not carry; a scope where the source declared an authority; or, through absence, that an operation is publicly invocable.
 
-### 4.4 Attested operations in OpenAPI (phase Attestation; designed 2026-07-20, pending ratification)
+### 4.4 Attested operations in OpenAPI (phase Attestation; designed 2026-07-20, BUILT 2026-07-25 as AT-1)
 
 The OpenAPI rendering of an attested capability mirrors the MCP rule (section 3.6) with the document's own vocabulary, inheriting the section 4.1 honesty baseline:
 
