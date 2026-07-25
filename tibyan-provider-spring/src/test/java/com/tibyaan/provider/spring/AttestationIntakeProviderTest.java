@@ -120,6 +120,22 @@ class AttestationIntakeProviderTest {
                 });
     }
 
+    @Test
+    void att10_aMisattachedAttestationIsCaughtByTheFingerprint(@TempDir Path root) throws IOException {
+        copyFixture(root);
+        // The entry targets getAllByFilter but carries the fingerprint of a DIFFERENT method (the guarded
+        // read): a misattached attestation, the right content pinned to the wrong element. Intake recomputes
+        // the fingerprint over the target's own slice, and the mismatch refuses STALE, so a misattached
+        // claim can never carry (the phase's mis-bind guard).
+        String wrongFingerprint = fingerprint(root, GUARD_TARGET);
+        String entry = entry(FILTER_TARGET, "predicate", "searchTenants",
+                "Returns the tenants matching the given filters.",
+                "\"fullName\":\"Matches the full name.\",\"pageNum\":\"paging\"", null, "a.elseginy",
+                "human-authored", wrongFingerprint);
+        writeAttestations(root, "[" + entry + "]");
+        assertRefused(root, IntakeRefusal.Cause.STALE_ATTESTATION);
+    }
+
     // ---------- the intake refusal battery (ATT-6, ATT-7) ----------
 
     @Test
