@@ -121,6 +121,25 @@ class AttestationIntakeProviderTest {
     }
 
     @Test
+    void readSafetyDoesNotCrashOnACallToANonFieldReceiver(@TempDir Path root) throws IOException {
+        // Regression for the first-measurement finding: a read whose body calls a static factory and a
+        // local-variable method (non-field receivers) crashed read-safety with a NullPointerException,
+        // because MUTATING_INFRA_TYPES is an immutable Set whose contains(null) throws and a non-field
+        // receiver has no field type. The scan must now produce a clean outcome, never throw. The fixture
+        // repository ties cleanly, so this read attests.
+        copyFixture(root);
+        String target = "com.example.attest.TenantServiceImpl#getAllByBuilder(String)";
+        String fingerprint = fingerprint(root, target);
+        String entry = entry(target, "predicate", "searchByBuilder", "Returns tenants matching the name.",
+                "\"fullName\":\"Matches the full name.\"", null, "a.elseginy", "human-authored", fingerprint);
+        writeAttestations(root, "[" + entry + "]");
+
+        ScanReport report = provider.scan(new ProviderInput(root));
+        assertThat(report.attestedCount()).isEqualTo(1);
+        assertThat(report.attestationRefusals()).isEmpty();
+    }
+
+    @Test
     void att10_aMisattachedAttestationIsCaughtByTheFingerprint(@TempDir Path root) throws IOException {
         copyFixture(root);
         // The entry targets getAllByFilter but carries the fingerprint of a DIFFERENT method (the guarded

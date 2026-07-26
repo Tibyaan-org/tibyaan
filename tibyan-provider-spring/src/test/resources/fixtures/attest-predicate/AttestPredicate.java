@@ -40,6 +40,18 @@ class TenantResultSet {
     }
 }
 
+// A filter built through a static factory and a local instance method: exactly the non-field-receiver
+// call shape that crashed the read-safety check on real pms code (the first-measurement finding).
+class TenantFilter {
+    static TenantFilter create(String name) {
+        return new TenantFilter();
+    }
+
+    Integer page() {
+        return 0;
+    }
+}
+
 @Service
 class TenantServiceImpl {
 
@@ -70,5 +82,13 @@ class TenantServiceImpl {
     public TenantResultSet getAllByFilterUnsafe(String fullName) {
         tenantRepository.deleteById(1L);
         return new TenantResultSet(tenantRepository.findByFilters(fullName, 0));
+    }
+
+    // A read whose body calls methods on NON-field receivers (a static factory and a local variable): the
+    // shape that crashed read-safety on real pms code. Read-safe (no write), so it must attest cleanly, not
+    // throw. The regression guard for the first-measurement NullPointerException.
+    public TenantResultSet getAllByBuilder(String fullName) {
+        TenantFilter filter = TenantFilter.create(fullName);
+        return new TenantResultSet(tenantRepository.findByFilters(fullName, filter.page()));
     }
 }

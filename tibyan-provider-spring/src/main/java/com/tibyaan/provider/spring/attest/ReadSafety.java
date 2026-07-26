@@ -83,9 +83,15 @@ public final class ReadSafety {
                         + "section 4.15.2)");
             }
             String receiverField = receiverFieldName(call);
-            if (receiverField != null && MUTATING_INFRA_TYPES.contains(fieldTypes.get(receiverField))) {
+            // The receiver's declared field type, or null when the receiver is not a declared field of the
+            // class (a local variable, a builder, or a static type reference: filter.build(), Foo.of(...)).
+            // The null guard is load-bearing: MUTATING_INFRA_TYPES is an immutable Set, whose contains(null)
+            // THROWS, and real read bodies are full of non-field-receiver calls. A null type is never an
+            // infrastructure type, so a non-field receiver is simply not a mutating-infra call.
+            String receiverType = receiverField == null ? null : fieldTypes.get(receiverField);
+            if (receiverType != null && MUTATING_INFRA_TYPES.contains(receiverType)) {
                 return Optional.of("a call on the persistence-infrastructure field '" + receiverField
-                        + "' (" + fieldTypes.get(receiverField) + ") is visible in '"
+                        + "' (" + receiverType + ") is visible in '"
                         + method.getNameAsString() + "'; a write cannot be ruled out (read-safety, "
                         + "section 4.15.2)");
             }
