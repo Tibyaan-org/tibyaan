@@ -888,3 +888,41 @@ who is not this build; the derived-query subset remains the preferred future STR
 would move those reads from the attestable column to the verified column with no attestation at all.
 
 `mvn clean verify` green; the MCP and OpenAPI goldens and the e2e byte-identical.
+
+## 26. erp read-only tie check: erp CAN run the first measurement under AT-1 as built (2026-07-25)
+
+The pms first-measurement attempt (second-app-trial.md section 14) found pms's PREDICATE items are
+actually SHAPE (AT-2), because pms ties through hand-written one-hop repositories. This section answers
+the sequencing question the maintainer posed: does erp have the same problem? It does not. Read-only,
+discovered stayed 25 byte-identical, mis-bound and attestation-drift 0.
+
+erp's structure is the opposite of pms's: 25 repositories directly extend a Spring Data supertype
+(JpaRepository), ZERO are hand-written interfaces, and its filtered reads return `Page<E>` or `List<E>`
+directly (recognized containers of the entity), not per-entity wrappers over generated models. So the
+element tie is structurally provable, and a PREDICATE assertion fills only the filter's semantic hole.
+
+Three representative erp reads were probed through the fixed intake (throwaway structural content, in the
+gitignored erp tree, deleted after):
+
+- `ContactServiceImpl#search(String query, Pageable)` returning `Page<Contact>`: ATTESTED. The container
+  ties to the in-tree Contact entity, `query` maps (String), Pageable is excluded as framework paging,
+  read-safety passes. This is the clean, common erp shape and it is PREDICATE-attestable under AT-1 as
+  built. Most erp filtered reads share it (findByNameContaining, findByParentId, findByCategory,
+  findAll(String, Pageable), search).
+- `AccountServiceImpl#searchByFields(String, AccountType, Pageable)` returning `Page<Account>`:
+  STRUCTURAL_FRAME (`parameter 'accountType' has type 'AccountType', which does not map`). The tie is
+  provable, but the domain-enum parameter hits the same E3-enum-input decision (finding 2 above). The
+  enum-input subset waits for that decision regardless of which app is measured.
+- `ContactServiceImpl#getListableContacts(Pageable)` returning `Page<NameIdDTO>` (a projection): ATTESTED,
+  because the body's single repository access ties to the source entity via T2 even though the RETURN type
+  is a projection. Recorded honestly as a categorization observation, not a bug: whether a projection
+  return should instead route to SHAPE (AT-2) with a permissive shape claim, rather than attest as a
+  predicate read of the source entity with a permissive output, is a question the erp measurement will
+  sharpen. It does not block the measurement.
+
+Conclusion for the fork: erp is where the first measurement can run under AT-1 as it stands, for the
+subset of filtered reads that return a container of (or tie via a repository access to) an in-tree entity
+and take only mappable parameters. The enum-input subset and pms both wait: pms for AT-2 (its ties are
+shape holes), the enum-input subset for the E3-enum-input decision (which attested filters need on any
+app). The first-measurement venue moves from pms to erp; the maintainer decides whether to measure erp
+now or build AT-2 first with the enum-input decision folded in.

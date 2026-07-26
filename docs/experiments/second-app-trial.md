@@ -1103,3 +1103,60 @@ it did not, and could not, measure how many pms reads a knowledgeable human will
 
 `mvn clean verify` is green, the MCP and OpenAPI goldens and the example-app e2e byte-identical
 (getProduct carries no attestation, so every existing manifest byte is unchanged).
+
+## 14. First-measurement ATTEMPT on pms: zero attestations, three findings (2026-07-25)
+
+The first measurement was attempted: the maintainer set out to attest the pms PREDICATE worklist through
+the real mechanism. It produced ZERO attestations and three findings of three different kinds, which is
+worth more than an attestation count. Recorded honestly, because a first contact with reality is supposed
+to produce exactly this. Discovered stayed 5, byte-identical; mis-bound and attestation-drift 0.
+
+Method: three representative pms reads (one each from property, notification, billing) were run through
+the real intake as throwaway structural probes (obviously non-semantic content, in the gitignored pms
+tree, never committed, deleted after). None reached the point where the maintainer's assertion would
+matter; each was stopped by a STRUCTURAL gate that fires before the semantic hole, two of them by a crash.
+
+FINDING 1, a BUG (fixed this session, commit 33678ae). `TenantServiceImpl#getAllByFilter` failed at
+condition 3 (below), but `NotificationServiceImpl#getNotificationsForUser(Long)` and
+`RentalPaymentServiceImpl#getPaymentsSummary(String)` CRASHED the scan with a NullPointerException at
+`ReadSafety.checkBody`: `MUTATING_INFRA_TYPES` is an immutable `Set`, whose `contains(null)` throws, and
+`fieldTypes.get(receiverField)` is null whenever a call's receiver is not a declared field (a local
+variable, a builder, a static type reference), which real read bodies are full of. It is a defect, not a
+design question: fixed with a null guard (no rule change, no matching-outcome change) and a regression
+fixture. The only thing worth noting is that it survived AT-1's whole 31-test fixture battery, which
+exercised read-safety only on well-formed fixture bodies that call exclusively on repository fields. The
+first real worklist crashed a path 31 green tests did not: fixture-proven is not user-proven, now
+demonstrated in the repo.
+
+FINDING 2, a PRE-REGISTERED DECISION reopening ON SCHEDULE (deferred, a small design session). Phase E3
+ratified enums as STRING-plus-values-annotation rather than a first-class type, and recorded the exact
+reopening condition: revisit only if enums become capability INPUTS. They just did. An attested PREDICATE
+filter takes parameters; pms's filters take domain enums (`OrderDirections`), and the intake refuses them
+at condition 3 (`parameter 'orderDir' has type 'OrderDirections', which does not map to a modeled type`).
+The deferred-with-a-written-trigger discipline paid out: the trigger fired months later from a direction
+nobody was watching. E3's reasoning stands; what changed is that the agent-facing INPUT side now needs the
+closed value set enforceable rather than merely described. Not a surprise gap, a scheduled decision.
+
+FINDING 3, a WORKLIST MIS-CATEGORIZATION that re-ranks the sub-phases. pms's PREDICATE items tie their
+output element to the entity only through hand-written one-hop repositories: `TenantRepository` is
+`public interface TenantRepository {` with NO Spring Data supertype (the Spring Data repos are the
+separate `*JpaRepository` classes), and the service reads call the hand-written interface. The AT-1
+intake resolves the element tie only through a DIRECT Spring Data repository, so these reads carry a
+coexisting SHAPE hole and are `both`/shape, which is AT-2, not AT-1 predicate. So the AT-0 pms worklist
+(section 12) was optimistic: items marked attestable-in-AT-1 actually require the sub-phase after it. The
+honest reading: pms's real first measurement cannot happen until AT-2 exists. Reality re-ranked the
+roadmap for the second time in this project (the first was the enterprise app forcing entity-identity
+ahead of attestation); both times the re-ranking came from contact, not from a census.
+
+Forecast versus actual: the forecast (section 10, Volume 5 section 4.15.11) predicted up to roughly 45
+pms predicate reads under AT-1, with a knowledgeable attester declining about a third. Actual: 0
+attestable under AT-1 as built, and 0 declined, because the maintainer never reached a decline; the
+mechanism refused or crashed at the structural frame first. The divergence is a finding about the
+forecast's sample, not a number to reconcile: the sample assumed a T2 element tie the built intake
+resolves only for direct Spring Data repos, assumed enum inputs would map, and could not anticipate the
+read-safety crash. The measurement row: worklist about 65 filtered/refused reads; attestable-under-AT-1
+0; attested 0; declined 0; one bug, one scheduled decision, one mis-categorization.
+
+The erp read-only tie check that follows (third-app-trial.md section 26) settles the sequencing: erp uses
+direct Spring Data repos, so its filtered reads tie cleanly and DO attest under AT-1 as built. erp, not
+pms, is the app where the first measurement can run under AT-1 as it stands.
