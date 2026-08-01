@@ -1160,3 +1160,119 @@ read-safety crash. The measurement row: worklist about 65 filtered/refused reads
 The erp read-only tie check that follows (third-app-trial.md section 26) settles the sequencing: erp uses
 direct Spring Data repos, so its filtered reads tie cleanly and DO attest under AT-1 as built. erp, not
 pms, is the app where the first measurement can run under AT-1 as it stands.
+
+## 15. First real measurement on pms: 10 authored entries, 0 attested, four causes (2026-08-01)
+
+The first measurement that got past target resolution. The maintainer selected a set from a source-level
+triage of the 65-read worklist (the triage grouped the worklist by where each read's predicate is decided:
+7 framework-decidable, 14 builder-backed with no ambiguity flags, 36 builder-backed with a flag, 6
+mutations, 2 infrastructure). The selected set was the 14 builder-backed no-flag reads. Sentences were
+drafted from source, stamped with `tibyan attest`, and put through intake. NO TOOL CODE CHANGED THIS
+SESSION; the reactor is unchanged at commit b46d542.
+
+### What was authored, and what was declined before authoring
+
+Four of the 14 were declined at drafting, on source evidence, and never became entries:
+
+- `UserDetailsSecurityService#loadUserByUsername(String)`: a security-boundary read. BOUNDARY is category
+  C, deferred to AT-3 by name with elevated stakes. Worth recording that this one WOULD probably have
+  tied: its body calls a direct `UserJpaRepository` field, so unlike its neighbours it has no shape hole.
+  It is deferred by design, not blocked by mechanism.
+- `InvoiceServiceImpl#getMyInvoices(InvoiceStatus, ...)` (staff) and
+  `TimeEntryServiceImpl#getMyTimeEntries(TimeEntryStatus, ...)`: context reads. Both resolve the acting
+  user from `requestContext.get(USER_ID, Long.class)`, a predicate that is not in the signature, so no
+  parameterMeanings entry can cover it and a caller cannot control it. These are the excluded-set context
+  reads the design names.
+- `InvoiceServiceImpl#getMyInvoices(Long userId, ...)` (billing): DECLINED on a dual-identity defect found
+  while drafting. `resolveStaffId(userId)` is
+  `staffService.getStaffByUserId(userId).map(...).orElse(userId)`, so a user with no staff record falls
+  back to filtering `staffId` by their `userId`. The read then returns the invoices of whatever staff
+  record happens to share that number: another person's invoices. No true one-sentence claim exists, and
+  exposing it to an agent is a data-disclosure path. This is the first decline in the project made for the
+  reason the design predicted declines would happen, and it was reached by reading the code, not by the
+  intake refusing.
+
+Ten entries were authored and stamped. All 10 targets RESOLVED (condition 1 passed on every one), which is
+itself a first: the previous attempt never got that far.
+
+### The measured result
+
+`tibyan scan examples/pms-backend`: discovered 5, ATTESTED 0, mis-bound 0, attestation-drift 0,
+skipped-by-parse 0. Ten intake refusals in three classes:
+
+| Cause | n | Reads |
+|---|---|---|
+| STRUCTURAL_FRAME (enum input) | 3 | `CostServiceImpl#getCostsByBuilding`, `InvoiceServiceImpl#getBuildingInvoices` (staff), `TimeEntryServiceImpl#getBuildingTimeEntries` |
+| READ_SAFETY (`merge`) | 3 | `ReportingServiceImpl#{getCostsByCategory,getPaymentsCollection,getRevenueVsCost}` |
+| CATEGORY_MISMATCH (shape hole) | 4 | `RentalPaymentServiceImpl#getPaymentsSummary`, `InvoiceServiceImpl#getInvoicesByBuilding` (billing), `PPFileServiceImpl#getAllVersions`, `UserManagementServiceImpl#getUserDetails` |
+
+ADDITIVITY VERIFIED: the serialized IR is BYTE-IDENTICAL with and without the record file present (`diff`,
+zero differences), so 10 refused entries change nothing about the verified 5. erp re-scanned unchanged at
+discovered 25 (by-id 16, list 9), mis-bound 0.
+
+### The four findings
+
+FINDING 1, the enum-input decision reproduced and now QUANTIFIED. Section 14's finding 2 predicted this;
+the measurement sizes it. Three of ten entries refuse purely because a domain enum (`CostCategory`,
+`InvoiceStatus`, `TimeEntryStatus`) is a capability input and E3 mapped enums to STRING-plus-annotation
+rather than a first-class type. Every one of the three is otherwise well-formed. This is 30 percent of an
+authored set lost to a decision whose written reopening trigger has already fired.
+
+FINDING 2, A NEW DEFECT: the read-safety write-set check is RECEIVER-BLIND. `ReadSafety.checkBody` tests
+`WRITE_SET.contains(call.getNameAsString())` before it looks at the receiver at all, so
+`costByCategory.merge(...)` on a local `LinkedHashMap` refuses with "a mutating body is not a read". All
+three reads are genuinely read-only: they load once and aggregate into a local map. The refusal message is
+false as written. This is the same family as the crash fixed in 33678ae (fixture bodies only ever called
+repository fields, so no fixture ever put a write-set NAME on a non-persistence receiver), and it is worse
+than a nuisance: `merge` and `remove` are how in-application aggregation is written, so this systematically
+refuses the AT-2 aggregate category the roadmap is heading toward. NOT FIXED THIS SESSION. Making the
+write-set check receiver-aware changes matching outcomes (bodies that refuse today would attest), so it is
+not a rule-13 diagnostic amendment; it needs its own ratified design. Recorded as the highest-priority
+input to that design.
+
+FINDING 3, the shape hole CONFIRMED. Four of ten refuse with the CATEGORY_MISMATCH the AT-1 intake was
+built to emit: the output entity tie is not structurally provable, because pms ties its element through
+hand-written one-hop repositories (`CostRepository`, `BillingRepository`, `RentalPaymentRepository`,
+`PPFileRepository`, `FileVersionRepository`, `UserRoleRepository`, `InvoiceRepository`,
+`TimeEntryRepository` are all `public interface X {` with no Spring Data supertype). Section 14's finding 3
+said pms's real measurement waits for AT-2; this is that statement measured rather than argued. The
+refusal names its own remedy ("use category shape or both").
+
+FINDING 4, the traps a knowledgeable attester actually hits. Drafting the sentences surfaced four things no
+structural rule would have caught, and each one changed the sentence:
+
+- `RentalPaymentServiceImpl#getPaymentsSummary` sums in the application over a filter that never sets
+  pagination, and `SearchFilter` defaults to `pageSize 25` with no ORDER BY. The summary covers at most 25
+  arbitrary payments. The authored sentence says so in capitals; the obvious sentence would have been false.
+  Eight other worklist reads inherit the same silent cap.
+- The three `ReportingServiceImpl` reads default an omitted date range to first-of-current-year through
+  today (`resolveDateRange`), so an omitted parameter means year-to-date, not all-time.
+- `UserManagementServiceImpl#getUserDetails` returns a hardcoded 10 GiB storage quota and zeroed file and
+  folder counts; the sentence has to disclaim them as placeholders.
+- `getRevenueVsCost` applies its lower date bound in the application and its upper bound in the database,
+  and counts only `"paid"` payments as revenue.
+
+The forecast said a knowledgeable attester would decline about a third. Measured on this set: 4 of 14
+declined before authoring (29 percent), which lands almost exactly on the forecast, though for one reason
+the forecast did not name (the dual-identity fallback) and three it did (boundary, context, context).
+
+### Measurement row
+
+Worklist about 65; selected 14; declined before authoring 4; authored 10; targets resolved 10; ATTESTED 0;
+refused 10 (enum-input 3, read-safety false positive 3, shape hole 4); mis-bound 0; attestation-drift 0;
+IR byte-identical. One new defect, one quantified scheduled decision, one confirmation, four attester traps.
+
+### What this changes
+
+The blocking order is now measured rather than assumed. Three things stand between this set and a nonzero
+attested count, and all three are decisions, not discoveries:
+
+1. the receiver-aware read-safety fix (finding 2), which blocks 3 here and every aggregate read later;
+2. the E3 enum-input decision (finding 1), which blocks 3 here and the erp enum-param subset;
+3. AT-2 SHAPE (finding 3), which blocks 4 here and is already the named next sub-phase.
+
+Nothing of AT-2/3/4 is built. The record file lives at `examples/pms-backend/tibyan/attestations.json`
+(that path is gitignored, so the ten entries are a local working artifact, not a committed claim). The
+authored sentences are DRAFTS: their provenance line names the maintainer as asserter, and that line only
+becomes true once the maintainer has read the ten sentences and confirmed them. AI MAY PROPOSE, ONLY A
+HUMAN MAY CONFIRM.
