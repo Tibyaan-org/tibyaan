@@ -1,20 +1,31 @@
 package com.tibyaan.provider.spring.attest;
 
+import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.ImportDeclaration;
+import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
+import com.github.javaparser.ast.body.Parameter;
 import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.expr.AnnotationExpr;
+import com.github.javaparser.ast.expr.AssignExpr;
 import com.github.javaparser.ast.expr.Expression;
+import com.github.javaparser.ast.expr.LambdaExpr;
 import com.github.javaparser.ast.expr.MethodCallExpr;
+import com.github.javaparser.ast.expr.NameExpr;
 import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
 import com.github.javaparser.ast.expr.StringLiteralExpr;
+import com.github.javaparser.ast.expr.VariableDeclarationExpr;
 import com.github.javaparser.ast.stmt.BlockStmt;
+import com.github.javaparser.ast.stmt.ExpressionStmt;
 
 import com.tibyaan.provider.spring.extractors.RepositoryCatalog;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -29,6 +40,15 @@ import java.util.Set;
  * THE SLICE SHOWS: the honest guarantee is "no mutation visible in the slice," never "no write anywhere"
  * (section 4.15.7). A write hidden below the slice, in the query builder the assertion covers, is the
  * stated residue, which is exactly why category C is deferred.
+ *
+ * <p>THE WRITE-SET CLAUSE IS RECEIVER-AWARE (Volume 5 section 4.15.2.1, ratified 2026-08-04). A mutating
+ * NAME alone is not a write: {@code counts.merge(...)} on a map the method itself constructed mutates no
+ * application state, while the same name on a repository, an {@code EntityManager}, or any field does. The
+ * clause therefore refuses a write-set call UNLESS its receiver is PROVABLY local and non-persistent by all
+ * six conditions L1 to L6, and refusal remains the default for every other receiver, including every one
+ * the tool cannot decide. The carve-out does NOT widen the guarantee: what it removes is a false refusal,
+ * not a claim. Its governing bias is the MIS-SAFE invariant: a false refusal of a genuinely safe local
+ * aggregation is an acceptable coverage miss, a false pass of a persistence write is a safety breach.
  */
 public final class ReadSafety {
 
@@ -39,6 +59,19 @@ public final class ReadSafety {
     private static final Set<String> MUTATING_INFRA_TYPES = Set.of(
             "EntityManager", "EntityManagerFactory", "JdbcTemplate", "NamedParameterJdbcTemplate",
             "SqlSession", "Session", "HibernateTemplate", "JpaTemplate");
+
+    // The CLOSED allowlist of JDK mutable containers a write-set call may be permitted on, when every
+    // other provable-local condition holds (Volume 5 section 4.15.2.1, condition L4). Extending this set
+    // is a design change, not a build decision.
+    private static final Set<String> LOCAL_CONTAINER_ALLOWLIST = Set.of(
+            "HashMap", "LinkedHashMap", "TreeMap", "ConcurrentHashMap", "EnumMap", "IdentityHashMap",
+            "HashSet", "LinkedHashSet", "TreeSet", "ArrayList", "LinkedList", "ArrayDeque",
+            "PriorityQueue", "StringBuilder", "StringBuffer");
+
+    // The only packages an allowlisted container's simple name may be imported from (condition L4's
+    // no-shadow guard). An import of the same simple name from anywhere else defeats the proof.
+    private static final Set<String> ALLOWED_CONTAINER_PACKAGES =
+            Set.of("java.util", "java.util.concurrent", "java.lang");
 
     private final RepositoryCatalog catalog;
 
@@ -77,10 +110,16 @@ public final class ReadSafety {
         Set<String> loadedLocals = localsLoadedFromPersistence(body.get(), fieldTypes);
         for (MethodCallExpr call : body.get().findAll(MethodCallExpr.class)) {
             String name = call.getNameAsString();
+            // The write-set clause is RECEIVER-AWARE (Volume 5 section 4.15.2.1). A mutating NAME is a
+            // write to application state UNLESS its receiver is PROVABLY a local, freshly constructed,
+            // allowlisted container that never escapes to persistence. Refusal is the default: every
+            // ambiguous or untraceable receiver refuses exactly as before the refinement.
             if (WRITE_SET.contains(name)) {
-                return Optional.of("a write-set call '" + name + "' is visible in the body of '"
-                        + method.getNameAsString() + "'; a mutating body is not a read (read-safety, "
-                        + "section 4.15.2)");
+                Optional<String> writeRefusal =
+                        writeSetRefusal(call, name, method, body.get(), fieldTypes, loadedLocals);
+                if (writeRefusal.isPresent()) {
+                    return writeRefusal;
+                }
             }
             String receiverField = receiverFieldName(call);
             // The receiver's declared field type, or null when the receiver is not a declared field of the
@@ -103,6 +142,216 @@ public final class ReadSafety {
             Optional<String> repoWrite = mutatingRepositoryCall(call, receiverField, fieldTypes, method);
             if (repoWrite.isPresent()) {
                 return repoWrite;
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Classifies the receiver of a write-set call (Volume 5 section 4.15.2.1). Returns the located refusal
+     * reason, or empty when and only when the receiver is PROVABLY local and non-persistent, in which case
+     * the call is not a write to application state and read-safety does not refuse on it.
+     *
+     * <p>The bias is absolute and one-directional: a false refusal of a genuinely safe local aggregation is
+     * a coverage miss, a false pass of a persistence write is a safety breach (the MIS-SAFE invariant), so
+     * every case the tool cannot decide from the written AST refuses.
+     */
+    private Optional<String> writeSetRefusal(MethodCallExpr call, String name, MethodDeclaration method,
+                                             BlockStmt body, Map<String, String> fieldTypes,
+                                             Set<String> loadedLocals) {
+        String where = " in the body of '" + method.getNameAsString() + "' (read-safety, section 4.15.2.1";
+        Optional<Expression> scope = call.getScope();
+        // R9: an unqualified write-set call is a call on the enclosing type itself, never a local.
+        if (scope.isEmpty()) {
+            return Optional.of("a write-set call '" + name + "' has no receiver, so it is a call on the "
+                    + "enclosing type" + where + ", R9)");
+        }
+        // R1, R2, R3: a receiver that is a declared FIELD is never local, whatever its type. A field
+        // outlives the call; a fresh local does not, and that is the whole distinction.
+        String receiverField = receiverFieldName(call);
+        String fieldType = receiverField == null ? null : fieldTypes.get(receiverField);
+        if (fieldType != null) {
+            if (catalog.isRepositoryType(fieldType)) {
+                return Optional.of("a write-set call '" + name + "' on the repository field '"
+                        + receiverField + "' (" + fieldType + ") is visible" + where + ", R1)");
+            }
+            if (MUTATING_INFRA_TYPES.contains(fieldType)) {
+                return Optional.of("a write-set call '" + name + "' on the persistence-infrastructure field '"
+                        + receiverField + "' (" + fieldType + ") is visible" + where + ", R2)");
+            }
+            return Optional.of("a write-set call '" + name + "' on the field '" + receiverField + "' ("
+                    + fieldType + ") is visible; a field receiver is never a provable local, and a write "
+                    + "through it cannot be ruled out" + where + ", R3)");
+        }
+        // L1: the local proof is available only for a bare simple name.
+        if (!scope.get().isNameExpr()) {
+            return Optional.of("a write-set call '" + name + "' has a receiver expression that is not a bare "
+                    + "simple name, so its origin is not directly traceable" + where + ", L1, R9)");
+        }
+        String local = scope.get().asNameExpr().getNameAsString();
+        // R4: a method parameter is not a local the method constructed.
+        for (Parameter parameter : method.getParameters()) {
+            if (parameter.getNameAsString().equals(local)) {
+                return Optional.of("a write-set call '" + name + "' on the method parameter '" + local
+                        + "' is visible; a parameter's origin is outside the method" + where + ", R4)");
+            }
+        }
+        // L2: exactly one declarator for the name, declared by a statement of this method's own body and
+        // not nested in a lambda. A for-each variable, a for-init variable, a catch parameter, and a lambda
+        // parameter all produce no qualifying declarator and so refuse here.
+        List<VariableDeclarator> declarators = new ArrayList<>();
+        for (VariableDeclarator declarator : body.findAll(VariableDeclarator.class)) {
+            if (declarator.getNameAsString().equals(local) && isPlainLocalDeclaration(declarator)) {
+                declarators.add(declarator);
+            }
+        }
+        if (declarators.size() != 1) {
+            return Optional.of("a write-set call '" + name + "' on '" + local + "' is visible, and '" + local
+                    + "' does not resolve to exactly one plain local declaration in this body"
+                    + where + ", L2)");
+        }
+        VariableDeclarator declarator = declarators.get(0);
+        Optional<Expression> initializer = declarator.getInitializer();
+        // L3, with R4 and R5 given their own messages because they are the cases the guarantee most
+        // depends on: an alias of a parameter, and a collection handed back by persistence.
+        if (initializer.isEmpty() || !initializer.get().isObjectCreationExpr()) {
+            if (initializer.isPresent() && initializer.get().isNameExpr()) {
+                return Optional.of("a write-set call '" + name + "' on '" + local + "' is visible, and '"
+                        + local + "' is an alias of '" + initializer.get().asNameExpr().getNameAsString()
+                        + "', not a fresh construction" + where + ", R4)");
+            }
+            if (initializer.isPresent() && initializer.get().isMethodCallExpr()
+                    && originatesFromPersistence(initializer.get().asMethodCallExpr(), fieldTypes,
+                            loadedLocals)) {
+                return Optional.of("a write-set call '" + name + "' on '" + local + "' is visible, and '"
+                        + local + "' was obtained from a persistence access, so it may be a managed "
+                        + "collection" + where + ", R5)");
+            }
+            return Optional.of("a write-set call '" + name + "' on '" + local + "' is visible, and '" + local
+                    + "' is not initialized by an in-method 'new' construction, so its origin is not "
+                    + "structurally proven" + where + ", L3)");
+        }
+        // L4: the constructed type is an allowlisted JDK container, unshadowed in-tree and unimported
+        // from anywhere unexpected.
+        String created = lastSegment(initializer.get().asObjectCreationExpr().getType().asString());
+        if (!LOCAL_CONTAINER_ALLOWLIST.contains(created)) {
+            return Optional.of("a write-set call '" + name + "' on '" + local + "' is visible, and its "
+                    + "constructed type '" + created + "' is not an allowlisted local container"
+                    + where + ", L4, R6)");
+        }
+        if (catalog.declaration(created).isPresent()) {
+            return Optional.of("a write-set call '" + name + "' on '" + local + "' is visible, and its "
+                    + "constructed type '" + created + "' is shadowed by an in-tree declaration of the "
+                    + "same simple name" + where + ", L4, R6)");
+        }
+        Optional<String> badImport = unexpectedImportOf(method, created);
+        if (badImport.isPresent()) {
+            return Optional.of("a write-set call '" + name + "' on '" + local + "' is visible, and its "
+                    + "constructed type '" + created + "' is imported from '" + badImport.get()
+                    + "', not from the JDK" + where + ", L4, R6)");
+        }
+        // L5: the declarator is the only assignment.
+        for (AssignExpr assignment : body.findAll(AssignExpr.class)) {
+            if (assignment.getTarget().isNameExpr()
+                    && assignment.getTarget().asNameExpr().getNameAsString().equals(local)) {
+                return Optional.of("a write-set call '" + name + "' on '" + local + "' is visible, and '"
+                        + local + "' is reassigned in this body, so its origin is no longer the "
+                        + "construction" + where + ", L5, R7)");
+            }
+        }
+        // L6: the local never escapes to a persistence receiver, in either order.
+        if (escapesToPersistence(body, local, fieldTypes)) {
+            return Optional.of("a write-set call '" + name + "' on '" + local + "' is visible, and '" + local
+                    + "' is passed to a persistence receiver in this body, so it may be managed"
+                    + where + ", L6, R8)");
+        }
+        // Every condition held: the receiver is provably a local, freshly constructed, allowlisted
+        // container that never escapes. The call is not a write to APPLICATION STATE. The guarantee is
+        // unchanged: it still says only "no write to application state in what the tool read".
+        return Optional.empty();
+    }
+
+    // A plain local declaration: a variable-declaration statement of the method's own body, not a for-each
+    // variable, not a for-init variable, and not nested inside a lambda (condition L2).
+    private static boolean isPlainLocalDeclaration(VariableDeclarator declarator) {
+        Optional<Node> declarationExpr = declarator.getParentNode();
+        if (declarationExpr.isEmpty() || !(declarationExpr.get() instanceof VariableDeclarationExpr)) {
+            return false;
+        }
+        Optional<Node> statement = declarationExpr.get().getParentNode();
+        if (statement.isEmpty() || !(statement.get() instanceof ExpressionStmt)) {
+            return false;
+        }
+        Node cursor = statement.get();
+        while (cursor.getParentNode().isPresent()) {
+            cursor = cursor.getParentNode().get();
+            if (cursor instanceof LambdaExpr) {
+                return false;
+            }
+            if (cursor instanceof MethodDeclaration) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Whether an initializer call reaches persistence: a call on a repository or infrastructure field, or a
+    // getter on a value that itself came from one (condition R5, the managed-collection case the guarantee
+    // most depends on: entity.getItems() where entity was loaded through a repository).
+    private boolean originatesFromPersistence(MethodCallExpr call, Map<String, String> fieldTypes,
+                                              Set<String> loadedLocals) {
+        for (MethodCallExpr inner : call.findAll(MethodCallExpr.class)) {
+            String field = receiverFieldName(inner);
+            String type = field == null ? null : fieldTypes.get(field);
+            if (type != null && (catalog.isRepositoryType(type) || MUTATING_INFRA_TYPES.contains(type))) {
+                return true;
+            }
+            if (field != null && loadedLocals.contains(field)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Condition L6: the name appears, at any depth, in the arguments of a call whose receiver is a
+    // repository or persistence-infrastructure field. Order-insensitive by design.
+    private boolean escapesToPersistence(BlockStmt body, String local, Map<String, String> fieldTypes) {
+        for (MethodCallExpr call : body.findAll(MethodCallExpr.class)) {
+            String field = receiverFieldName(call);
+            String type = field == null ? null : fieldTypes.get(field);
+            if (type == null || !(catalog.isRepositoryType(type) || MUTATING_INFRA_TYPES.contains(type))) {
+                continue;
+            }
+            for (Expression argument : call.getArguments()) {
+                for (NameExpr reference : argument.findAll(NameExpr.class)) {
+                    if (reference.getNameAsString().equals(local)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    // Condition L4's import half: an import binding this simple name from outside the JDK packages the
+    // allowlist belongs to.
+    private static Optional<String> unexpectedImportOf(MethodDeclaration method, String simpleName) {
+        Optional<CompilationUnit> unit = method.findCompilationUnit();
+        if (unit.isEmpty()) {
+            return Optional.empty();
+        }
+        for (ImportDeclaration importDeclaration : unit.get().getImports()) {
+            if (importDeclaration.isAsterisk()) {
+                continue;
+            }
+            String imported = importDeclaration.getNameAsString();
+            if (!lastSegment(imported).equals(simpleName)) {
+                continue;
+            }
+            int dot = imported.lastIndexOf('.');
+            String packageName = dot >= 0 ? imported.substring(0, dot) : "";
+            if (!ALLOWED_CONTAINER_PACKAGES.contains(packageName)) {
+                return Optional.of(imported);
             }
         }
         return Optional.empty();

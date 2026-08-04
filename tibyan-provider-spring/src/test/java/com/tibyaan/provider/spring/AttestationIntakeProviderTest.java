@@ -31,6 +31,8 @@ class AttestationIntakeProviderTest {
 
     private static final Path FIXTURE =
             Path.of("src", "test", "resources", "fixtures", "attest-predicate", "AttestPredicate.java");
+    private static final Path RECEIVER_FIXTURE = Path.of("src", "test", "resources", "fixtures",
+            "read-safety-receiver", "ReadSafetyReceiver.java");
     private static final String FILTER_TARGET =
             "com.example.attest.TenantServiceImpl#getAllByFilter(String,Integer)";
     private static final String GUARD_TARGET =
@@ -175,6 +177,65 @@ class AttestationIntakeProviderTest {
         assertRefused(root, IntakeRefusal.Cause.READ_SAFETY);
     }
 
+    // ---------- RS-1, RS-2, RS-3 end to end: the receiver-aware write-set clause (section 4.15.2.1) ----
+
+    @Test
+    void rs1_aggregationIntoAFreshLocalMapPassesReadSafetyAndAttests(@TempDir Path root) throws IOException {
+        // The pms aggregate shape: one load, then merge/put/remove into a locally constructed map. Before
+        // the refinement this refused READ_SAFETY on the merge; it is read-only, so it must now attest.
+        copyReceiverFixture(root);
+        String target = "com.example.readsafety.CostReportServiceImpl#totalsByCategory(Long)";
+        String fingerprint = fingerprint(root, target);
+        writeAttestations(root, "[" + entry(target, "predicate", "costTotalsByCategory",
+                "Totals for one building's costs, summed per category in the application.",
+                "\"buildingId\":\"The building whose costs are totalled.\"", null, "a.elseginy",
+                "human-authored", fingerprint) + "]");
+
+        ScanReport report = provider.scan(new ProviderInput(root));
+
+        assertThat(report.attestationRefusals()).isEmpty();
+        assertThat(report.attestedCount()).isEqualTo(1);
+        assertThat(capability(report, "attested_costTotalsByCategory").output())
+                .isEqualTo(Type.entityRef("Cost"));
+    }
+
+    @Test
+    void rs2_passingReadSafetyGrantsNothingByItself(@TempDir Path root) throws IOException {
+        // The same provable-local aggregation, tied only through a hand-written repository. Read-safety
+        // now passes, and the entry still refuses, at the output entity tie. Removing a false refusal is
+        // not the same as granting an attestation.
+        copyReceiverFixture(root);
+        String target = "com.example.readsafety.CostReportServiceImpl#ledgerTotals(Long)";
+        String fingerprint = fingerprint(root, target);
+        writeAttestations(root, "[" + entry(target, "predicate", "ledgerTotals",
+                "Totals for one building's ledger rows.",
+                "\"buildingId\":\"The building whose rows are totalled.\"", null, "a.elseginy",
+                "human-authored", fingerprint) + "]");
+
+        ScanReport report = provider.scan(new ProviderInput(root));
+
+        assertThat(report.attestedCount()).isZero();
+        assertThat(report.attestationRefusals())
+                .anySatisfy(refusal -> {
+                    assertThat(refusal.cause()).isEqualTo(IntakeRefusal.Cause.CATEGORY_MISMATCH);
+                    assertThat(refusal.detail()).contains("output entity tie is not structurally provable");
+                });
+    }
+
+    @Test
+    void rs3_aRepositoryWriteBesideALocalAggregationStillRefusesEndToEnd(@TempDir Path root)
+            throws IOException {
+        // THE PRIMARY SAFETY GUARD, end to end. The carve-out must never rescue a body that also writes.
+        copyReceiverFixture(root);
+        String target = "com.example.readsafety.CostReportServiceImpl#totalsAndPurge(Long)";
+        String fingerprint = fingerprint(root, target);
+        writeAttestations(root, "[" + entry(target, "predicate", "totalsAndPurge",
+                "Totals, and also deletes.",
+                "\"buildingId\":\"The building.\"", null, "a.elseginy", "human-authored", fingerprint) + "]");
+
+        assertRefused(root, IntakeRefusal.Cause.READ_SAFETY);
+    }
+
     @Test
     void anUnresolvableTargetRefuses(@TempDir Path root) throws IOException {
         copyFixture(root);
@@ -286,6 +347,10 @@ class AttestationIntakeProviderTest {
 
     private static void copyFixture(Path root) throws IOException {
         Files.write(root.resolve("AttestPredicate.java"), Files.readAllBytes(FIXTURE));
+    }
+
+    private static void copyReceiverFixture(Path root) throws IOException {
+        Files.write(root.resolve("ReadSafetyReceiver.java"), Files.readAllBytes(RECEIVER_FIXTURE));
     }
 
     private static void writeAttestations(Path root, String json) throws IOException {
