@@ -962,3 +962,17 @@ A NOTE FOR THE SEQUENCE, not a forecast: erp is the app where AT-1 can already a
 filtered reads tie cleanly through direct Spring Data repositories. Its blocker is the E3 enum-input
 decision, not read-safety. So the two pending decisions are independent and do not need to be sequenced
 against each other on erp's account.
+
+## 27.1 Read-safety receiver awareness: BUILT, erp inert as forecast (erp-backend, 2026-08-04)
+
+The ratified rule (Volume 5 section 4.15.2.1) built and measured. The section 27 forecast held exactly:
+erp is INERT.
+
+Measured: discovered 25 (by-id 16, list 9), mis-bound 0, unchanged. The serialized IR, the generated MCP
+output, and the generated OpenAPI document are BYTE-IDENTICAL to the pre-build commit, verified by `diff`,
+with zero differences across all files. No read changed verdict, because erp has no record file for the
+attestation intake to run over and, as the census recorded, zero provable-local write-set call sites
+anywhere in the application.
+
+erp did its job as the negative control: a real application in which the new rule is provably inert, so any
+movement in an erp number would have been an unambiguous regression signal. There was none.

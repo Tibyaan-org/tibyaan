@@ -1339,3 +1339,53 @@ bug: an aggregation into a map from a factory call (`Collections.emptyMap()`, `L
 field-held accumulator, through a chained receiver (`byKey.get(k).remove(x)`), or into a parameter-passed
 collection. All refuse. Per the MIS-SAFE bias, a false refusal is a coverage miss and a false pass is a
 safety breach, and the design prefers the miss.
+
+## 16.1 Read-safety receiver awareness: BUILT and measured (pms-backend, 2026-08-04)
+
+The ratified rule (Volume 5 section 4.15.2.1) implemented exactly, provider only. `mvn clean verify` green.
+The section 16 forecast held to the number.
+
+MEASURED, before and after, on the same ten authored entries:
+
+| Refusal cause | Forecast | Before | After |
+|---|---|---|---|
+| STRUCTURAL_FRAME (enum input) | 3 | 3 | 3 |
+| READ_SAFETY | 0 | 3 | 0 |
+| CATEGORY_MISMATCH (shape hole) | 7 | 4 | 7 |
+| Total refused | 10 | 10 | 10 |
+| ATTESTED | 0 | 0 | 0 |
+
+THE THREE READS THAT MOVED, each to its true next cause, hand-verified against the ratified impact table:
+
+| Read | Before | After |
+|---|---|---|
+| `ReportingServiceImpl#getCostsByCategory` | READ_SAFETY, "a write-set call 'merge' is visible" | CATEGORY_MISMATCH, "the read's output entity tie is not structurally provable" |
+| `ReportingServiceImpl#getPaymentsCollection` | READ_SAFETY, same | CATEGORY_MISMATCH, same |
+| `ReportingServiceImpl#getRevenueVsCost` | READ_SAFETY, same | CATEGORY_MISMATCH, same |
+
+THIS CAUSE-COUNT CHANGE IS THE INTENDED EFFECT, NOT A REGRESSION, and it is the whole product of the
+phase. Before the build the tool said three read-only aggregates were mutating bodies, which was false.
+After it, it says their element tie is unprovable, which is true and is what AT-2 exists to address. No
+read gained a capability and none was newly attested.
+
+BYTE-IDENTICAL, verified by `diff`, not asserted: the serialized IR, the generated MCP output, and the
+generated OpenAPI document are all byte-identical to the pre-build commit. Discovered stays 5 (by-id 5,
+list 0), mis-bound 0, attestation-drift 0, skipped-by-parse 0.
+
+THE MIS-SAFE PROBE ON REAL CODE, the check that matters most. An attestation was authored against
+`CostServiceImpl#deleteCost(String)`, a genuine write whose body ends in
+`costRepository.delete(cost)`, deliberately claiming a delete is a read. Intake refused it:
+
+```
+[READ_SAFETY]: a write-set call 'delete' on the repository field 'costRepository' (CostRepository)
+is visible in the body of 'deleteCost' (read-safety, section 4.15.2.1, R1)
+```
+
+A genuine persistence write is not classified safe on real application code, and the located reason now
+names the receiver and the refusal case. The probe file was removed and the real record restored; the
+re-scan totals are unchanged. `mis-safe 0`.
+
+The census in section 16 is confirmed by the build: exactly the four forecast call sites were accepted as
+provable locals, and the other 197 write-set call sites across pms modules (186 on repository fields, 10 on
+other fields, 1 on a static type reference) all still refuse. The refusal total staying at 10 with the other
+seven entries keeping their exact prior causes is the evidence that the carve-out did not widen.

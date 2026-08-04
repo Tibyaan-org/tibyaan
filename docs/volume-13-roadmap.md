@@ -214,7 +214,7 @@ The design is frozen in Volume 5, section 4.14 (with Volume 4 section 7.1, Volum
 
 Forecast (now CONFIRMED by the build, section top): pms discovered 2 unchanged, getUnit compiled `["1", "2"]` and getLease `["1"]` through their strict `@Secured` anchors, output additive on exactly those two entries; erp discovered 25 unchanged, zero security in the app, output byte-identical (the negative control); the private enterprise benchmark discovered 4 unchanged, 1 compiled a single-authority contract and 3 ABSENT (docs/experiments/enterprise-benchmark.md sections 7 and 7.4); the inventory benchmark PENDING. The build was recommended and taken (unlike P1b and Discovery-Gap this phase changes real output on two benchmarks and delivers the first real user's actual request), one phase, ratified design committed first (rule 12).
 
-### Read-safety receiver awareness: a correctness refinement found by measurement (DESIGNED 2026-08-04, pending ratification)
+### Read-safety receiver awareness: a correctness refinement found by measurement (designed, ratified, and BUILT 2026-08-04)
 
 The first phase in this project whose evidence is a defect the tool's own first real measurement produced,
 rather than a gap in an application. The first real attestation measurement on pms
@@ -282,6 +282,29 @@ The former P4 to P7 ambitions, now direction, each conditional on the semantic c
 - SDK backend (was P5). Typed client libraries from the same IR. Same conditionality as OpenAPI, and behind it in line: it proves the same architectural claim.
 - Database provider (was P6). Proves the IR accepts a non-code source. Also the fallback path for systems whose source is unreadable. Its open question, how much business meaning a schema alone can recover, is exactly the kind of question the benchmark discipline should answer before a build.
 - .NET provider (was P7). Proves the platform crosses ecosystems. The largest and most conditional item: it multiplies every provider-side lesson from Tier 2 into a second language, so it comes last and only after the Java provider has stopped teaching new lessons.
+
+
+BUILT OUTCOME, measured (2026-08-04): the forecast held to the number. pms refusals stayed 10 and
+redistributed exactly as forecast, read-safety 3 to 0, shape hole 4 to 7, enum input 3 unchanged, attested
+0; the three `ReportingServiceImpl` aggregates each moved to their true next cause. THIS CAUSE-COUNT CHANGE
+IS THE INTENDED EFFECT: the tool stopped calling three read-only aggregates mutating bodies. erp was inert
+as forecast, and the private enterprise benchmark untouched by construction. The serialized IR and ALL
+generated output (MCP and OpenAPI) are BYTE-IDENTICAL on both available benchmarks, verified by `diff`;
+discovered stays 5 / 25 / 4. A MIS-SAFE probe on real code authored an attestation against a genuine
+`costRepository.delete(cost)` body and intake refused it with the located R1 reason, so a real write is not
+classified safe on real code. Fixtures RS-1 to RS-13 green, including the three refusal guards and the
+MIS-SAFE family; `mvn clean verify` green across 12 modules; core untouched and still zero-dependency.
+
+THE AT-2 AGGREGATE CATEGORY IS NO LONGER FALSELY BLOCKED BY READ-SAFETY, which was the point of doing this
+first. Sequence unchanged for what remains: the E3 enum-input decision, then AT-2 (SHAPE). Nothing of
+AT-2/3/4 is built.
+
+A build-time note recorded per rule 13, changing no matching outcome: several ratified refusal cases are
+unreachable through the attestation intake, because a collection-typed parameter fails intake condition 3
+(parameter type mapping) before read-safety is ever evaluated. R4, the parameter-aliased receiver, is the
+clearest example. Those cases are therefore proven by direct fixtures against the check rather than end to
+end, and RS-1, RS-2 and RS-3 carry the end-to-end proof. The ratified rule is unchanged; only the fixture
+construction adapts to where the check is reachable.
 
 ### 4.1 Release engineering (v1): the active phase (decisions recorded 2026-07-02)
 

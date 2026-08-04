@@ -385,3 +385,19 @@ entries are authored against it, and it is the natural place to measure whether 
 in practice. Until then it is untouched, and no count is forecast for it beyond the unchanged 4.
 
 REDACTION HELD: counts and shape categories only, no names, no paths, no identifiers.
+
+## 9.1 Read-safety receiver awareness: BUILT, untouched by construction (2026-08-04)
+
+The ratified rule (Volume 5 section 4.15.2.1) built. This benchmark is UNTOUCHED, and the reason is
+structural rather than measured: read-safety has exactly one call site in the tool, the attestation intake,
+and this benchmark has no committed record file, so the refined clause is never reached. Discovered stays 4,
+mis-bound 0, mis-safe 0.
+
+As section 9 stated, this row remains an argument rather than a measurement: that source is not present in
+the working tree the build ran in. Nothing was scanned and no count is claimed beyond the unchanged 4.
+
+The expectation recorded in section 9 stands for later: its aggregate-enrichment population is the shape the
+old receiver-blind clause would have falsely refused, so this is the benchmark on which to test whether the
+carve-out is too narrow in practice, once AT-2 exists and entries are authored against it.
+
+REDACTION HELD: counts and shape categories only.
