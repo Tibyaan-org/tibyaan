@@ -258,6 +258,60 @@ because category B is the aggregate category and in-application aggregation is w
 `remove` on local collections. So the order is: this refinement, then the E3 enum-input decision, then AT-2
 (SHAPE). The three are independent of each other in mechanism; only this one is a correctness fix.
 
+### Enum-typed capability inputs: the E3 reopening, second of the three measured blockers (DESIGNED 2026-08-04, pending ratification)
+
+E3's ratified reopening condition ("revisit only if enums become capability inputs") has FIRED, from a
+direction E3 could not see: attested PREDICATE filters take parameters, and real filters take domain enums.
+Three of ten authored pms entries refused STRUCTURAL_FRAME on one, and erp's enum-parameter subset is its
+only blocked remainder. The output decision is NOT reopened.
+
+THE DECISION: keep STRING and add a first-class, per-input, optional value constraint (Volume 4 section
+3.9, validation rule 10), rendered by both backends as a schema-level closed set and enforced by the runtime
+before invocation. A first-class ENUM primitive was argued and REFUSED against the growth bar: the wire form
+of an enum input genuinely is a string, `Type` is deliberately flat and an `ENUM(values...)` member would be
+the first type carrying a payload, and the same enum would otherwise be STRING as an entity field and ENUM
+as a parameter, an asymmetry with no truth behind it. The Annotation hook was also refused, on Volume 4
+section 3.8's own argument: an output annotation is a hint, an input constraint is a contract, and a
+contract whose completeness is an invariant needs a type the core can validate.
+
+STRUCTURAL PROVABILITY, with a rule the benchmarks forced. The set carried is what the application ACCEPTS
+ON THE WIRE, which is not always the constant names: a bare enum advertises constant names (shape a), and a
+`@JsonValue`-mapped enum advertises the literals (shape b, the pms generated idiom, where `CostCategory`
+accepts `maintenance` and would reject `MAINTENANCE`). Anything ambiguous refuses to constrain. The
+CONSTRUCTOR-LITERAL TRAP is named and guarded: pms's `LeaseStatus` carries `DRAFT("Draft")` with no
+`@JsonValue`, so its literals are decorative labels and a rule that read them would advertise values the
+application rejects.
+
+THE ATTESTATION SPLIT, the elegant case: the TOOL proves the closed VALUE SET structurally, the HUMAN
+attests the parameter's MEANING, each from its own source of truth, and neither can substitute for the
+other. An attestation can never supply, widen, narrow, or reorder a set, because a value set is a
+structural fact and section 4.15.2 forbids an assertion from filling a structural hole.
+
+A BLOCKING PRECONDITION FOUND WHILE DESIGNING, split by name rather than glossed. The runtime resolves its
+target method by reconstructed parameter types, so a STRING input yields `String.class` against a real
+`CostCategory` parameter and the capability is UNINVOKABLE; TIMESTAMP has the same problem against
+`LocalDate`. It is latent only because every capability shipped to date has one identifier-typed input. The
+phase is therefore two build steps: EI-R (runtime argument binding by declared parameter type, plus
+closed-set validation before invoking, Volume 7 section 9) FIRST, then EI-1 (the constraint, the provider
+rule, the surfaces). RATIFIED SEQUENCING: the backends do not render a closed set until EI-R is green,
+because a shown set that is not enforced is the input-side modeled-opaque claim. If EI-R proves larger than
+one session, enum inputs do not ship; they never ship unenforced.
+
+The phase invariant is MIS-CONSTRAINED 0: never advertise a value the application would reject, never
+advertise a set not read from a resolved enum, never render a set on a surface that does not enforce it.
+Advertising a subset of the accepted values is safe; advertising a superset is a breach.
+
+Forecast: pms three entries move STRUCTURAL_FRAME to CATEGORY_MISMATCH (refusals stay 10, attested stays 0,
+coverage gain ZERO because pms is blocked on AT-2); erp is where the payoff lands, 10 read methods become
+attestable, but the gain is gated on a human authoring entries rather than on a build, so the measured
+result is unchanged; the private enterprise benchmark is untouched by construction. Discovered stays 5 / 25
+/ 4 BYTE-IDENTICAL BY CONSTRUCTION, since no discovered capability can have an enum input. Fixtures EI-1 to
+EI-9 pre-registered, EI-3 (the constructor-literal trap) and EI-9 (the mis-constrained guard) being the
+safety ones.
+
+Sequence after this: AT-2 (SHAPE) remains the third and last of the three measured blockers, and the one
+that actually moves pms.
+
 ## 4. Tier 3: direction only (production readiness and beyond)
 
 This tier is deliberately coarse: one short paragraph per item, no designs, no phase plans, no acceptance criteria. Everything here is conditional on Tier 2 proving the semantic core on real applications, meaning the benchmark discovers a meaningful share of a real app's reads with zero mis-bindings. Writing detailed plans for this tier before that proof would repeat the original roadmap's mistake.

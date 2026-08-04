@@ -1389,3 +1389,44 @@ The census in section 16 is confirmed by the build: exactly the four forecast ca
 provable locals, and the other 197 write-set call sites across pms modules (186 on repository fields, 10 on
 other fields, 1 on a static type reference) all still refuse. The refusal total staying at 10 with the other
 seven entries keeping their exact prior causes is the evidence that the carve-out did not widen.
+
+## 17. Enum-typed inputs: forecast (pms-backend, read-only, 2026-08-04)
+
+DESIGN HALF, pending ratification. The rule is Volume 5 section 4.16. No tool code changed; the benchmark
+was read only.
+
+THE THREE BLOCKED ENTRIES, and their enum declarations verified against source:
+
+| Entry | Enum parameter | Declaration | Shape | Constants |
+|---|---|---|---|---|
+| `CostServiceImpl#getCostsByBuilding` | `CostCategory` | `com/pms/billing/model/generated/CostCategory.java` | (b) value-mapped | 8 |
+| `InvoiceServiceImpl#getBuildingInvoices` | `InvoiceStatus` | `com/pms/staff/model/generated/InvoiceStatus.java` | (b) value-mapped | 3 |
+| `TimeEntryServiceImpl#getBuildingTimeEntries` | `TimeEntryStatus` | `com/pms/staff/model/generated/TimeEntryStatus.java` | (b) value-mapped | 3 |
+
+All three resolve in-tree and all three are the OpenAPI-generated idiom: a `@JsonValue` accessor over a
+constructor-assigned field, so the accepted wire values are the LITERALS, not the constant names.
+`CostCategory` advertises `maintenance, utilities, insurance, taxes, supplies, renovation, security, other`,
+NOT `MAINTENANCE, ...`. Advertising the constant names here would advertise eight values the application
+rejects, which is the MIS-CONSTRAINED failure the wire-value rule exists to prevent.
+
+THE CONSTRUCTOR-LITERAL TRAP IS PRESENT IN THIS BENCHMARK and is what makes the rule's precision load
+bearing. `com/pms/lease/model/enums/LeaseStatus.java` declares `DRAFT("Draft"), ACTIVE("Active"), ...` with a
+Lombok `@Getter` and NO `@JsonValue`. Those literals are decorative labels and the wire form is the constant
+name. A rule that read constructor literals wherever it found them would advertise `Draft, Active, ...`,
+every one of which the application would reject. Shape (b) is conditioned on `@JsonValue`, never on the
+presence of a literal, precisely because of this pair.
+
+THE FORECAST:
+
+| Refusal cause | Today | After EI-R and EI-1 |
+|---|---|---|
+| STRUCTURAL_FRAME (enum input) | 3 | 0 |
+| CATEGORY_MISMATCH (shape hole) | 7 | 10 |
+| Total refused | 10 | 10 |
+| ATTESTED | 0 | 0 |
+
+All three unblocked entries refuse at their NEXT gate, the output entity tie, because pms ties through
+hand-written one-hop repositories. The near-term coverage gain on pms is ZERO, for the same structural
+reason as the read-safety phase: pms is blocked on AT-2, not on this. Discovered stays 5 and BYTE-IDENTICAL
+BY CONSTRUCTION, because every discovered pms capability has exactly one LONG input and no discovered read
+can carry an enum parameter. mis-bound 0, mis-constrained 0.

@@ -976,3 +976,35 @@ anywhere in the application.
 
 erp did its job as the negative control: a real application in which the new rule is provably inert, so any
 movement in an erp number would have been an unambiguous regression signal. There was none.
+
+## 28. Enum-typed inputs: forecast, erp is where the payoff lands (erp-backend, read-only, 2026-08-04)
+
+DESIGN HALF, pending ratification. The rule is Volume 5 section 4.16. No tool code changed; read only.
+
+ERP'S ENUMS ARE BARE. The sampled declarations (`AccountType`, `TicketStatus`, `DeliveryStatus`) carry no
+`@JsonValue` and no `@JsonCreator`, so shape (a) applies and the advertised set is the CONSTANT NAMES. This
+is the clean contrast with pms, whose generated enums are all value-mapped, and having both idioms across
+the two benchmarks is what lets the wire-value rule be tested on real code rather than on fixtures alone.
+
+THE CENSUS. 19 in-tree enum declarations. 14 service methods take an in-tree-resolvable enum parameter, of
+which 10 are READS and 4 are writes (`updateStatus`, `patch`, `setActive`, `deleteByType`), correctly
+excluded from the attestable set. The 10 reads:
+
+`AccountServiceImpl#searchByFields` (AccountType, 2), `ContactServiceImpl#findByAccountType` (AccountType,
+2), `DeliveryServiceImpl#searchByFields` (DeliveryStatus, 6), `EmailTemplateServiceImpl#findActiveByType`
+(EmailTemplateType, 11), `EmailTemplateServiceImpl#findByType` (EmailTemplateType, 11),
+`PaymentServiceImpl#findAll` (PaymentMethod, 1), `QuoteServiceImpl#searchByFields` (QuoteStatus 2 and
+TaxStatus 3, two enum parameters on one read), `TicketServiceImpl#findAll` (TicketPriority 4, TicketStatus 4,
+TicketType 5, three enum parameters on one read), `TransactionServiceImpl#findCompletedByType`
+(TransactionType, 6), `TruckServiceImpl#searchByFields` (TruckStatus, 4).
+
+THE FORECAST. erp ties cleanly through direct Spring Data repositories (section 26), so those 10 reads
+become ATTESTABLE once the enum input is representable. This is the FIRST phase whose payoff is gated on a
+human authoring attestations rather than on a further build, and that gating is the honest statement of it:
+until someone authors entries, the measured result is unchanged. MEASURED this phase and forecast for the
+build: erp has no record file, so ATTESTED stays 0 and discovered stays 25, BYTE-IDENTICAL BY CONSTRUCTION
+(every discovered erp capability has exactly one UUID input). mis-bound 0, mis-constrained 0.
+
+`TicketServiceImpl#findAll` is worth naming as the phase's best single test case: three enum parameters on
+one read, each with its own set, exercising the per-input mapping that a capability-level annotation could
+not have carried.

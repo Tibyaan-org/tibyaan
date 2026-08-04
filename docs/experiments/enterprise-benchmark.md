@@ -401,3 +401,22 @@ old receiver-blind clause would have falsely refused, so this is the benchmark o
 carve-out is too narrow in practice, once AT-2 exists and entries are authored against it.
 
 REDACTION HELD: counts and shape categories only.
+
+## 10. Enum-typed inputs: forecast (counts and shapes only, 2026-08-04)
+
+DESIGN HALF, pending ratification. The rule is Volume 5 section 4.16.
+
+THIS ROW IS AN ARGUMENT, NOT A MEASUREMENT, and is labelled as one for the same reason as section 9: that
+source is not present in the working tree this design session ran in, so no census was run and none is
+claimed.
+
+UNTOUCHED, by construction twice over. This benchmark has no committed record file, so the attestation
+intake never runs on it; and its discovered capabilities are by-id reads whose inputs are identifiers, so no
+input value constraint can attach to any of them. Discovered stays 4, mis-bound 0, mis-constrained 0.
+
+Recorded for later: whether its enums are bare or value-mapped is unknown here and matters, because the two
+idioms advertise different sets. When this benchmark is next available, the wire-value rule (shape (a)
+versus shape (b)) should be checked against its declarations before any entry is authored against a filtered
+read of it.
+
+REDACTION HELD: counts and shape categories only.
