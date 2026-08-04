@@ -1276,3 +1276,66 @@ Nothing of AT-2/3/4 is built. The record file lives at `examples/pms-backend/tib
 authored sentences are DRAFTS: their provenance line names the maintainer as asserter, and that line only
 becomes true once the maintainer has read the ten sentences and confirmed them. AI MAY PROPOSE, ONLY A
 HUMAN MAY CONFIRM.
+
+## 16. Read-safety receiver awareness: forecast (pms-backend, read-only, 2026-08-04)
+
+DESIGN HALF, pending ratification. The rule is Volume 5 section 4.15.2.1. This section records the pms
+forecast and the census it rests on. No tool code changed; the benchmark was read only.
+
+THE CENSUS. Every call across `examples/pms-backend/modules` whose simple name is in the AT-1 write set
+(`save`, `saveAll`, `insert`, `update`, `delete`, `deleteById`, `deleteAll`, `persist`, `merge`, `flush`,
+`remove`, `refresh`, `detach`), classified by receiver:
+
+| Receiver class | Count | Verdict under the refinement |
+|---|---|---|
+| Repository-typed field | 186 | REFUSE (R1), unchanged |
+| Other field (service, client) | 10 | REFUSE (R3), unchanged |
+| Provably local, fresh allowlisted container | 4 | permitted (the carve-out) |
+| Static type reference | 1 | REFUSE (R9), unchanged |
+
+The 10 other-field calls are all controller delegations to genuine service writes
+(`*ControllerImpl#_updateX`, `#_deleteX`); none is inside a read. The static one is
+`FileStorageServiceImpl#deleteFile -> Files.delete`, a real filesystem write, and it stays refused under
+L1 because the receiver is a type reference, not a local.
+
+THE FOUR PROVABLE-LOCAL CALL SITES, verified against source condition by condition:
+
+| Call site | Read | Local | Initializer | L1..L6 |
+|---|---|---|---|---|
+| `costByCategory.merge` | `ReportingServiceImpl#getCostsByCategory` | declared in method | `new LinkedHashMap<>()` | all hold |
+| `collectionByStatus.merge` | `ReportingServiceImpl#getPaymentsCollection` | declared in method | `new LinkedHashMap<>()` | all hold |
+| `costByMonth.merge` | `ReportingServiceImpl#getRevenueVsCost` | declared in method | `new TreeMap<>()` | all hold |
+| `revenueByMonth.merge` | `ReportingServiceImpl#getRevenueVsCost` | declared in method | `new TreeMap<>()` | all hold |
+
+Each receiver is a bare simple name, each local is assigned exactly once by its own declarator, no
+allowlisted container name is shadowed by an in-tree declaration anywhere in pms or erp, and none of the
+four locals is ever passed as an argument to a call on a repository or persistence-infrastructure field
+(checked line by line in `ReportingServiceImpl`: the maps are merged into and then streamed into
+`ChartSeriesPoint` values, and nothing else).
+
+THE FORECAST. Intake outcome on the ten authored entries of section 15, before and after:
+
+| Refusal cause | Today | After the fix |
+|---|---|---|
+| STRUCTURAL_FRAME (enum input) | 3 | 3 |
+| READ_SAFETY | 3 | 0 |
+| CATEGORY_MISMATCH (shape hole) | 4 | 7 |
+| Total refused | 10 | 10 |
+| ATTESTED | 0 | 0 |
+
+Discovered stays 5 and BYTE-IDENTICAL; mis-bound 0; attestation-drift 0; mis-safe 0. Read-safety has one
+call site (attestation intake), so nothing outside the ten entries can move. Any movement in the
+discovered number is a REGRESSION FINDING, not a number to reconcile.
+
+WHY THE COVERAGE GAIN IS ZERO AND THE FIX IS STILL LOAD-BEARING. All three reads move from a false
+refusal to a true one: they are `ChartSeries`-returning aggregates tied through hand-written one-hop
+repositories (`CostRepository`, `RentalPaymentRepository`), so the output entity tie is unprovable and
+they belong to AT-2. The fix buys correctness of the refusal reason now, and it removes a blanket block
+on the in-application aggregation shape that AT-2 is specifically for. Without it, a large part of
+category B would refuse before reaching the gate designed to judge it.
+
+WHAT STAYS REFUSED THAT A HUMAN MIGHT THINK IS SAFE, recorded so the narrowness is not mistaken for a
+bug: an aggregation into a map from a factory call (`Collections.emptyMap()`, `List.of()`), into a
+field-held accumulator, through a chained receiver (`byKey.get(k).remove(x)`), or into a parameter-passed
+collection. All refuse. Per the MIS-SAFE bias, a false refusal is a coverage miss and a false pass is a
+safety breach, and the design prefers the miss.

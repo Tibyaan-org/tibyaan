@@ -926,3 +926,39 @@ and take only mappable parameters. The enum-input subset and pms both wait: pms 
 shape holes), the enum-input subset for the E3-enum-input decision (which attested filters need on any
 app). The first-measurement venue moves from pms to erp; the maintainer decides whether to measure erp
 now or build AT-2 first with the enum-input decision folded in.
+
+## 27. Read-safety receiver awareness: forecast, erp is the negative control (erp-backend, read-only, 2026-08-04)
+
+DESIGN HALF, pending ratification. The rule is Volume 5 section 4.15.2.1. No tool code changed; the
+benchmark was read only.
+
+THE CENSUS. Every call across `examples/erp-backend` whose simple name is in the AT-1 write set,
+classified by receiver:
+
+| Receiver class | Count | Verdict under the refinement |
+|---|---|---|
+| Repository-typed field | 116 | REFUSE (R1), unchanged |
+| Other field (service) | 19 | REFUSE (R3), unchanged |
+| Receiver not a provable local | 12 | REFUSE, unchanged |
+| Provably local, fresh allowlisted container | 0 | n/a |
+
+ZERO provable-local write-set calls exist anywhere in erp. The 19 other-field calls are controller
+delegations to service deletes (`*ControllerImpl#deleteById`); the 12 remaining are the seeding writes in
+`DatabaseInitializer` and `SseServiceImpl#subscribe`'s `emitters.remove`, where `emitters` is a
+FIELD-held map and therefore not a local under L2, exactly the case the design refuses on principle
+because a field outlives the call.
+
+THE FORECAST. erp is INERT, twice over. It has no `tibyan/attestations.json`, so the attestation intake,
+the single call site of the read-safety check, never runs on it; and even if entries were authored, no erp
+read contains a provable-local write-set call for the carve-out to reach. No read changes verdict.
+Discovered stays 25 (by-id 16, list 9) and BYTE-IDENTICAL, mis-bound 0, mis-safe 0.
+
+erp is the negative control for this refinement in the same way it was for E6a: a real application in which
+the new rule is provably inert, so a change to any erp number would be an immediate regression signal
+rather than an ambiguous one. That is its value here, and it is why the erp row is worth recording even
+though it is all zeroes.
+
+A NOTE FOR THE SEQUENCE, not a forecast: erp is the app where AT-1 can already attest (section 26), and its
+filtered reads tie cleanly through direct Spring Data repositories. Its blocker is the E3 enum-input
+decision, not read-safety. So the two pending decisions are independent and do not need to be sequenced
+against each other on erp's account.

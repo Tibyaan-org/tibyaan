@@ -361,3 +361,27 @@ existing discovered row stays byte-identical through every sub-phase, and moveme
 finding. The open verification named in the design applies doubly here: this app's attester is a real
 adopting team, and their real attestation rate, decline rate, and staleness churn are the numbers that
 will decide whether AT-2 and beyond proceed.
+
+## 9. Read-safety receiver awareness: forecast (counts and shapes only, 2026-08-04)
+
+DESIGN HALF, pending ratification. The rule is Volume 5 section 4.15.2.1. No tool code changed.
+
+THIS ROW IS AN ARGUMENT, NOT A MEASUREMENT, and it is labelled as one. The private enterprise benchmark's
+source is not present in the working tree this design session ran in; only this redacted ledger is. No
+census of its write-set call sites was run, and none is claimed. The forecast below rests on the call
+graph, which is checkable in the tool's own source, not on that application's code.
+
+THE FORECAST: BYTE-IDENTICAL BY CONSTRUCTION. The read-safety check has exactly one call site in the tool,
+the attestation intake (Volume 5 section 4.15.4, condition 3, part 2). This benchmark has no
+`tibyan/attestations.json`, so that intake never runs on it, so the refined clause is never reached. No
+read can change verdict. Discovered stays 4, mis-bound 0, mis-safe 0. This is the same additivity argument
+that carried AT-1 on this benchmark (fixture ATT-11), and it holds for the same structural reason.
+
+WHERE THIS BENCHMARK MATTERS LATER, stated by shape only. Its two largest refused populations are the
+aggregate-enrichment reads and the guarded reads. In-application aggregation is the shape the current
+receiver-blind clause falsely refuses, and the guarded reads are category A targets whose bodies branch.
+So this benchmark is expected to be among the heaviest beneficiaries of the refinement once AT-2 exists and
+entries are authored against it, and it is the natural place to measure whether the carve-out is too narrow
+in practice. Until then it is untouched, and no count is forecast for it beyond the unchanged 4.
+
+REDACTION HELD: counts and shape categories only, no names, no paths, no identifiers.
