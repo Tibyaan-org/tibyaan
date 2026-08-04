@@ -214,6 +214,50 @@ The design is frozen in Volume 5, section 4.14 (with Volume 4 section 7.1, Volum
 
 Forecast (now CONFIRMED by the build, section top): pms discovered 2 unchanged, getUnit compiled `["1", "2"]` and getLease `["1"]` through their strict `@Secured` anchors, output additive on exactly those two entries; erp discovered 25 unchanged, zero security in the app, output byte-identical (the negative control); the private enterprise benchmark discovered 4 unchanged, 1 compiled a single-authority contract and 3 ABSENT (docs/experiments/enterprise-benchmark.md sections 7 and 7.4); the inventory benchmark PENDING. The build was recommended and taken (unlike P1b and Discovery-Gap this phase changes real output on two benchmarks and delivers the first real user's actual request), one phase, ratified design committed first (rule 12).
 
+### Read-safety receiver awareness: a correctness refinement found by measurement (DESIGNED 2026-08-04, pending ratification)
+
+The first phase in this project whose evidence is a defect the tool's own first real measurement produced,
+rather than a gap in an application. The first real attestation measurement on pms
+(docs/experiments/second-app-trial.md section 15) refused three of ten authored entries with READ_SAFETY on
+bodies that are genuinely read-only: the write-set clause of the attestation read-safety check tests a
+call's NAME before it looks at the receiver, so `someLocalMap.merge(...)` on a map the method constructed
+itself is refused as "a mutating body is not a read".
+
+Why it is a ratified design and not a rule-13 amendment: the change alters a matching outcome. Bodies that
+refuse read-safety today would pass it. That is not discovery and not attestation, but it is a different
+verdict at a gate, so rule 12 applies and the build is a separate later session.
+
+What the design is, in one line: a mutating-named call is read-safe ONLY IF its receiver is PROVABLY a
+local, freshly constructed, allowlisted JDK container that never escapes to persistence; everything else,
+including everything the tool cannot decide, refuses exactly as today. The rule is Volume 5 section
+4.15.2.1, with six provable-local conditions (L1 to L6), ten located refusal cases (R1 to R10), a closed
+container allowlist, and fixtures RS-1 to RS-8.
+
+The argument that makes it safe rather than a liberty: receiver scoping is already the ratified rule in the
+three OTHER places the tool asks this question (section 4.2 condition 6, section 4.10 condition 7, section
+4.13.3 condition 3), and none of them ever produced this false refusal. But the attestation check must NOT
+simply copy their scoping, because they can afford to scope to repository fields only thanks to a shape
+strictness that attestable bodies abandon by definition; copying it would silently admit
+`someService.save(entity)`. Hence a carve-out on provable locality rather than a widening to
+non-repository receivers.
+
+This phase names its own absolute invariant, MIS-SAFE: a call that writes to application state classified
+as read-safe. `mis-safe 0` joins `mis-bound 0` and `attestation-drift 0`. The governing bias is stated: a
+false refusal is a coverage miss, a false pass is a safety breach, and the design prefers the miss every
+time, so genuinely-safe bodies whose locality cannot be proven stay refused and that is correct.
+
+Forecast, honestly near zero in coverage: three pms reads change read-safety verdict and all three land on
+a DIFFERENT refusal (the AT-2 shape hole), attested stays 0 on every benchmark, erp is a measured negative
+control with zero provable-local write-set calls anywhere in it, and the private enterprise benchmark is
+byte-identical by construction because the check has one call site and that benchmark has no record file.
+Discovered rows stay byte-identical on all three; any movement is a regression finding.
+
+Its place in the sequence, and why it is first of the three pending decisions: it is the only one of them
+that makes the tool stop saying something false, and it is a precondition for AT-2 being measurable at all,
+because category B is the aggregate category and in-application aggregation is written with `merge` and
+`remove` on local collections. So the order is: this refinement, then the E3 enum-input decision, then AT-2
+(SHAPE). The three are independent of each other in mechanism; only this one is a correctness fix.
+
 ## 4. Tier 3: direction only (production readiness and beyond)
 
 This tier is deliberately coarse: one short paragraph per item, no designs, no phase plans, no acceptance criteria. Everything here is conditional on Tier 2 proving the semantic core on real applications, meaning the benchmark discovers a meaningful share of a real app's reads with zero mis-bindings. Writing detailed plans for this tier before that proof would repeat the original roadmap's mistake.
