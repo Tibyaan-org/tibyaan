@@ -202,3 +202,42 @@ Backends generate code from templates (Volume 16). Every backend is covered by g
 1. A backend reads only the IR plus its GenerationContext.
 2. A backend never depends on a provider, never depends on a runtime, and never calls a framework directly.
 3. Generated code invokes logic only through the ExecutionAdapter.
+
+## 3.7 MCP: enum-typed inputs render as an ENFORCED closed set (phase Enum Inputs; designed 2026-08-04, pending ratification)
+
+An input carrying a value constraint (Volume 4, section 3.9) renders in the tool's `inputSchema` as the
+JSON Schema shape the wire already uses for a closed string set:
+
+```json
+"status": { "type": "string", "enum": ["OPEN", "ASSIGNED", "DOING", "DONE"] }
+```
+
+The values are emitted in declaration order, verbatim as the provider read them (Volume 5, section 4.16.4),
+never sorted, filtered, relabelled, or case-normalised. An input with no constraint renders exactly as
+today, so a constraint-free manifest is byte-identical.
+
+THE HONESTY GATE, and it is a gate on the backend, not a note: the `enum` key is emitted ONLY when the
+runtime enforces it. A schema `enum` an agent reads as binding, backed by nothing, is the input-side
+modeled-opaque claim this project permanently rejected, so the backend does not render a set the runtime
+would not check. This is why the phase is sequenced EI-R first (Volume 5, section 4.16.6).
+
+For an ATTESTED capability the two halves appear together and from their own sources: the schema carries the
+tool-proven `enum`, and the input's `description` carries the human's meaning sentence with the class-leading
+`Human-attested, not tool-verified.` prefix the attestation carriage already requires. The value set is never
+part of the attested text and an attestation can never alter it.
+
+## 4.5 OpenAPI: enum-typed inputs render as a parameter enum (phase Enum Inputs; designed 2026-08-04, pending ratification)
+
+The same constraint renders as the parameter's `schema.enum`, in the same order, with the same gate:
+
+```yaml
+- name: status
+  in: query
+  schema:
+    type: string
+    enum: [OPEN, ASSIGNED, DOING, DONE]
+```
+
+No vendor extension is used and none is needed: `enum` is native to the OpenAPI schema object and means
+exactly what this phase means by it. As with MCP, the key is emitted only when the runtime enforces it, and
+a constraint-free document is byte-identical to today.

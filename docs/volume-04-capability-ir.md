@@ -125,6 +125,50 @@ Growth path within the component, stated so the closed set is honest: the `categ
 
 What this growth will never become: no policy or permission model (who MAY invoke stays future, section 7); no workflow, no event; no second epistemic class beyond the three (verified, attested, refused); no attestation on a WRITE or ACTION capability (validation refuses it); and never a substitute for structure: the binding, the types, and the read-safety of the target stay structurally checked, and `Attestation` carries only the semantics structure cannot reach.
 
+
+### 3.9 Input value constraints (phase Enum Inputs; designed 2026-08-04, pending ratification)
+
+An optional component on Capability: a map from INPUT NAME to the closed set of values that input accepts on
+the wire, absent on every capability that has none. It is the fourth deliberate growth (FLOAT,
+`outputMultiple`, `Attestation`, this), and the smallest of them.
+
+| Field | Type | Notes |
+|---|---|---|
+| inputValues | map of string to list of string | Keys are input names; each value is the closed, ordered, non-empty set of accepted wire values, read from a resolved in-tree enum declaration (Volume 5, section 4.16.4) |
+
+Validation rule 10 (section 5): every key names an existing input of the capability; every keyed input is
+STRING-typed; every value list is non-empty and its values distinct. The rule is what makes the phase's
+invariant core-enforced rather than conventional.
+
+Why a first-class component and NOT the Annotation hook, which is where E3 put the enum values for FIELDS.
+The two are different in kind, and the difference is the whole argument. An output annotation is a HINT a
+backend may surface or ignore (section 3.6's stated purpose). An input value set is a CONTRACT: a backend
+renders it into a schema an agent reads as binding, and a runtime enforces it before invoking. A contract
+whose completeness is an invariant needs a type the core can validate, which is section 3.8's argument for
+`Attestation` applied to a smaller object. Keyed into annotations as `enumValues:status`, none of rule 10 is
+checkable without parsing a string convention, and that is where drift breeds.
+
+Why NOT a first-class ENUM primitive, the alternative E3 deferred to exactly this moment. Against the
+growth bar of section 4, it fails test 2: the source declares a Java enum whose WIRE FORM IS A STRING, and
+JSON Schema, OpenAPI, and the MCP tool schema all express a closed set as a string with an `enum`
+constraint, so STRING names the wire truth and ENUM would name the Java construct instead. It also crosses
+the line the collection-output note drew: `Type` is deliberately flat and closed, and an `ENUM(values...)`
+member would be the first type to carry a payload, the wedge that opens type algebra. And it would split the
+model positionally: the same enum is STRING-plus-annotation as an entity field and would become ENUM as a
+parameter, an asymmetry with no truth behind it, forcing either an incoherent model or a reopening of the
+output decision that this phase's trigger explicitly does not reopen.
+
+The growth bar, met on all three tests: (1) COUNTED EVIDENCE, three authored pms entries refused
+STRUCTURAL_FRAME on a domain enum parameter in the first real measurement, and a census of 10 erp read
+methods with in-tree-resolvable enum parameters (Volume 5, section 4.16.9); (2) TRUTHFUL NAMING, the
+component is named for exactly what it carries, the accepted wire values, and it constrains a STRING rather
+than renaming it; (3) NO COERCION, nothing that exists changes meaning, no primitive is added, `Type` is
+untouched, `inputs` keeps its shape, and a constraint-free model serializes byte-identically.
+
+What this growth will never become: a general validation-constraint system (no ranges, lengths, patterns, or
+required-ness), a container type, a per-input annotation bag, or a carrier for anything the tool did not
+read from a resolved declaration. It carries one closed value set per input and nothing more.
+
 ## 4. The primitive type system
 
 The type system is closed. A type is either one of these primitives or a reference to an entity defined in the same model.
@@ -172,6 +216,7 @@ Structural rules, checked in `tibyan-core`:
 7. Binding strings are unique across emitted capabilities: two capabilities carrying the same binding string fail loud with a located message, so an unprovable binding (for example two same-simple-name `@Service` classes both yielding `NoteService#findById`) is refused rather than shipped as a possible runtime mis-bind. This keeps the provable-or-refuse invariant covering the binding, not only entity identity. (Added by phase Entity Identity, Volume 5, section 4.12.4; designed 2026-07-13, pending ratification and build.)
 8. Attestation completeness (phase Attestation, section 3.8; designed 2026-07-20, pending ratification and build): a capability carrying an `Attestation` must carry it complete, and completeness is decidable by `tibyan-core` from the component's own fields (this is why it is first-class, section 3.8): a category token from the closed set, a non-empty `resultSemantic`, a non-empty `assertedBy`, a valid `origin` token (a draft origin fails), a `date`, a `fingerprint`, a `subjectEntity` present in the model when the category is `shape` or `both`, and a `parameterMeanings` map whose keyset EQUALS the capability's input set (every input covered by a sentence, the `paging` mark, or the `id` mark; no key names a non-input). The keyset-equality check is the per-input completeness the growth was purchased for, and it needs only the component and the capability's own inputs, not provider-side knowledge. An incomplete attestation fails loud; a partially carried claim is attestation drift, never shipped. An `Attestation` on a WRITE or ACTION capability fails loud (the policy gate stands).
 9. The attested name prefix is reserved in both directions (phase Attestation, section 3.8; same status): a capability carrying an `Attestation` must be named `attested_<name>`, and a capability without one must not be. A verified capability wearing the attested prefix, or an attested capability hiding without it, fails loud: the epistemic class is readable from the name alone, on every surface, by construction.
+10. INPUT VALUE CONSTRAINTS ARE COMPLETE AND WELL FORMED (phase Enum Inputs, section 3.9). Every key of `inputValues` names an existing input of the capability; every input so keyed is STRING-typed; every value list is non-empty and its values are distinct. A constraint naming an input that does not exist, attached to a non-STRING input, or carrying an empty or duplicated set is refused. This is what makes the phase's invariant (a rendered closed set is an enforced closed set) core-enforced rather than conventional.
 
 A validation failure stops the pipeline before any generation, with a located, human-readable message.
 
@@ -230,7 +275,7 @@ The pms-backend trial (docs/experiments/second-app-trial.md) produced the first 
 
 - Collection outputs. List, filter, and paged reads dominate that app's real read API, and the type system had no collection shape for a capability's output. Resolved as deliberate growth (phase E4, RATIFIED and BUILT 2026-07-02): one boolean, `outputMultiple`, on Capability, with the closed type set unchanged (see the collection-output growth note in section 4). This models the unfiltered list-all read only; filtered, view-returning, and paged-envelope-shaped list reads are deferred by name to a successor phase, on the census evidence in Volume 5, section 4.10 and the experiment logs. The growth bar held in spirit: a boolean marker, not a container type, and no new primitive.
 - Associations. Resolved with no IR growth (E3 decision a, Volume 5, section 4.4): the vocabulary already existed here, `ENTITY_REF` (section 4) and `Relation` (section 3.5), and the E3 design confirmed a pure provider mapping rule suffices. To-many collections stay deferred (zero exist in the benchmark).
-- Enums. Resolved with no IR growth (E3 decision b, Volume 5, section 4.5): STRING plus an `enum` annotation carrying the closed value set, using the Annotation hook exactly as section 3.6 intends. A first-class ENUM primitive remains a deferred candidate, to be reopened only if enums are needed as capability inputs.
+- Enums. Resolved with no IR growth (E3 decision b, Volume 5, section 4.5): STRING plus an `enum` annotation carrying the closed value set, using the Annotation hook exactly as section 3.6 intends. A first-class ENUM primitive remains a deferred candidate, to be reopened only if enums are needed as capability inputs. THAT REOPENING CONDITION FIRED on 2026-08-01: attested PREDICATE filters take enum parameters, and three authored pms entries refused STRUCTURAL_FRAME on one (docs/experiments/second-app-trial.md section 15). It was resolved on 2026-08-04 (designed, pending ratification) NOT by adding the ENUM primitive but by section 3.9's input value constraint, so the closed type set is still unchanged and this output decision still stands. The argument is in section 3.9 and Volume 5, section 4.16.
 - Inexact numerics. Resolved as deliberate growth (E3 decision c, Volume 5, section 4.6): FLOAT enters the closed set, pending ratification, on the census evidence (8 fields, 7 of 24 blocked entities, both joint-exit targets). See the growth note in section 4.
 - Multi-argument reads. The `inputs` map (section 3.4) already holds multiple named inputs, so these likely need a discovery rule, not an IR change; that is decided in phase E4's design step. Still open.
 - Partial-model integrity (the erp-backend trial). When an app extracts only in part, the model must stay closed (every `ENTITY_REF` and `Relation` targets a present entity, validation rules 3 and 4) and must disclose which entity shapes are incomplete. Resolved with no IR growth (Volume 5, sections 4.7 to 4.9): a closure pass drops references to absent entities, and a partial entity carries a `partial` annotation through the existing hook (section 3.6). The growth bar held: no new object, no new type, no new field. The dangling-reference case argued for an unresolved-reference concept and was refused, because the MCP tool does not expose an entity's field schema, so the consumer sees no benefit from representing an unresolved reference rather than dropping it.

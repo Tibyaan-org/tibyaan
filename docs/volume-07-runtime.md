@@ -121,3 +121,36 @@ The manifest is also no longer copied by hand. The `tibyan-maven-plugin` runs th
 9. Security enforcement of the declared authority contract (opened by phase Controller-Authority, Volume 5, section 4.14; Volume 6, sections 3.5 and 4.3; built 2026-07-19). The manifest may carry `requiredAuthorities` (a compiled any-of authority sequence the application declares for a read) or `securityUnverifiable` (a declared contract exists that could not be compiled). The runtime this phase DOES NOTHING with either field: it loads them tolerantly (the additive-field discipline, proven by a loader test) and does not authenticate callers, validate tokens, or check authorities. Enforcement is deliberately the consumer's layer, which is the requesting adopter's own architecture (an orchestration layer that enforces the declared contract before invoking the capability). Two facts are recorded so this boundary is not misread. First, the bypass fact that motivates the whole phase: in the surveyed real apps the declared security sits on the CONTROLLER methods, and the execution adapter invokes the SERVICE bean directly, so the application's own enforcement point is not on the invocation path the tool generates; carrying the declared contract in the manifest is what lets an external layer re-impose it. Second, the inverse case: a host application that declares method security ON ITS SERVICE beans (none of the three benchmarks does) would have Spring's method-security interceptor fire on the adapter's invocation too, and with no `Authentication` in the security context the call would be denied at runtime; if a real adopter hits this, the behavior is the app's own security working as declared, and the resolution (supplying an authenticated context to the adapter) is part of this same named deferral. The optional future enforcement hook, when evidence asks for it, is a runtime plugin that validates a supplied principal's granted authorities against `requiredAuthorities` before invoking, refusing unverifiable capabilities by default; it enters through its own designed phase, never silently.
 
 10. Attested capabilities at the runtime (opened by phase Attestation, Volume 5, section 4.15; designed 2026-07-20, pending ratification). Invocation of an attested capability is IDENTICAL to a verified one, argued rather than assumed: the binding is a structurally resolved `<Bean>#<method>` like any other (attestation fills semantic holes, never structural ones, so there is nothing different to invoke), and a runtime that behaved differently would imply the tool doubts what its labels state exactly. What the runtime adds is one consumer control and one tolerance: the loader tolerates the additive `attested`/`attestation` manifest fields (the standing additive-field discipline, with a loader test at build), and a property, `tibyan.attested.expose` (default `true`), lets a consumer exclude attested capabilities from registration wholesale, for surfaces that must be verified-only. Default true because committing `tibyan/attestations.json` through review IS the adopter's deliberate opt-in; the property serves the consumer who did not make that choice. Two named non-goals this phase: no per-call runtime warning (the labeling is the honesty mechanism, and it is complete), and no principal-passing for the context-dependent reads (the me-scoped `RequestContext` reads stay excluded from attestation entirely until a principal design exists; that future design is invocation architecture and would be its own ratified phase).
+
+## 9. EI-R: runtime argument binding and closed-set enforcement (phase Enum Inputs; designed 2026-08-04, pending ratification)
+
+A LATENT DEFECT, found while designing the enum-input phase and recorded here because it is that phase's
+blocking precondition rather than a detail of it. `SpringExecutionAdapter` resolves the target method with
+`bean.getClass().getMethod(methodName, parameterTypes)`, where each entry of `parameterTypes` comes from
+`IrTypes.toJavaClass(input.type())`. A STRING input yields `String.class`, but the real signature of a
+filtered read takes a domain enum (`CostCategory`), so the lookup throws `NoSuchMethodException` and the
+capability is UNINVOKABLE. TIMESTAMP has the same problem: it yields `Instant.class` against a real
+`LocalDate` parameter.
+
+Why it has never been observed: every capability shipped to date has exactly one identifier-typed input.
+Verified against the current IR of both public benchmarks, every discovered pms input is LONG and every
+discovered erp input is UUID. The defect is real, latent, and NOT enum-specific.
+
+EI-R, the fix, ratified as a build step that PRECEDES the enum-input build:
+
+1. Resolve the target method by NAME AND ARITY rather than by reconstructed parameter types. When more than
+   one same-arity overload matches, REFUSE LOUDLY with a located error naming the candidates. The tool never
+   guesses which overload a capability binds to.
+2. Convert each incoming argument to that method's DECLARED parameter type, read by reflection: the existing
+   primitive coercions, the `java.time` types, and enums.
+3. For an enum-typed parameter, match the incoming value by the SAME rule the provider used to advertise the
+   set (Volume 5, section 4.16.4): the constant name for a bare enum, the `@JsonValue` literal for a
+   value-mapped enum. The two must agree by construction, because a set advertised by one rule and matched by
+   another is the MIS-CONSTRAINED failure.
+4. VALIDATE an incoming value against the carried set BEFORE invoking, refusing with a located error that
+   names the legal values. This is the enforcement the schema `enum` promises, and it is the reason the
+   backends may render it at all.
+
+Invariant for the EI-R build: every existing capability invokes identically, proven by the unchanged
+end-to-end test and the unchanged example-app goldens. If EI-R proves larger than one session, the honest
+outcome is that enum inputs do not ship, not that they ship unenforced.

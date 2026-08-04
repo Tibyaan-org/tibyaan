@@ -1147,7 +1147,7 @@ THE READ-SAFETY CHECK, and its honest limit stated precisely, because the mutati
 - IN THE FINGERPRINTED SLICE (the target body and every in-tree declaration the category's checks read, section 4.15.4), the tool refuses the attestation if it sees: any write-set call (condition 6); any call to a method on a field typed `EntityManager`, `EntityManagerFactory`, `JdbcTemplate`, `NamedParameterJdbcTemplate`, `SqlSession`, or a `javax`/`jakarta.persistence` mutating type; any setter call (`set*`) on a value that originates from a persistence access (a loaded entity); any repository method annotated `@Modifying` in its in-tree declaration; or any `@Query` whose text (the P1b JPQL token read, section 4.2.10) begins with `UPDATE` or `DELETE` or is `nativeQuery` with a non-`SELECT` verb. A body that survives all of these is READ-SAFE AS FAR AS THE SLICE SHOWS.
 - THE LIMIT, stated everywhere the safety property is claimed (this section, 4.15.7, SECURITY.md), never hidden: the check proves "no mutation is visible in the fingerprinted slice," NOT "the read performs no write anywhere." A hand-written repository or query-builder implementation two hops below the slice is NOT read (the verified rules read it; attestable reads by definition do not, because that implementation IS the filter the assertion covers), so a write hidden there is undetected. This is the exact reason CATEGORY C (remote delegations, where the read-only body is entirely unseen) is deferred with its own mandatory read-only affirmation, and the reason category B is restricted to a LOCAL persistence tie below: the further the real work sits from what the tool read, the weaker the structural half of the safety property, until at the delegation boundary it is zero and only a human's explicit affirmation can carry it.
 
-#### 4.15.2.1 Receiver awareness in the write-set clause (designed 2026-08-04, DESIGN HALF, pending ratification)
+#### 4.15.2.1 Receiver awareness in the write-set clause (designed, RATIFIED, and BUILT 2026-08-04)
 
 THE DEFECT, precisely. The write-set clause above is the only clause of the read-safety check that judges a call by its NAME alone. It tests membership of the call's simple name in the write set and refuses, before it has looked at the receiver at all. So `costByCategory.merge(category, amount, Double::sum)`, on a `LinkedHashMap` the method itself constructed three lines earlier, is refused with "a mutating body is not a read". That sentence is false about that body: the read loads once and aggregates into a local map. The first real measurement on pms (docs/experiments/second-app-trial.md section 15) hit this on three of ten authored entries, all three genuinely read-only.
 
@@ -1404,6 +1404,296 @@ Stated as "attestable up to N given a knowledgeable human," never as a promise: 
 - EVERY existing discovered row stays byte-identical on every benchmark: Attestation adds a separately counted category and must not move a single verified number; any movement is a regression finding that stops the build.
 
 THE OPEN VERIFICATION, named: no real attesting human has run this flow, so the design's central quantity, the real attestation rate (attested versus declined versus refused-at-intake), is unmeasurable until first real use. The first-use measurement is designed now: the first adopter session records, per entry, time to attest, assist used or not, intake refusals hit, and declines with reasons; and the first month records staleness churn (invalidations per code change). Those numbers, not internal predictions, decide whether AT-2 through AT-4 proceed, exactly as benchmark evidence has decided every phase before.
+
+
+### 4.16 Enum-typed capability INPUTS (the E3 reopening; designed 2026-08-04, DESIGN HALF, pending ratification)
+
+#### 4.16.1 The trigger, recorded
+
+E3 ratified enums as STRING plus a values annotation for entity fields and recorded one reopening
+condition verbatim: a first-class ENUM primitive "stays a deferred growth candidate under Volume 4,
+section 7, to be reopened if enums are ever needed as capability inputs (where a schema-level value
+constraint would earn its cost)". That condition has FIRED, and it fired from a direction E3 could not see:
+attested PREDICATE filters take parameters, and real filters take domain enums. The measurements are
+recorded, not asserted:
+
+- pms, first real measurement (docs/experiments/second-app-trial.md section 15): three of ten authored
+  entries refused STRUCTURAL_FRAME on a domain enum parameter (`CostCategory`, `InvoiceStatus`,
+  `TimeEntryStatus`), each otherwise well formed. That is 30 percent of an authored set.
+- erp, the tie check (docs/experiments/third-app-trial.md section 26): erp's filtered reads tie cleanly and
+  DO attest under AT-1 as built, with the enum-parameter subset named as the one blocked remainder.
+
+THE OUTPUT DECISION IS NOT REOPENED. E3's STRING-plus-values-annotation stands for entity fields. This
+section decides the INPUT side only, and it is designed to keep the two consistent rather than to split
+them.
+
+#### 4.16.2 The core question, argued before a representation is chosen
+
+An agent supplying an enum value needs the CLOSED SET, and it needs it to be binding. A described-but-
+unenforced set is the input-side analog of the MODELED-OPAQUE trap this project permanently rejected: the
+tool would render a constraint into a schema, the agent would reasonably treat it as the contract, and
+nothing would hold the agent or the application to it. So the decision is not "how do we describe the
+values" but "what is the smallest representation that makes the closed set ENFORCEABLE".
+
+OPTION A, STRING plus a first-class enumerated-values constraint that the backends render as a schema-level
+closed set and the runtime validates at invocation.
+
+OPTION B, a first-class ENUM member of the closed type set, the value set carried in the type.
+
+THE DECISION IS OPTION A, in a specific form argued in 4.16.3: a first-class, per-input, optional
+constraint component on Capability, NOT an Annotation-hook entry and NOT a new Type.
+
+Is "STRING with an enforced values constraint" itself a small dishonesty? No, and the reason is the same
+reason E3 gave for outputs. The wire form of an enum-valued input genuinely IS a string: JSON has no enum
+type, and JSON Schema, OpenAPI, and the MCP tool schema all express a closed set as
+`{"type": "string", "enum": [...]}`. STRING names the wire truth and the constraint REFINES it. Calling it
+STRING would only be a dishonesty if the constraint were decorative, which is exactly what 4.16.6 forbids.
+
+Three further arguments decide it, in order of weight.
+
+1. POSITIONAL CONSISTENCY. The same Java enum appears as an entity field (an output) and as a filter
+   parameter (an input). Under Option B, `InvoiceStatus` would be STRING-plus-annotation in one position and
+   ENUM in the other, an asymmetry with no truth behind it: it is one type with one wire form. Option B
+   therefore forces a choice between an incoherent model and reopening the output decision, and the trigger
+   explicitly does not reopen outputs.
+2. THE GROWTH BAR (Volume 4, section 4). Option B fails test 2. A new primitive must "tell the truth about
+   the source, naming what the source actually declares rather than papering over it with a near-neighbor".
+   The source declares a Java enum whose wire form is a string; ENUM would name the Java construct, not the
+   wire. Option B also crosses the line the E4 collection-output note drew: `Type` is deliberately flat and
+   closed, and an `ENUM(values...)` member would be the FIRST type carrying a payload, which is precisely
+   the wedge that opens type algebra. The note's own words apply unchanged: a payload-carrying `Type` would
+   open all of that the moment it existed.
+3. WHAT B BUYS THAT A DOES NOT: nothing that survives inspection. Every consumer of the constraint (the MCP
+   schema, the OpenAPI parameter, the runtime validator) needs the value LIST and the fact that the wire
+   form is a string. A carries both. B carries the same two facts inside a heavier vehicle and forces every
+   validator, every backend's type rendering, the JSON round-trip, and every future provider to learn a new
+   type shape.
+
+Why NOT the Annotation hook, which is where E3 put the output values. Volume 4, section 3.8's own argument
+against flattening `Attestation` into annotations applies here verbatim and decisively: a constraint keyed
+by a mangled string (`enumValues:status`) is not checkable by `tibyan-core`, because the validator cannot
+confirm that the key names a real input, that the input is STRING-typed, or that the value list is
+non-empty and distinct, "which is exactly where drift breeds". This phase's invariant (a rendered set is an
+enforced set) is a completeness invariant, and a validator that cannot see the structure cannot enforce it.
+So the carrier is first-class, but it is a COMPONENT, not a Type. The output side keeps its annotation
+because its invariant is weaker: an output annotation is a hint a backend may ignore, while an input
+constraint is a contract a backend renders and a runtime enforces.
+
+#### 4.16.3 The IR shape (the full argument is Volume 4, section 3.9)
+
+One optional component on Capability: a map from input name to a value set, absent on every capability that
+has none, so an enum-free model serializes byte-identically. Core gains validation rule 10: every key names
+an existing input, every keyed input is STRING-typed, and every value set is non-empty with distinct values.
+No primitive is added, `Type` is untouched, and `inputs` keeps its `Map<String, Type>` shape.
+
+#### 4.16.4 STRUCTURAL PROVABILITY: when the closed set may be carried
+
+The never-guess bar applied to a value set. The tool carries a set it READ from a resolved declaration, or
+it carries none. It never infers values from a parameter's name, from usage, from call sites, or from a
+naming pattern.
+
+A parameter P of a capability carries a value set when ALL of these hold.
+
+- EI-1, IN-TREE RESOLUTION. P's declared type resolves, by the section 4.12.4 key resolver, to exactly one
+  in-tree declaration, and that declaration is a Java `enum`. This is the same in-tree resolution E3 already
+  performs for enum FIELDS; nothing new is invented.
+- EI-2, READABLE CONSTANTS. The enum's constants are read directly from that declaration, in declaration
+  order. A constant with a body or constructor arguments contributes its name; the set is deterministic.
+- EI-3, THE WIRE-VALUE RULE, and it is the one this design would be wrong without. The set carried is the
+  set of values the APPLICATION ACCEPTS ON THE WIRE, which is not always the constant names.
+  - Shape (a), BARE ENUM: the declaration carries no `@JsonValue` anywhere. The wire form is the constant
+    name (Jackson's default), and the carried set is the constant names.
+  - Shape (b), VALUE-MAPPED ENUM: exactly one member is annotated `@JsonValue`, it is a no-argument accessor
+    whose body is a single `return <field>;`, that field is assigned in the enum's single constructor from
+    exactly one parameter, and EVERY constant passes exactly one string literal in that position. The
+    carried set is those literals, in declaration order.
+  - Shape (c), ANYTHING ELSE: REFUSE to constrain. A `@JsonValue` on a method with logic, a `@JsonValue` on
+    a non-String member, more than one `@JsonValue`, a constant that passes a non-literal or the wrong
+    arity, or a value the tool cannot read as a single literal. The tool does not interpret; it reads or it
+    declines.
+- EI-4, THE SUBSET INVARIANT. The carried set must be a SUBSET of what the application accepts. This is what
+  makes shape (b) safe in the presence of a `@JsonCreator`: a creator may accept MORE than the tool
+  advertises (aliases, case-insensitivity), and advertising a subset is harmless because an agent
+  constrained to the advertised set only ever sends accepted values. The tool therefore never interprets a
+  `@JsonCreator`; it relies on `@JsonValue` for what it advertises. Advertising a SUPERSET is the failure
+  this design forbids absolutely (section 4.16.7).
+
+THE CONSTRUCTOR-LITERAL TRAP, named because the benchmarks contain it and a naive rule walks straight into
+it. pms's hand-written `LeaseStatus` declares `DRAFT("Draft"), ACTIVE("Active"), ...` with a Lombok
+`@Getter` and NO `@JsonValue`. Those literals are decorative labels; Jackson serializes the constant name
+`DRAFT`. A rule that read constructor literals whenever it saw them would carry `["Draft", "Active", ...]`,
+every value of which the application would reject. Shape (b) is therefore conditioned on `@JsonValue`
+proving that the field IS the wire form, never on the mere presence of a constructor literal.
+
+WHAT REFUSAL MEANS HERE, decided rather than left open. When EI-1 to EI-3 do not hold, the parameter type
+does not map at all and the CAPABILITY IS REFUSED, exactly as today, with the existing STRUCTURAL_FRAME
+cause and an enriched message naming which condition failed. It does NOT fall back to an unconstrained
+STRING input. The reasoning is the never-claim constraint read in the input direction: an unconstrained
+STRING input on a parameter the application will only accept a closed set for is a schema that invites an
+agent to send a value the call will reject, which is a worse outcome than a named refusal. This is the same
+choice E3 made for fields (an unresolvable enum field refuses rather than degrading to a bare STRING) and
+it keeps the two sides consistent.
+
+Two cases refuse for reasons worth naming separately because they look like successes.
+
+- THE STRING-PARSED-INTERNALLY CASE. A parameter declared `String` that the body parses into an enum
+  (`CostCategory.fromValue(raw)`, `Status.valueOf(raw)`). The closed set is NOT in the signature, and the
+  tool would have to read the body to find it. It carries NO constraint: the parameter stays an
+  unconstrained STRING and the capability is not refused on this account, because the declared contract
+  genuinely is a string. The refusal ledger records it as a named deferral, `enum-parsed-in-body`, so the
+  case is visible rather than silently unconstrained. This is the one place where an unconstrained STRING is
+  correct, because the signature is telling the truth.
+- THE NOT-IN-TREE CASE. A parameter typed by an enum from a binary dependency. EI-1 fails, the tool cannot
+  read the constants, and the capability REFUSES.
+
+#### 4.16.5 The attestation split: the human attests MEANING, the tool proves VALUES
+
+This is the elegant case of the whole Attestation phase, and it is worth stating as a principle rather than
+a mechanism. For an attested PREDICATE filter whose parameter is a provable enum, the two sources of truth
+divide cleanly along their competence:
+
+- THE TOOL proves the closed VALUE SET, structurally, from the enum declaration. It never asserts what the
+  values mean.
+- THE HUMAN attests the parameter's MEANING, the sentence the coverage rule already requires. They never
+  supply the value set, and an attestation cannot widen, narrow, reorder, or override it.
+
+Neither can substitute for the other, which is why the split is the right shape: a value set is exactly the
+kind of fact structure can prove and a human should not be trusted to retype, and a filter's meaning is
+exactly the kind of fact structure cannot reach. It is the boundary of section 4.15.2 (an assertion fills
+ONLY a semantic hole) applied to a parameter instead of a read.
+
+The two mixed cases are decided explicitly.
+
+- ENUM PROVABLE, SEMANTICS NOT ATTESTED: the read STAYS REFUSED. Making an enum input representable removes
+  a type-mapping refusal; it grants no capability and bypasses nothing. A filtered read with no attestation
+  is refused by the structural rules exactly as before, and the value set is simply never reached.
+- SEMANTICS ATTESTED, ENUM NOT IN-TREE-PROVABLE: the capability REFUSES per 4.16.4, and the intake refusal
+  names the enum condition that failed. An attestation cannot supply the value set, because the value set is
+  a structural fact and 4.15.2's boundary forbids an assertion from filling a structural hole. A human who
+  wants that read must make the enum resolvable, not assert its values.
+
+Coverage is unaffected: an enum parameter is a DOMAIN parameter, so it still requires a meaning sentence.
+It may never carry the `paging` mark and never carries the `id` mark.
+
+#### 4.16.6 ENFORCEMENT, and the honest split of what this design delivers
+
+THE HONESTY INVARIANT: ANY SURFACE THAT SHOWS THE CLOSED SET MUST MEAN IT IS ENFORCED, NEVER MERELY
+SUGGESTED. A schema `enum` is a DECLARATION, not enforcement: a well-behaved MCP client will respect it, and
+a buggy or hostile one will send anything. Enforcement happens where the call is made, in the runtime.
+
+A LATENT RUNTIME DEFECT FOUND WHILE DESIGNING THIS, recorded because it is a precondition and not a detail.
+`SpringExecutionAdapter` resolves the target method with
+`bean.getClass().getMethod(methodName, parameterTypes)` where each entry of `parameterTypes` comes from
+`IrTypes.toJavaClass(input.type())`. For a STRING input that yields `String.class`. The real signature takes
+`CostCategory`. The lookup throws `NoSuchMethodException` and the capability is UNINVOKABLE. The same is
+true of TIMESTAMP, which yields `Instant.class` against a real `LocalDate` parameter. This has never been
+observed because every capability shipped to date has exactly one id-typed input (verified: all discovered
+pms inputs are LONG, all discovered erp inputs are UUID), so the defect is latent and is not enum-specific.
+
+It is nonetheless BLOCKING for this phase: shipping a schema that advertises a closed set for a tool that
+throws on first invocation would be a larger dishonesty than the one this phase set out to fix.
+
+THE PHASE IS THEREFORE SPLIT BY NAME INTO TWO BUILD STEPS, in this order, one per session per the standing
+rule.
+
+- EI-R, RUNTIME ARGUMENT BINDING (built FIRST). The adapter resolves the target method by name and ARITY,
+  refusing loudly when more than one same-arity overload matches (never guessing which), then converts each
+  incoming argument to that method's DECLARED parameter type by reflection, including enums (matched by the
+  same rule the provider used: constant name for shape (a), `@JsonValue` literal for shape (b)) and the
+  `java.time` types. It also validates an incoming value against the carried set BEFORE invoking, refusing
+  with a located error naming the legal values. Requires no IR growth. Its own invariant: every existing
+  capability keeps invoking identically, proven by the unchanged end-to-end test.
+- EI-1, THE ENUM INPUT CONSTRAINT (built SECOND). Core component and rule 10, the provider rule of 4.16.4,
+  and the backend surfaces of Volume 6.
+
+RATIFIED SEQUENCING RULE: the backends do not render a closed set until EI-R is green. Until then the
+constraint may exist in the IR but no surface may show it, because a shown set that is not enforced is
+precisely the input-side modeled-opaque claim. If EI-R proves larger than one session, the honest outcome is
+that enum inputs do not ship, not that they ship unenforced.
+
+#### 4.16.7 The mis-analog: MIS-CONSTRAINED
+
+This phase's version of mis-bound. A capability is MIS-CONSTRAINED when it advertises a value the
+application would reject, or advertises a set the tool did not read from a resolved enum declaration, or
+shows a closed set on a surface that does not enforce it. `mis-constrained 0` is absolute and is reported
+alongside `mis-bound 0`, `attestation-drift 0`, and `mis-safe 0`.
+
+The bias, stated as the other phases state theirs: advertising a SUBSET of the accepted values is safe and
+acceptable, advertising a SUPERSET is a breach. Every condition of 4.16.4 is written so that an unreadable
+or ambiguous declaration produces no set at all rather than a guessed one, and so a false refusal is a
+coverage miss while a false constraint is a breach. The design prefers the miss.
+
+What this rule will never do: infer a value set from a parameter name, a naming pattern, or call-site
+literals; read a value set from a `@JsonCreator`'s body; carry constructor literals as wire values without a
+`@JsonValue` proving they are the wire form; widen or reorder a set; let an attestation supply, extend, or
+override a set; or render a set on any surface that does not enforce it.
+
+#### 4.16.8 Pre-registered fixtures (EI-1 to EI-9)
+
+- EI-1, the provable bare enum: an in-tree `enum` with no `@JsonValue` used as a filter parameter carries
+  its CONSTANT NAMES, in declaration order, and renders as an enforced closed set on the MCP schema and the
+  OpenAPI parameter.
+- EI-2, the value-mapped enum: a generated-style enum with `@JsonValue` on a single-return accessor carries
+  the LITERALS (`maintenance`, not `MAINTENANCE`), proving the wire-value rule.
+- EI-3, THE CONSTRUCTOR-LITERAL TRAP, the most important negative: an enum with constructor literals and NO
+  `@JsonValue` (the pms `LeaseStatus` shape) carries the CONSTANT NAMES, never the labels.
+- EI-4, the attestation split: an attested PREDICATE filter whose enum parameter carries the tool-proven set
+  and the human-attested meaning sentence, both present, on every surface, with the attestation unable to
+  alter the set.
+- EI-5, the not-in-tree enum: a parameter typed by an unresolvable enum REFUSES with STRUCTURAL_FRAME naming
+  condition EI-1, and no set is carried.
+- EI-6, the string-parsed-internally case: a `String` parameter the body parses into an enum carries NO
+  constraint, is NOT refused on that account, and appears in the ledger as `enum-parsed-in-body`.
+- EI-7, shape (c) refusals: `@JsonValue` on a method with logic, two `@JsonValue` members, and a constant
+  passing a non-literal each refuse to constrain and therefore refuse the capability.
+- EI-8, semantics-not-attested: a filtered read with a provable enum parameter and no attestation stays
+  REFUSED; the enum rule bypasses nothing.
+- EI-9, THE MIS-CONSTRAINED GUARD: a body of cases proving the tool never advertises a value it did not
+  read (name-similar enums, a same-named enum in another bounded context resolved by key, an enum whose
+  constants are added in a different file) and never renders a set on an unenforced surface.
+
+#### 4.16.9 Forecast, all three benchmarks and the standing worklists
+
+DISCOVERED IS BYTE-IDENTICAL BY CONSTRUCTION, not merely by measurement, and the reason is checkable: a
+discovered by-id read takes exactly one identifier parameter and a discovered list-all read takes none, so
+no discovered capability can have an enum input. Verified against the current IR of both benchmarks: every
+discovered pms input is LONG and every discovered erp input is UUID.
+
+- pms-backend. THREE authored entries unblock: `CostServiceImpl#getCostsByBuilding` (`CostCategory`, 8
+  constants, shape (b), literals `maintenance` to `other`), `InvoiceServiceImpl#getBuildingInvoices`
+  (`InvoiceStatus`, 3 constants, shape (b)), `TimeEntryServiceImpl#getBuildingTimeEntries`
+  (`TimeEntryStatus`, 3 constants, shape (b)). ALL THREE THEN REFUSE AT THEIR NEXT GATE, the output entity
+  tie, because pms ties through hand-written one-hop repositories, so each moves STRUCTURAL_FRAME to
+  CATEGORY_MISMATCH (AT-2). Intake outcome: refused 10 unchanged, redistributing to shape hole 10, enum
+  input 0, read safety 0; ATTESTED 0 UNCHANGED. Discovered 5, byte-identical. The true near-term coverage
+  gain on pms is ZERO, exactly as with the read-safety phase, and for the same structural reason: pms is
+  blocked on AT-2, not on this.
+- erp-backend. THE REAL PAYOFF, and it is still not measurable this phase. erp's enums are BARE (no
+  `@JsonValue` anywhere in the sampled declarations), so shape (a) applies and the carried set is the
+  constant names. A census of erp service methods with an in-tree-resolvable enum parameter found 14, of
+  which 10 are READS (`AccountServiceImpl#searchByFields`, `ContactServiceImpl#findByAccountType`,
+  `DeliveryServiceImpl#searchByFields`, `EmailTemplateServiceImpl#findActiveByType`,
+  `EmailTemplateServiceImpl#findByType`, `PaymentServiceImpl#findAll`, `QuoteServiceImpl#searchByFields`,
+  `TicketServiceImpl#findAll`, `TransactionServiceImpl#findCompletedByType`,
+  `TruckServiceImpl#searchByFields`) and 4 are writes, correctly excluded. Because erp ties cleanly through
+  direct Spring Data repositories, those 10 become ATTESTABLE once a human authors entries for them: this is
+  the first phase whose payoff is gated on an attester rather than on a further build. MEASURED this phase:
+  erp has no record file, so attested stays 0 and discovered stays 25, byte-identical.
+- The private enterprise benchmark. Untouched, and this row is an ARGUMENT rather than a measurement because
+  that source is not present in the working tree. It has no record file, and its discovered capabilities are
+  by-id reads with identifier inputs, so no constraint can attach. Discovered stays 4. Counts and shapes
+  only; redaction absolute.
+
+Across all three: discovered byte-identical, generated output byte-identical, `mis-bound 0` and
+`mis-constrained 0` absolute. Any movement in a discovered number is a REGRESSION FINDING.
+
+A FINDING RECORDED, NOT ACTED ON, because the trigger explicitly does not reopen outputs. The wire-value
+rule of EI-3 implies that E3's OUTPUT annotation may be inaccurate on the value-mapped idiom: an entity
+field typed by a `@JsonValue` enum currently carries the CONSTANT NAMES in its `enum` annotation, while the
+wire carries the literals. On pms's generated enums those differ (`MAINTENANCE` versus `maintenance`). This
+is recorded here as evidence for a future decision and is deliberately NOT changed by this phase; the output
+annotation is a hint a backend may ignore, not a contract a runtime enforces, so the stake is lower, but the
+inconsistency is real and should be resolved when outputs are next opened.
 
 ## 5. Future providers
 
