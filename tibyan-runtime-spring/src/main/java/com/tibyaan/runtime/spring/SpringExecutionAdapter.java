@@ -7,9 +7,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.stream.Collectors.joining;
 
 /**
  * The Spring {@link ExecutionAdapter} (Volume 7). It is the only place that maps a capability's
@@ -57,15 +60,19 @@ public final class SpringExecutionAdapter implements ExecutionAdapter {
 
         Object bean = resolveBean(beanHint);
         List<InputDescriptor> inputs = descriptor.inputs();
-        Class<?>[] parameterTypes = new Class<?>[inputs.size()];
+
+        // EI-R: resolve the method by name and ARITY, then convert each argument into that method's
+        // DECLARED parameter type. Reconstructing the parameter types from the IR was the latent defect
+        // (Volume 7 section 9): a STRING input yielded String.class against a real enum or LocalDate
+        // parameter, so the lookup threw and the capability was uninvokable.
+        Method method = findMethod(bean, methodName, inputs.size(), binding);
+        Class<?>[] declaredTypes = method.getParameterTypes();
         Object[] callArgs = new Object[inputs.size()];
         for (int i = 0; i < inputs.size(); i++) {
             InputDescriptor input = inputs.get(i);
-            parameterTypes[i] = IrTypes.toJavaClass(input.type());
-            callArgs[i] = IrTypes.coerce(safeArgs.get(input.name()), parameterTypes[i]);
+            callArgs[i] = IrTypes.coerce(safeArgs.get(input.name()), declaredTypes[i], input.name());
         }
 
-        Method method = findMethod(bean, methodName, parameterTypes);
         try {
             log.debug("Tibyaan: invoking {} for capability {}", binding, capability.name());
             return method.invoke(bean, callArgs);
@@ -89,12 +96,34 @@ public final class SpringExecutionAdapter implements ExecutionAdapter {
         throw new IllegalStateException("no bean found for binding hint '" + beanHint + "'");
     }
 
-    private static Method findMethod(Object bean, String methodName, Class<?>[] parameterTypes) {
-        try {
-            return bean.getClass().getMethod(methodName, parameterTypes);
-        } catch (NoSuchMethodException e) {
-            throw new IllegalStateException("no method '" + methodName + "' on "
-                    + bean.getClass().getName(), e);
+    /**
+     * Resolves the bound method by NAME and ARITY (Volume 7 section 9 item 1). Bridge and synthetic
+     * methods are skipped, because a generic interface implementation declares both the real method and an
+     * erased bridge of the same name and arity, and the bridge is not a distinct overload.
+     *
+     * <p>When more than one genuine overload matches, the adapter REFUSES LOUDLY and names the candidates.
+     * It never guesses which overload a capability binds to: an invocation against the wrong overload is a
+     * mis-bind at the moment of action, which is exactly what this project never does.
+     */
+    private static Method findMethod(Object bean, String methodName, int arity, String binding) {
+        List<Method> candidates = new ArrayList<>();
+        for (Method method : bean.getClass().getMethods()) {
+            if (method.getName().equals(methodName) && method.getParameterCount() == arity
+                    && !method.isBridge() && !method.isSynthetic()) {
+                candidates.add(method);
+            }
         }
+        if (candidates.isEmpty()) {
+            throw new IllegalStateException("no method '" + methodName + "' taking " + arity
+                    + " argument(s) on " + bean.getClass().getName() + " for binding '" + binding + "'");
+        }
+        if (candidates.size() > 1) {
+            throw new IllegalStateException("binding '" + binding + "' is ambiguous: "
+                    + candidates.size() + " overloads of '" + methodName + "' take " + arity
+                    + " argument(s) on " + bean.getClass().getName() + " ("
+                    + candidates.stream().map(Method::toGenericString).sorted().collect(joining("; "))
+                    + "); the adapter never guesses which one a capability binds to");
+        }
+        return candidates.get(0);
     }
 }
