@@ -258,7 +258,7 @@ because category B is the aggregate category and in-application aggregation is w
 `remove` on local collections. So the order is: this refinement, then the E3 enum-input decision, then AT-2
 (SHAPE). The three are independent of each other in mechanism; only this one is a correctness fix.
 
-### Enum-typed capability inputs: the E3 reopening, second of the three measured blockers (DESIGNED 2026-08-04, pending ratification)
+### Enum-typed capability inputs: the E3 reopening, second of the three measured blockers (DESIGNED 2026-08-04, RATIFIED; step EI-R BUILT 2026-08-05, step EI-1 pending)
 
 E3's ratified reopening condition ("revisit only if enums become capability inputs") has FIRED, from a
 direction E3 could not see: attested PREDICATE filters take parameters, and real filters take domain enums.
@@ -359,6 +359,25 @@ unreachable through the attestation intake, because a collection-typed parameter
 clearest example. Those cases are therefore proven by direct fixtures against the check rather than end to
 end, and RS-1, RS-2 and RS-3 carry the end-to-end proof. The ratified rule is unchanged; only the fixture
 construction adapts to where the check is reachable.
+
+
+EI-R BUILT (2026-08-05), the ratified FIRST of the phase's two build steps. Runtime only: core, provider and
+both backends untouched, so generated output could not move and did not. The adapter now resolves its target
+method by name and ARITY (skipping bridge and synthetic methods, refusing loudly on two genuine same-arity
+overloads rather than guessing) and converts each argument into that method's DECLARED parameter type,
+including the java.time types and enums. A new `EnumWireValues` implements the same wire-value rule the
+provider will use to advertise, so advertised and accepted agree BY CONSTRUCTION; an illegal value is refused
+before invoking with the legal values named, which is the enforcement a schema closed set promises. Jackson
+is matched by annotation type NAME and does not become a runtime dependency. Measured: all 27 runtime tests
+green including the three pre-existing adapter cases that guard the ratified invariant that every existing
+capability invokes identically; both benchmarks BYTE-IDENTICAL on IR, MCP and OpenAPI; pms refusal causes
+UNCHANGED at STRUCTURAL_FRAME 3 and CATEGORY_MISMATCH 7, which is correct for a runtime-only step. Fixtures
+EI-R1 to EI-R11, including a character-exact replica of the real pms `CostCategory` proving all eight wire
+literals and the refusal of the constant name.
+
+STEP EI-1 IS NEXT and is what moves the refusal ledger: the core component and rule 10, the provider's
+structural-provability rule, and the backend surfaces. The ratified sequencing rule is now satisfied in the
+direction it was written, since EI-R is green, so EI-1 may render the closed set when it lands.
 
 ### 4.1 Release engineering (v1): the active phase (decisions recorded 2026-07-02)
 

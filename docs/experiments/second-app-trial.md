@@ -1430,3 +1430,27 @@ hand-written one-hop repositories. The near-term coverage gain on pms is ZERO, f
 reason as the read-safety phase: pms is blocked on AT-2, not on this. Discovered stays 5 and BYTE-IDENTICAL
 BY CONSTRUCTION, because every discovered pms capability has exactly one LONG input and no discovered read
 can carry an enum parameter. mis-bound 0, mis-constrained 0.
+
+## 17.1 EI-R built: the runtime can now bind an enum or date parameter (pms-backend, 2026-08-05)
+
+The ratified EI-R (Volume 7 section 9) built, runtime only. pms is UNCHANGED and that is the correct
+outcome, stated so it is not mistaken for a null result: EI-R touches neither the provider nor the backends,
+so no refusal cause can move and none did.
+
+Measured: discovered 5, attested 0, refusals 10 with causes UNCHANGED at STRUCTURAL_FRAME 3 and
+CATEGORY_MISMATCH 7. The serialized IR, the generated MCP output and the generated OpenAPI document are
+BYTE-IDENTICAL to the pre-build commit, verified by `diff`. mis-bound 0, attestation-drift 0.
+
+THE FORECAST IN SECTION 17 IS NOT YET DUE. It predicted the three STRUCTURAL_FRAME entries moving to
+CATEGORY_MISMATCH; that movement belongs to EI-1, the provider half, which is the next build. What EI-R
+delivers for pms is that those three reads, once EI-1 lets them through, will be INVOKABLE: before this
+step the adapter would have looked for `getCostsByBuilding(String, String, Instant, Instant, Integer,
+Integer)` and thrown, because it reconstructed parameter types from the IR instead of reading the declared
+ones.
+
+The wire-value rule is verified against this benchmark's real declaration. A character-exact replica of
+`com/pms/billing/model/generated/CostCategory.java` proves the runtime accepts all eight literals in
+declaration order (`maintenance`, `utilities`, `insurance`, `taxes`, `supplies`, `renovation`, `security`,
+`other`) and REFUSES the constant name `RENOVATION`, which the application would also reject. Accepting the
+constant name would mean accepting a value outside the set the provider will advertise, which is the
+MIS-CONSTRAINED failure.

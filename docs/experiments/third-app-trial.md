@@ -1008,3 +1008,19 @@ build: erp has no record file, so ATTESTED stays 0 and discovered stays 25, BYTE
 `TicketServiceImpl#findAll` is worth naming as the phase's best single test case: three enum parameters on
 one read, each with its own set, exercising the per-input mapping that a capability-level annotation could
 not have carried.
+
+## 28.1 EI-R built: erp unchanged, and its bare-enum idiom is the matched shape (erp-backend, 2026-08-05)
+
+The ratified EI-R (Volume 7 section 9) built, runtime only. erp is UNCHANGED: discovered 25 (by-id 16, list
+9), mis-bound 0, and the serialized IR, generated MCP output and generated OpenAPI document all
+BYTE-IDENTICAL to the pre-build commit, verified by `diff`. No provider or backend code changed, so nothing
+could move.
+
+erp's contribution to this step is its idiom. Its enums are BARE (no `@JsonValue`), so shape (a) applies and
+the wire form is the constant name; the fixture `TicketStatus` reproduces that shape and proves the runtime
+binds `DOING` and refuses `CLOSED` with the four legal values named. Having both idioms across the two
+benchmarks, bare here and value-mapped on pms, is what let one rule be tested against both without
+inventing either.
+
+Section 28's forecast (10 read methods becoming attestable) remains gated on EI-1 and then on a human
+authoring entries. What EI-R adds is that when those entries exist, the reads will actually invoke.

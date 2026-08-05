@@ -122,7 +122,7 @@ The manifest is also no longer copied by hand. The `tibyan-maven-plugin` runs th
 
 10. Attested capabilities at the runtime (opened by phase Attestation, Volume 5, section 4.15; designed 2026-07-20, pending ratification). Invocation of an attested capability is IDENTICAL to a verified one, argued rather than assumed: the binding is a structurally resolved `<Bean>#<method>` like any other (attestation fills semantic holes, never structural ones, so there is nothing different to invoke), and a runtime that behaved differently would imply the tool doubts what its labels state exactly. What the runtime adds is one consumer control and one tolerance: the loader tolerates the additive `attested`/`attestation` manifest fields (the standing additive-field discipline, with a loader test at build), and a property, `tibyan.attested.expose` (default `true`), lets a consumer exclude attested capabilities from registration wholesale, for surfaces that must be verified-only. Default true because committing `tibyan/attestations.json` through review IS the adopter's deliberate opt-in; the property serves the consumer who did not make that choice. Two named non-goals this phase: no per-call runtime warning (the labeling is the honesty mechanism, and it is complete), and no principal-passing for the context-dependent reads (the me-scoped `RequestContext` reads stay excluded from attestation entirely until a principal design exists; that future design is invocation architecture and would be its own ratified phase).
 
-## 9. EI-R: runtime argument binding and closed-set enforcement (phase Enum Inputs; designed 2026-08-04, pending ratification)
+## 9. EI-R: runtime argument binding and closed-set enforcement (phase Enum Inputs; designed 2026-08-04, RATIFIED and BUILT 2026-08-05)
 
 A LATENT DEFECT, found while designing the enum-input phase and recorded here because it is that phase's
 blocking precondition rather than a detail of it. `SpringExecutionAdapter` resolves the target method with
@@ -154,3 +154,54 @@ EI-R, the fix, ratified as a build step that PRECEDES the enum-input build:
 Invariant for the EI-R build: every existing capability invokes identically, proven by the unchanged
 end-to-end test and the unchanged example-app goldens. If EI-R proves larger than one session, the honest
 outcome is that enum inputs do not ship, not that they ship unenforced.
+
+### 9.1 EI-R actual: built and measured (2026-08-05)
+
+The ratified EI-R (section 9) implemented exactly. RUNTIME ONLY: `tibyan-core`, the provider, and both
+backends are untouched, so generated output cannot move and did not. `mvn clean verify` green across 12
+modules.
+
+WHAT WAS BUILT, item by item against the ratified list:
+
+1. Method resolution by NAME AND ARITY, replacing the reconstructed-parameter-type lookup. Bridge and
+   synthetic methods are skipped, which the design did not anticipate and which is load bearing: javac gives
+   a generic interface implementation an erased bridge of the same name and arity, and without the skip an
+   ordinary `Finder<String>` would have refused as ambiguous. Two GENUINE same-arity overloads refuse loudly
+   and name the candidates.
+2. Arguments converted into the resolved method's DECLARED parameter types, including the `java.time` types
+   and enums, with primitive parameters boxed and a missing value for a primitive refused with a located
+   message rather than a reflective failure.
+3. Enum matching by the SAME wire-value rule the provider will use to advertise, implemented in a new
+   `EnumWireValues`: constant names for a bare enum (shape a), the `@JsonValue` literals for a value-mapped
+   enum (shape b), and a fallback to constant names when more than one `@JsonValue` accessor makes the shape
+   ambiguous (shape c), which is safe precisely because the provider advertises nothing in that case. The
+   `@JsonValue` annotation is matched BY TYPE NAME, so Jackson does not become a dependency of the runtime
+   module and an application without Jackson simply takes shape (a). The annotation's optional boolean is
+   honoured rather than assumed.
+4. An illegal value refused BEFORE invoking, with the legal values named in the message. This is the
+   enforcement a schema closed set promises, and it now exists.
+
+A SMALL CLEANUP recorded rather than left silent: `IrTypes.toJavaClass` had exactly one caller, the defect
+site, and is removed. `IrTypes.jsonSchemaType` is untouched and still drives the tool input schema.
+
+MEASURED. All 27 runtime tests green, including the three pre-existing `SpringExecutionAdapterTest` cases
+that are the regression guard for the ratified invariant "every existing capability invokes identically";
+the end-to-end MCP test and the example-app goldens are unchanged. Both public benchmarks are BYTE-IDENTICAL
+on the serialized IR, the generated MCP output and the generated OpenAPI document, verified by `diff` with
+zero differences, and their refusal-cause ledgers are UNCHANGED, which is the correct outcome for a
+runtime-only step: a provider refusal cannot move when the provider did not change.
+
+WHAT THIS STEP DELIBERATELY DOES NOT DO. It renders no closed set on any surface, because that is EI-1 and
+because the ratified sequencing rule forbids rendering before this step exists, not after. Nothing in the
+IR carries a value set yet, so the runtime's enforcement currently derives the legal values from the
+DECLARED ENUM ITSELF at invocation time. That is the same set EI-1 will advertise, by construction, which
+is the whole point of implementing one rule in one place.
+
+Fixtures EI-R1 to EI-R11 (`EnumInputRuntimeBindingTest`): a bare enum bound by constant name; a value-mapped
+enum bound by its wire literal; a value-mapped enum REFUSING the constant name, which is the MIS-CONSTRAINED
+guard, since accepting it would mean accepting a value outside the advertised set; an illegal value refused
+with the legal values named; a `LocalDate` bound from ISO text; a mixed-arity read binding every parameter
+to its declared type; two genuine overloads refusing; a bridge method NOT creating a false ambiguity; an
+unknown method naming the arity; the legal-value set read from the enum and never synthesized, with a
+non-enum carrying none; and a CHARACTER-EXACT replica of the real pms `CostCategory` declaration proving all
+eight literals in declaration order, that `renovation` matches, and that `RENOVATION` does not.
