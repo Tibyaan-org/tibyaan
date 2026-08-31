@@ -89,6 +89,53 @@ What is still assumed or unsupported, recorded so it is closed deliberately late
 - Type matching uses the closed primitive set; an id whose type is not in that set (Volume 4, section 4) cannot be matched and is surfaced as an unmapped type.
 - Matching resolves the return type by simple name (condition 3). Phase Entity Identity (section 4.12.4, built 2026-07-13) supersedes this with key-based resolution, so a colliding simple name resolves to the right entity or refuses loud; the change is byte-identical when the simple name is unique. The same supersession applies to the entity, enum, and list-element type resolution in sections 4.2, 4.4, 4.5, and 4.10.
 
+
+### 4.1.1 The by-primary-key body proof on the entity-returning path (phase Read-Identity; designed 2026-08-31, RATIFIED 2026-08-31)
+
+THE DEFECT, precisely, and it is a mis-bind. Section 4.1's four conditions are signature-level in their entirety: an `@Service` class, a public non-static method, a return type that resolves to E, and one parameter that maps to E's `idType`. Nothing in them looks at the body. So the by-primary-key fact, which section 4.2.1 names "the safety-critical discriminator" and which section 4.2 condition 4 anchors on the framework contract precisely because "names cannot carry it", is never established on the entity-returning path. Section 4.2 refuses `findByUserId` and admits `selectById` only after tracing the load; section 4.1 admits either, and admits a filtered query, an element extraction, a remote call, and a nullable return along with them.
+
+THE LIVE INSTANCE, found on a real application 2026-08-31 and the reason this section exists. In a large multi-module ERP and pharmacy inventory system (as-backend, adopted here as a fourth named app; its structural profile is 159 entities, 219 deferred reads, 6 discovered capabilities before this phase), the read capability `getCPESCustomerProduct(id: LONG)` bound to `CustomerProductAdapterServiceImpl#validateCustomerProductExistence(Long id)`. That method satisfies all four of section 4.1's conditions and does none of what its capability name promises: it treats `id` as a FOREIGN key (a product id, not the entity's primary key), builds a `CustomerProductSearchFilter`, calls `selectAllByFilters`, returns element 0 of the filtered list, and on a miss calls a remote product adapter and either returns `null` or throws. An agent calling `getCPESCustomerProduct` with a CPESCustomerProduct primary key receives a different entity instance or an exception. This is exactly the `findByUserId` trap of section 4.2.1, admitted through the path that does not check.
+
+WHAT THIS MEANS FOR `mis-bound 0`, stated without softening. The counter reported 0 truthfully with respect to what the rules admitted, and the rules were wrong: section 4.1's contract had no by-primary-key clause for the counter to enforce. The invariant was not being measured on that path at all. It is restored by this section, which puts both paths under one proof, and not by any change to the counter.
+
+WHY THIS IS A RATIFIED REFINEMENT AND NOT A RULE-13 DIAGNOSTIC AMENDMENT. It changes matching outcomes: methods admitted today are refused after it. It therefore takes its own ratification before any code, exactly as the read-safety receiver-awareness refinement did (section 4.15.2.1).
+
+WHAT THE FIX CONVERGES ON, which is the argument for it. This is the same convergence argument section 4.15.2.1 made. The by-primary-key proof is not a new liberty or a new restriction invented here; it is the ratified rule everywhere else the question is asked. Section 4.2 condition 4 asks it of the view-returning body, section 4.13.3 asks it of the private-helper hop, section 4.2.10 asks it of a custom query. The entity-returning path is the fourth place the same question arises and the only one that never asks it. The refinement makes the four agree.
+
+#### The rule
+
+A method M that satisfies section 4.1 conditions 1 to 4 is a candidate only when its body also satisfies all of the following. Conditions 5 to 8 are section 4.2's conditions 6, 5, and 4 applied verbatim, by the same code, with the same refusals. Condition 9 is the entity-returning path's own shape, and it is what replaces section 4.2 conditions 7 to 9 (the mapping proof), because on this path there is no mapping to prove.
+
+5. LOAD PRESENCE AND UNIQUENESS. M's body contains exactly one persistence access: exactly one call whose receiver is a field of the service whose declared type the repository catalog resolves as a repository type. Zero persistence accesses refuses (the body loads nothing, so there is nothing to prove by-primary-key). More than one refuses (a multi-read assembly is not a single provable read).
+6. NO MUTATION. No call on a repository-typed field carries a write-set name (`save`, `saveAll`, `insert`, `update`, `delete`, `deleteById`, `deleteAll`, `persist`, `merge`, `flush`). Identical to section 4.2 condition 6.
+7. VERBATIM ID ARGUMENT. The argument to the load is M's single parameter, by name, verbatim, not an expression over it. Identical to section 4.2 condition 5.
+8. BY-PRIMARY-KEY PROOF. The load is a by-primary-key read of E, established exactly as section 4.2 condition 4 establishes it and by the same code: direct (4a) against an in-tree Spring Data repository of E whose key resolves to E by section 4.12.4 and whose id type matches, or the one-hop delegation trace (4b) through a hand-written repository interface and its single in-tree `@Repository` implementation, or the P1b provably clean custom query (section 4.2.10). Every refusal that path can produce is produced here unchanged.
+9. IDENTITY SHAPE. M's body returns the loaded entity itself, untransformed, in exactly one of two forms:
+   a. fused: a single `return` whose expression is the load followed only by Optional unwrapping (`orElseThrow(...)`, `orElse(...)`, `get()`);
+   b. two-statement: one local declared and initialized from the load (with an optional unwrap chain), followed immediately by `return <that local>;` as a bare name, with no other statement in the body.
+   Everything else refuses, and the refusal names what it saw: a mapping call, a navigation (`x.getUnit()`), an element extraction (`list.get(0)`), an `Optional.map`, a conditional, a guard, a second local, or any additional statement. A body that wants to transform what it loaded is not returning the entity the capability names, whatever its declared return type says.
+
+The candidate pool of section 4.2 condition 10 is unchanged: 4.1 candidates and 4.2 candidates form one set, exactly one wins, zero is NO_BACKING_METHOD, more than one is AMBIGUOUS_BINDING. A method refused by conditions 5 to 9 leaves the pool and appears in the NO_BACKING_METHOD near-miss list with its located reason, by the existing machinery of section 4.2.4. No new cause code is introduced, because no new outcome exists: a read the tool cannot prove is a read it does not have.
+
+#### What this deliberately does not do
+
+- NO PRIVATE-HELPER HOP. Section 4.13.3's trace stays a view-path rule. An entity-returning read whose load sits one private same-class hop away refuses under condition 5, with zero persistence accesses in its own body. This is a deliberate coverage miss: no benchmark presents the shape, and section 4.13.4's precedent is that a shape with no evidence gets no rule. If evidence appears, it is its own ratified phase, not a build decision.
+- IT GRANTS NO DISCOVERY. Every method this section admits was already admitted by section 4.1. The amendment can only remove candidates, never add one. Any measured increase in discovery is therefore a regression finding, not a win.
+- IT DOES NOT TOUCH SECTIONS 4.2, 4.10, 4.13, OR THE ATTESTATION READ-SAFETY CHECK. The view path, the list path, the discovery-gap rules, and the attestation intake are unchanged, and the golden-file output of every capability discovered through them must be byte-identical after this build.
+
+#### The forecast (measured baselines 2026-08-31, checked after the build)
+
+The baselines below were re-measured on the current trees immediately before this design. They differ from the health line recorded in earlier ledgers (5 / 25 / 4) because the benchmark applications have evolved since those runs; the before-and-after comparison that matters is against these same-tree baselines, not against the historical numbers.
+
+| App | Discovered before | Of those, 4.1-path | Forecast after | Movement |
+|---|---|---|---|---|
+| pms-backend | 5 | 0 | 5 | none; generated output byte-identical |
+| erp-backend | 35 | 2 | 35 | none; generated output byte-identical |
+| as-backend | 6 | 3 | 5 | `getCPESCustomerProduct` refused |
+
+The two erp-backend 4.1-path reads (`SyncedUserAdapterServiceImpl#getUserById`, `OrderServiceImpl#getOrderById`) and two of the three as-backend ones are the same clean shape: a single `selectById(id)` on a hand-written repository whose single `@Repository` implementation is exactly `return <jpaRepo>.findById(id);`, which is condition 8's one-hop trace (4b) and condition 9's shape (a) or (b). They survive. The third as-backend read is the mis-bind, and it refuses at condition 8: `selectAllByFilters` is not a by-primary-key read of CPESCustomerProduct. Any other movement, in either direction, on any of the three apps is a regression finding and stops the phase.
+
+SECTION 4.1'S OWN "STILL ASSUMED OR UNSUPPORTED" LIST is amended by this section: its first entry is no longer true of the entity-returning path, which now reads the body it binds to.
 ### 4.2 DTO-aware read discovery (designed 2026-07-02; RATIFIED 2026-07-02 as written)
 
 The trial's second-ranked gap is that real service boundaries return view types, so a rule is needed for when a DTO- or VTO-returning service method backs a read of an entity. This section is that rule, designed from a read-only study of the benchmark app before any code, exactly as the binding rule in section 4.1 was: the rule enters this volume in one commit, the code follows in a later session, only after this rule is ratified. Until ratification, no matching code may be written.
@@ -1406,7 +1453,7 @@ Stated as "attestable up to N given a knowledgeable human," never as a promise: 
 THE OPEN VERIFICATION, named: no real attesting human has run this flow, so the design's central quantity, the real attestation rate (attested versus declined versus refused-at-intake), is unmeasurable until first real use. The first-use measurement is designed now: the first adopter session records, per entry, time to attest, assist used or not, intake refusals hit, and declines with reasons; and the first month records staleness churn (invalidations per code change). Those numbers, not internal predictions, decide whether AT-2 through AT-4 proceed, exactly as benchmark evidence has decided every phase before.
 
 
-### 4.16 Enum-typed capability INPUTS (the E3 reopening; designed 2026-08-04, DESIGN HALF, pending ratification)
+### 4.16 Enum-typed capability INPUTS (the E3 reopening; phase Enum Inputs; designed 2026-08-04, RATIFIED; two build steps, EI-R BUILT 2026-08-05 in Volume 7 sections 9 and 9.1, EI-1 pending)
 
 #### 4.16.1 The trigger, recorded
 
