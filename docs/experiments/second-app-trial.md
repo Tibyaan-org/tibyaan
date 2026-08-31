@@ -1454,3 +1454,20 @@ declaration order (`maintenance`, `utilities`, `insurance`, `taxes`, `supplies`,
 `other`) and REFUSES the constant name `RENOVATION`, which the application would also reject. Accepting the
 constant name would mean accepting a value outside the set the provider will advertise, which is the
 MIS-CONSTRAINED failure.
+
+---
+
+## Read-Identity re-measurement (2026-08-31), pms-backend
+
+Phase Read-Identity (Volume 5, section 4.1.1) tightened the section 4.1 entity-returning path to
+prove its by-primary-key load. pms is unaffected by construction: all 5 of its discovered reads come
+through the section 4.2 view path, and it has ZERO section 4.1 capabilities, so there was nothing on
+this benchmark for the new proof to judge.
+
+Baseline and result, both measured on the current tree: discovered 5 (by-id 5, list 0), failed 38
+(COMPOSITE_KEY 3, NO_BACKING_METHOD 35), skipped-by-parse 0, partial 0, mis-bound 0, before and
+after. The serialized IR, the generated MCP output and the generated OpenAPI document are all
+BYTE-IDENTICAL to a worktree built at the pre-build commit, verified by `diff -r`.
+
+pms is recorded here as the control: a benchmark that exercises none of a phase's new machinery and
+must therefore not move by a single byte. It did not.

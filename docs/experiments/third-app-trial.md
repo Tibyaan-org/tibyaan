@@ -1024,3 +1024,34 @@ inventing either.
 
 Section 28's forecast (10 read methods becoming attestable) remains gated on EI-1 and then on a human
 authoring entries. What EI-R adds is that when those entries exist, the reads will actually invoke.
+
+---
+
+## Read-Identity re-measurement (2026-08-31), erp-backend
+
+Phase Read-Identity (Volume 5, section 4.1.1) put the entity-returning discovery path under the same
+by-primary-key body proof the view path has always used. erp discovers overwhelmingly through the
+entity-returning path, so it was the app most exposed to the change, and it was the app the forecast
+was least willing to move.
+
+Baseline re-measured on the current tree immediately before the build: discovered 35 (by-id 35, list
+0), failed 137 (NO_BACKING_METHOD 135, AMBIGUOUS_BINDING 2), partial 13, mis-bound 0. Note this is
+not the 25 recorded in earlier ledger entries: the application has evolved since those runs, and the
+before-and-after comparison that matters is against this same-tree baseline.
+
+Of the 35, exactly 2 come through section 4.1 (`SyncedUserAdapterServiceImpl#getUserById` and
+`OrderServiceImpl#getOrderById`); the other 33 come through section 4.2. Both 4.1 reads are the same
+shape: one `selectById(id)` on a hand-written repository whose single `@Repository` implementation is
+exactly `return <jpaRepo>.findById(id);`, which is condition 8's one-hop trace, returned untransformed,
+which is condition 9. Forecast: no movement at all.
+
+MEASURED AFTER THE BUILD: discovered 35, failed 137 with the same cause split, partial 13, mis-bound
+0. Identical. The serialized IR, the generated MCP output (manifest and tool sources), and the
+generated OpenAPI document are all BYTE-IDENTICAL to the output of a worktree built at the pre-build
+commit, verified by `diff -r` with zero differences across all files. The two 4.1 bindings are the
+same two, and they now carry their load evidence in the survey explanation rather than only the
+return type.
+
+erp's contribution to this phase is negative evidence, which is the useful kind here: a rule that
+tightens the path 33 of its capabilities do not use, and 2 of them do, moved nothing. That is what
+"can only remove candidates, never add one" looks like when the candidates were all provable.

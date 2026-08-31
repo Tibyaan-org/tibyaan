@@ -312,6 +312,49 @@ safety ones.
 Sequence after this: AT-2 (SHAPE) remains the third and last of the three measured blockers, and the one
 that actually moves pms.
 
+### Read-Identity: the by-primary-key body proof on the entity-returning path (UNPLANNED, designed, ratified, and BUILT 2026-08-31)
+
+WHY IT IS ON THIS ROADMAP AT ALL. It was not ranked, not designed in advance, and not next. It preempted
+EI-1 under the standing rule that a mis-bind outranks every other priority including the phase in hand.
+Nothing about the post-v1 ranking changed; one phase was inserted ahead of it because the invariant broke.
+
+WHAT WAS WRONG. Section 4.1, the entity-returning discovery path, matched on SIGNATURE alone: an `@Service`
+class, a public non-static method, a return type resolving to E, one parameter mapping to E's id type, and
+no examination of the body at all. So the by-primary-key fact that section 4.2.1 names "the safety-critical
+discriminator", and that section 4.2 condition 4 anchors on the framework contract precisely because names
+cannot carry it, was never established on that path. `mis-bound 0` was true of what the rules admitted and
+the rule had no clause for the counter to enforce.
+
+THE EVIDENCE. A fourth real application, as-backend (docs/experiments/as-backend-trial.md), where
+`getCPESCustomerProduct(id)` had bound to a method that treats the id as a foreign key, runs a filter query,
+returns element 0, calls a remote adapter, and can return null. Found while answering an adopter question,
+not by a planned benchmark run.
+
+THE RULE (Volume 5, section 4.1.1). Both paths now share one proof. Conditions 5 to 8 are section 4.2's
+conditions 6, 5 and 4 run by the same code with the same refusals; condition 9 is the entity path's own
+identity shape, the loaded entity returned untransformed in one of two forms, replacing the mapping proof
+that path has no use for. The rule can only remove candidates, never add one, so any measured rise in
+discovery would be a regression finding.
+
+MEASURED, forecast held exactly on all three same-tree baselines: pms 5 to 5, erp 35 to 35, both with
+serialized IR, MCP output and OpenAPI document BYTE-IDENTICAL to a worktree built at the pre-build commit;
+as-backend 6 to 5, the single difference being the removal of the mis-bind and its artifacts.
+
+ONE MID-BUILD DESIGN CORRECTION, recorded rather than left to diverge (section 4.1.1, THE BUILD-FORCED
+CORRECTION). The ratified text first excluded the section 4.13.3 private-helper hop from this path,
+justified as a coverage miss with no evidence behind it; fixture DG-3b presents exactly that shape, so
+excluding it would have regressed a read the Discovery-Gap phase already covered. The hop is included under
+section 4.13.3's own trace, ending in the identity shape. It changes a matching outcome, so it is not a
+rule-13 diagnostic amendment; it is written up as a correction with its cost stated.
+
+THE OPEN VERIFICATION, named: the private enterprise benchmark was NOT re-measured, because the build
+session had no path to it. Its ledger records 2 of its 4 discovered reads as entity-returning, so those two
+are exactly what the new proof judges and their outcome is unknown. Its "4" is stale until someone with the
+application re-runs the scan. This is the one thing about this phase that is asserted rather than measured,
+and it is stated here so no later session inherits it as settled.
+
+Sequence after this: unchanged. EI-1, then AT-2 (SHAPE).
+
 ## 4. Tier 3: direction only (production readiness and beyond)
 
 This tier is deliberately coarse: one short paragraph per item, no designs, no phase plans, no acceptance criteria. Everything here is conditional on Tier 2 proving the semantic core on real applications, meaning the benchmark discovers a meaningful share of a real app's reads with zero mis-bindings. Writing detailed plans for this tier before that proof would repeat the original roadmap's mistake.
