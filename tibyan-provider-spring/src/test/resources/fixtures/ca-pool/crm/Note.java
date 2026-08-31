@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 @Entity
 public class Note {
@@ -14,10 +15,15 @@ public class Note {
     Long id;
 }
 
+interface CrmNoteJpaRepo extends JpaRepository<Note, Long> {
+}
+
 @Service
 class CrmNoteService {
+
+    private final CrmNoteJpaRepo repo;
     public Note findById(Long id) {
-        return null;
+        return repo.findById(id).orElseThrow();
     }
 }
 

@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 // CA-3: a class-level @PreAuthorize with no method-level one applies to the handler and compiles.
 @Entity
@@ -15,10 +16,15 @@ class Ledger {
     Long id;
 }
 
+interface LedgerJpaRepo extends JpaRepository<Ledger, Long> {
+}
+
 @Service
 class LedgerService {
+
+    private final LedgerJpaRepo repo;
     public Ledger findById(Long id) {
-        return null;
+        return repo.findById(id).orElseThrow();
     }
 }
 

@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 @Entity
 class Mixed {
@@ -14,10 +15,15 @@ class Mixed {
     Long id;
 }
 
+interface MixedJpaRepo extends JpaRepository<Mixed, Long> {
+}
+
 @Service
 class MixedService {
+
+    private final MixedJpaRepo repo;
     public Mixed findById(Long id) {
-        return null;
+        return repo.findById(id).orElseThrow();
     }
 }
 

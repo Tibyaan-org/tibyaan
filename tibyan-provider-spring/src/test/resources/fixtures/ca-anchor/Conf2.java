@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 @Entity
 class Conf2 {
@@ -14,10 +15,15 @@ class Conf2 {
     Long id;
 }
 
+interface Conf2JpaRepo extends JpaRepository<Conf2, Long> {
+}
+
 @Service
 class Conf2Service {
+
+    private final Conf2JpaRepo repo;
     public Conf2 findById(Long id) {
-        return null;
+        return repo.findById(id).orElseThrow();
     }
 }
 

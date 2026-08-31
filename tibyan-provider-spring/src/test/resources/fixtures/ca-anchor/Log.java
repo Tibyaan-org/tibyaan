@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 @Entity
 class Log {
@@ -14,10 +15,15 @@ class Log {
     Long id;
 }
 
+interface LogJpaRepo extends JpaRepository<Log, Long> {
+}
+
 @Service
 class LogService {
+
+    private final LogJpaRepo repo;
     public Log findById(Long id) {
-        return null;
+        return repo.findById(id).orElseThrow();
     }
 }
 

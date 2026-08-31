@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 // CA-2: hasAnyAuthority compiles the two-element any-of sequence, in order.
 @Entity
@@ -15,10 +16,15 @@ class Report {
     Long id;
 }
 
+interface ReportJpaRepo extends JpaRepository<Report, Long> {
+}
+
 @Service
 class ReportService {
+
+    private final ReportJpaRepo repo;
     public Report findById(Long id) {
-        return null;
+        return repo.findById(id).orElseThrow();
     }
 }
 

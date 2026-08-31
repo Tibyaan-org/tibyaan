@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 @Entity
 class Perm {
@@ -14,10 +15,15 @@ class Perm {
     Long id;
 }
 
+interface PermJpaRepo extends JpaRepository<Perm, Long> {
+}
+
 @Service
 class PermService {
+
+    private final PermJpaRepo repo;
     public Perm findById(Long id) {
-        return null;
+        return repo.findById(id).orElseThrow();
     }
 }
 

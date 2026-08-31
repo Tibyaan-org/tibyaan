@@ -33,6 +33,11 @@ import java.util.Set;
  * entity by structural evidence: a by-primary-key load of the entity followed by exactly one mapping
  * step that derives the returned view from the loaded entity.
  *
+ * <p>It also carries the body proof for the ENTITY-returning path ({@link #evaluateEntityReturn},
+ * Volume 5 section 4.1.1), which shares conditions 4, 5 and 6 with the view path and differs only in
+ * what it requires of the body's shape. Both paths ask the same by-primary-key question of the same
+ * code, which is the point of section 4.1.1.
+ *
  * <p>Everything here is structural. Names of views, services, and repository methods carry no
  * weight; the only names trusted are framework contracts (the Spring Data supertypes and the
  * framework by-primary-key methods). Any incompleteness, an unresolvable callee, a non-verbatim
@@ -81,7 +86,8 @@ public final class ViewReadMatcher {
             // Section 4.13.3: the load may sit exactly one PRIVATE same-class hop away. The trace steps
             // through it under the same disciplines, or refuses. When no such helper is there, the
             // pre-phase refusal is returned verbatim, so a delegation-only facade reads exactly as before.
-            return evaluateThroughPrivateHelper(method, service, intent, body, param, view, repoFields);
+            return evaluateThroughPrivateHelper(method, service, intent, body, param, view, repoFields,
+                    false);
         }
         if (repoCalls.size() > 1) {
             return MatchResult.nearMiss("body contains more than one repository access (condition 6); "
@@ -104,6 +110,123 @@ public final class ViewReadMatcher {
         return checkShapeAndMapping(body, load, service, entity, view, loadEvidence.explanation());
     }
 
+    /**
+     * The entity-returning read matcher (Volume 5 section 4.1.1, conditions 5 to 9). Given a service
+     * method that has already passed section 4.1's conditions 1 to 4 (public {@code @Service}, one
+     * parameter mapping to the id type, a return type that resolves by key to the entity), it decides
+     * whether the method's BODY proves the read.
+     *
+     * <p>Section 4.1 alone matched on signature, so the by-primary-key fact section 4.2 calls the
+     * safety-critical discriminator was never established here, and a filtered query returning the
+     * entity type bound as though it were a by-id read. Conditions 5 to 8 are section 4.2's
+     * conditions 6, 5 and 4 run by the same code below; condition 9 is this path's own identity
+     * shape, replacing the mapping proof it has no use for. It can only refuse a method section 4.1
+     * would have admitted, never admit one section 4.1 rejected.
+     *
+     * <p>The private-helper hop (section 4.13.3) IS offered here, under the same trace and the same
+     * disciplines as on the view path, ending in the identity shape rather than a mapping step. The
+     * ratified text first excluded it on the premise that no evidence presented the shape; fixture
+     * DG-3b does present it, and the build corrected the design rather than regress a covered read
+     * (section 4.1.1, THE BUILD-FORCED CORRECTION).
+     */
+    public MatchResult evaluateEntityReturn(MethodDeclaration method, ClassOrInterfaceDeclaration service,
+                                            ReadIntent intent) {
+        Optional<BlockStmt> maybeBody = method.getBody();
+        if (maybeBody.isEmpty()) {
+            return MatchResult.nearMiss("method has no body to analyze (section 4.1.1, condition 5)");
+        }
+        BlockStmt body = maybeBody.get();
+        String param = method.getParameter(0).getNameAsString();
+        String entity = intent.entityName();
+
+        Map<String, String> repoFields = repositoryFields(service);
+        List<MethodCallExpr> repoCalls = repositoryCalls(body, repoFields.keySet());
+
+        // Condition 6: no write-set call on a repository field. Checked first, so a mutating body says
+        // it mutates rather than reporting whichever count clause it also fails.
+        for (MethodCallExpr call : repoCalls) {
+            if (MUTATIONS.contains(call.getNameAsString())) {
+                return MatchResult.nearMiss("body performs a mutation '" + call.getNameAsString()
+                        + "' on a repository field; a read binds to no write (section 4.1.1, condition 6)");
+            }
+        }
+        // Condition 5: exactly one persistence access. Zero means the load may sit one PRIVATE
+        // same-class hop away, so the section 4.13.3 trace runs here exactly as it runs on the view
+        // path, ending in the identity shape instead of a mapping step. When no such helper is there,
+        // that trace returns the refusal verbatim.
+        if (repoCalls.isEmpty()) {
+            return evaluateThroughPrivateHelper(method, service, intent, body, param, null, repoFields,
+                    true);
+        }
+        if (repoCalls.size() > 1) {
+            return MatchResult.nearMiss("body contains more than one repository access; a multi-read "
+                    + "assembly is not a single provable read (section 4.1.1, condition 5)");
+        }
+
+        MethodCallExpr load = repoCalls.get(0);
+        // Condition 7: the id reaches the load verbatim, not as an expression over it.
+        if (!isVerbatimArgument(load, param)) {
+            return MatchResult.nearMiss("the load argument is not the id parameter '" + param
+                    + "' verbatim (section 4.1.1, condition 7)");
+        }
+
+        // Condition 8: the by-primary-key proof, section 4.2 condition 4's own code, same refusals.
+        String repoType = repoFields.get(receiverFieldName(load));
+        MatchResult loadEvidence = checkByPrimaryKeyLoad(load, repoType, entity, intent.entityKey(),
+                intent.idType(), intent.idInputName());
+        if (!loadEvidence.matched()) {
+            return loadEvidence;
+        }
+
+        return checkIdentityShape(body, load, entity, loadEvidence.explanation());
+    }
+
+    // Condition 9: the body returns the loaded entity itself, untransformed, in one of exactly two
+    // shapes. A mapping call, a navigation, an element extraction, an Optional.map, a guard, or any
+    // extra statement refuses: a body that transforms what it loaded is not returning the entity its
+    // capability names, whatever its declared return type says.
+    private static MatchResult checkIdentityShape(BlockStmt body, MethodCallExpr load, String entity,
+                                                  String loadExplanation) {
+        List<Statement> statements = body.getStatements();
+        String explanation = "returns the entity " + entity + " directly (section 4.1); " + loadExplanation;
+
+        // 9a, fused: a single return whose expression IS the load, through its unwrap chain only.
+        if (statements.size() == 1 && statements.get(0).isReturnStmt()) {
+            Optional<Expression> returned = statements.get(0).asReturnStmt().getExpression();
+            if (returned.isEmpty()) {
+                return MatchResult.nearMiss("the return has no expression (section 4.1.1, condition 9a)");
+            }
+            if (returned.get() != unwrappedLoadValue(load)) {
+                return MatchResult.nearMiss("the fused return transforms the loaded entity rather than "
+                        + "returning it; only Optional unwrapping is permitted (section 4.1.1, "
+                        + "condition 9a)");
+            }
+            return MatchResult.match(null, explanation);
+        }
+
+        // 9b, two-statement: a local initialized from the load, then a bare return of that local.
+        if (statements.size() == 2) {
+            Optional<String> local = localFromLoad(statements.get(0), load);
+            if (local.isEmpty()) {
+                return MatchResult.nearMiss("the first statement is not a local initialized from the "
+                        + "load (section 4.1.1, condition 9b)");
+            }
+            if (!statements.get(1).isReturnStmt()) {
+                return MatchResult.nearMiss("the second statement is not a return (section 4.1.1, "
+                        + "condition 9b)");
+            }
+            Optional<Expression> returned = statements.get(1).asReturnStmt().getExpression();
+            if (returned.isEmpty() || !isNameExpr(returned.get(), local.get())) {
+                return MatchResult.nearMiss("the return is not the loaded local '" + local.get()
+                        + "' by bare name; a transformation disqualifies (section 4.1.1, condition 9b)");
+            }
+            return MatchResult.match(null, explanation);
+        }
+
+        return MatchResult.nearMiss("the body is not one of the two permitted identity shapes "
+                + "(section 4.1.1, condition 9)");
+    }
+
     // The private-helper-hop trace (Volume 5, section 4.13.3), the general core of the mixed shape. The
     // public read's own body performs no persistence access because the load sits one PRIVATE same-class
     // hop away. The trace steps through exactly that one hop, pins the helper to a single declaration,
@@ -112,7 +235,7 @@ public final class ViewReadMatcher {
     private MatchResult evaluateThroughPrivateHelper(MethodDeclaration method,
                                                      ClassOrInterfaceDeclaration service, ReadIntent intent,
                                                      BlockStmt body, String param, String view,
-                                                     Map<String, String> repoFields) {
+                                                     Map<String, String> repoFields, boolean entityReturn) {
         // Condition 1: the load position is a call on the method's own class taking the id verbatim.
         List<MethodCallExpr> helperCalls = new ArrayList<>();
         for (MethodCallExpr call : body.findAll(MethodCallExpr.class)) {
@@ -188,7 +311,13 @@ public final class ViewReadMatcher {
         }
 
         // Condition 4: back in the public method, the helper's value feeds exactly one resolvable
-        // mapping step, under section 4.2's conditions 7 to 9, unchanged.
+        // mapping step, under section 4.2's conditions 7 to 9, unchanged. On the entity-returning path
+        // there is no mapping to feed, so the same value must be returned untransformed instead
+        // (section 4.1.1, condition 9). The trace itself, conditions 1 to 3 above, is identical: this
+        // is the convergence 4.1.1 exists to make, not a second rule.
+        if (entityReturn) {
+            return checkIdentityShape(body, helperCall, intent.entityName(), loadEvidence.explanation());
+        }
         return checkShapeAndMapping(body, helperCall, service, intent.entityName(), view,
                 loadEvidence.explanation());
     }

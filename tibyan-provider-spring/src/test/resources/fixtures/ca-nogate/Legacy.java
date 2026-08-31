@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.annotation.Secured;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 import static ca.nogate.Scopes.X_READ;
 
@@ -16,10 +17,15 @@ class Legacy {
     Long id;
 }
 
+interface LegacyJpaRepo extends JpaRepository<Legacy, Long> {
+}
+
 @Service
 class LegacyService {
+
+    private final LegacyJpaRepo repo;
     public Legacy findById(Long id) {
-        return null;
+        return repo.findById(id).orElseThrow();
     }
 }
 

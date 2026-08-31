@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 import jakarta.annotation.security.RolesAllowed;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 @Entity
 class Allowed {
@@ -14,10 +15,15 @@ class Allowed {
     Long id;
 }
 
+interface AllowedJpaRepo extends JpaRepository<Allowed, Long> {
+}
+
 @Service
 class AllowedService {
+
+    private final AllowedJpaRepo repo;
     public Allowed findById(Long id) {
-        return null;
+        return repo.findById(id).orElseThrow();
     }
 }
 

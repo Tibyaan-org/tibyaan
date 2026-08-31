@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 @Entity
 class Status {
@@ -16,10 +17,15 @@ class Status {
     Long id;
 }
 
+interface StatusJpaRepo extends JpaRepository<Status, Long> {
+}
+
 @Service
 class StatusService {
+
+    private final StatusJpaRepo repo;
     public Status findById(Long id) {
-        return null;
+        return repo.findById(id).orElseThrow();
     }
 }
 

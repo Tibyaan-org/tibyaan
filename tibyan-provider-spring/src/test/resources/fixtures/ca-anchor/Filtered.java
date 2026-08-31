@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 @Entity
 class Filtered {
@@ -15,10 +16,15 @@ class Filtered {
     Long id;
 }
 
+interface FilteredJpaRepo extends JpaRepository<Filtered, Long> {
+}
+
 @Service
 class FilteredService {
+
+    private final FilteredJpaRepo repo;
     public Filtered findById(Long id) {
-        return null;
+        return repo.findById(id).orElseThrow();
     }
 
     public Filtered search(String q) {

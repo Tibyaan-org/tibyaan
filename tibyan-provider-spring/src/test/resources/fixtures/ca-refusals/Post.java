@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.prepost.PostAuthorize;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 @Entity
 class Post {
@@ -14,10 +15,15 @@ class Post {
     Long id;
 }
 
+interface PostJpaRepo extends JpaRepository<Post, Long> {
+}
+
 @Service
 class PostService {
+
+    private final PostJpaRepo repo;
     public Post findById(Long id) {
-        return null;
+        return repo.findById(id).orElseThrow();
     }
 }
 

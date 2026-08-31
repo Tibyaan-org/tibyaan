@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 @Entity
 class Nested {
@@ -14,10 +15,15 @@ class Nested {
     Long id;
 }
 
+interface NestedJpaRepo extends JpaRepository<Nested, Long> {
+}
+
 @Service
 class NestedService {
+
+    private final NestedJpaRepo repo;
     public Nested findById(Long id) {
-        return null;
+        return repo.findById(id).orElseThrow();
     }
 
     public Nested map(Nested n) {

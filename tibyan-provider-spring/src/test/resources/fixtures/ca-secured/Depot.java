@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.security.access.annotation.Secured;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 import static ca.secured.Scopes.WAREHOUSE_READ;
 
@@ -18,10 +19,15 @@ class Depot {
     Long id;
 }
 
+interface DepotJpaRepo extends JpaRepository<Depot, Long> {
+}
+
 @Service
 class DepotService {
+
+    private final DepotJpaRepo repo;
     public Depot findById(Long id) {
-        return null;
+        return repo.findById(id).orElseThrow();
     }
 }
 

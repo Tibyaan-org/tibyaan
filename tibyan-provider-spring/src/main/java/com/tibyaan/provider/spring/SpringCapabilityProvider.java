@@ -571,10 +571,10 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
                     ambiguousBindingMessage(displayIntent, candidates));
         }
 
-        // Conditions 1 to 3 frame every candidate; a return that resolves by key to the entity is a
-        // section 4.1 (entity-returning) candidate, and any other non-void return is evaluated as a
-        // section 4.2 (view-returning) candidate. A 4.2 method that passed 1 to 3 but failed later is
-        // a near miss.
+        // Conditions 1 to 3 frame every candidate; a return that resolves by key to the entity goes to
+        // the section 4.1 body proof (section 4.1.1), and any other non-void return goes to the
+        // section 4.2 (view-returning) matcher. Either way a method that passed 1 to 3 but failed a
+        // later condition is a near miss with its located reason, never a silent drop.
         private void evaluate(ServiceMethodSource source, ReadIntent intent,
                               List<Candidate> candidates, List<String> nearMisses) {
             ServiceMethod method = source.method();
@@ -592,8 +592,17 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
             // entity, against the service's compilation unit. Byte-identical to the simple-name check
             // when the return type's simple name is unique in the tree (the resolver's fast path).
             if (returnsEntityByKey(source, intent.entityKey())) {
-                candidates.add(new Candidate(method.toBinding(), null,
-                        "returns the entity " + intent.entityName() + " directly (section 4.1)"));
+                // Section 4.1.1: the entity-returning path proves its by-primary-key load too. Before
+                // it, section 4.1 matched on signature alone, so a filtered query that happened to
+                // return the entity type bound as though it were a by-id read. A body that fails the
+                // proof leaves the pool as a near miss, exactly as a failed 4.2 candidate does.
+                MatchResult entityResult =
+                        viewMatcher.evaluateEntityReturn(source.declaration(), source.service(), intent);
+                if (entityResult.matched()) {
+                    candidates.add(new Candidate(method.toBinding(), null, entityResult.explanation()));
+                } else {
+                    nearMisses.add(method.signature() + ": " + entityResult.reason());
+                }
                 return;
             }
             MatchResult result = viewMatcher.evaluate(source.declaration(), source.service(), intent);

@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 @Entity
 class NoMethod {
@@ -14,10 +15,15 @@ class NoMethod {
     Long id;
 }
 
+interface NoMethodJpaRepo extends JpaRepository<NoMethod, Long> {
+}
+
 @Service
 class NoMethodService {
+
+    private final NoMethodJpaRepo repo;
     public NoMethod findById(Long id) {
-        return null;
+        return repo.findById(id).orElseThrow();
     }
 }
 
