@@ -278,10 +278,13 @@ class AttestationIntakeProviderTest {
     }
 
     @Test
-    void aShapeCategoryRefusesAsNotYetBuilt(@TempDir Path root) throws IOException {
+    void aBothCategoryRefusesAsNotYetBuilt(@TempDir Path root) throws IOException {
+        // AT-1 built predicate and AT-2 built shape; the compound entry that fills a predicate hole and a
+        // shape hole at one target, with one minted name, is a separate step and stays refused. This test
+        // previously asserted the same of 'shape', which AT-2 makes untrue.
         copyFixture(root);
         String fingerprint = fingerprint(root, FILTER_TARGET);
-        String entry = entry(FILTER_TARGET, "shape", "searchTenants", "Returns tenants.",
+        String entry = entry(FILTER_TARGET, "both", "searchTenants", "Returns tenants.",
                 "\"fullName\":\"m\",\"pageNum\":\"paging\"", "Tenant", "a.elseginy", "human-authored",
                 fingerprint);
         writeAttestations(root, "[" + entry + "]");

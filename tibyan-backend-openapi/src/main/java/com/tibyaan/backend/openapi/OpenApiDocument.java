@@ -211,6 +211,11 @@ final class OpenApiDocument {
         Map<String, Object> object = new LinkedHashMap<>();
         object.put("category", attestation.category().token());
         object.put("resultSemantic", attestation.resultSemantic());
+        // The asserted subject entity, present only on a shape claim (AT-2): it IS the claim there, so it
+        // travels with the rest of the words. A predicate attestation carries none and renders unchanged.
+        if (attestation.subjectEntity() != null) {
+            object.put("subjectEntity", attestation.subjectEntity());
+        }
         object.put("assertedBy", attestation.assertedBy());
         object.put("origin", attestation.origin().token());
         object.put("date", attestation.date());

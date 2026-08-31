@@ -36,7 +36,8 @@ import java.util.TreeMap;
 import java.util.regex.Pattern;
 
 /**
- * The attestation intake for the PREDICATE category (AT-1, Volume 5 section 4.15.4). It reads the adopter's
+ * The attestation intake for the PREDICATE category (AT-1) and the SHAPE category (AT-2), Volume 5
+ * section 4.15.4. It reads the adopter's
  * committed record entries and, for each, either builds an attested {@link Capability} or refuses it with a
  * located cause. The boundary it enforces is the phase's soul: AN ASSERTION FILLS ONLY A SEMANTIC HOLE,
  * NEVER A STRUCTURAL ONE (section 4.15.2). The binding, the parameter types, the read-safety of the target,
@@ -132,7 +133,10 @@ public final class AttestationIntake {
             return;
         }
 
-        // Condition 2: category is known, and its sub-phase is ratified and built (AT-1 = predicate only).
+        // Condition 2: category is known, and its sub-phase is ratified and built. AT-1 built predicate,
+        // AT-2 builds shape. The compound entry (both), which fills a predicate hole and a shape hole at
+        // one target with one minted name, is its own step and stays refused: AT-2's ratified scope is
+        // "adds one category", and a compound target is not that category.
         AttestationCategory category;
         try {
             category = AttestationCategory.fromToken(record.category());
@@ -141,10 +145,11 @@ public final class AttestationIntake {
                     "unknown category token '" + record.category() + "' (section 4.15.4, condition 2)"));
             return;
         }
-        if (category != AttestationCategory.PREDICATE) {
+        if (category == AttestationCategory.BOTH) {
             refusals.add(refusal(target, record.name(), Cause.CATEGORY_NOT_BUILT,
-                    "category '" + category.token() + "' is not yet ratified and built; AT-1 builds only "
-                            + "the predicate category (section 4.15.4, condition 2)"));
+                    "category 'both' is not yet ratified and built; AT-1 built predicate and AT-2 builds "
+                            + "shape, and the compound entry that fills both holes at one target is a "
+                            + "separate step (section 4.15.4, condition 2)"));
             return;
         }
 
@@ -205,18 +210,35 @@ public final class AttestationIntake {
             return;
         }
 
-        // Condition 3, part 3: the output entity tie. A predicate entry against a target whose element tie
-        // is not structurally provable has a shape hole too, and refuses to shape or both (AT-2).
-        Optional<EntityTie> tie = resolveOutputTie(resolvedTarget);
-        if (tie.isEmpty()) {
-            refusals.add(refusal(target, record.name(), Cause.CATEGORY_MISMATCH,
-                    "the read's output entity tie is not structurally provable, so it has a shape hole a "
-                            + "predicate assertion cannot fill; use category shape or both (AT-2, not yet "
-                            + "built) (section 4.15.4, condition 2; section 4.15.2)"));
-            return;
+        // Condition 3, part 3: the output. For a PREDICATE entry the element tie must be structurally
+        // provable, because a predicate assertion fills the predicate hole only; a target whose tie is
+        // unprovable has a shape hole as well and belongs to category shape. For a SHAPE entry (AT-2) the
+        // tie is exactly the hole the assertion fills, so the frame is category B's own: a local
+        // persistence tie, an asserted subject entity that exists, no structural contradiction, and, when
+        // the entry claims a by-primary-key identifier, a load of that entity actually present.
+        Type output;
+        boolean multiple;
+        if (category == AttestationCategory.SHAPE) {
+            ShapeFrame frame = shapeFrame(record, resolvedTarget, target, inputs);
+            if (frame.isRefused()) {
+                refusals.add(frame.refusal());
+                return;
+            }
+            output = frame.output();
+            multiple = frame.multiple();
+        } else {
+            Optional<EntityTie> tie = resolveOutputTie(resolvedTarget);
+            if (tie.isEmpty()) {
+                refusals.add(refusal(target, record.name(), Cause.CATEGORY_MISMATCH,
+                        "the read's output entity tie is not structurally provable, so it has a shape hole "
+                                + "a predicate assertion cannot fill; use category shape (AT-2), or both "
+                                + "for a target that also has a predicate hole (section 4.15.4, "
+                                + "condition 2; section 4.15.2)"));
+                return;
+            }
+            output = Type.entityRef(displayByKey.getOrDefault(tie.get().entityKey(), tie.get().entityKey()));
+            multiple = tie.get().multiple();
         }
-        String subjectDisplay = displayByKey.getOrDefault(tie.get().entityKey(), tie.get().entityKey());
-        Type output = Type.entityRef(subjectDisplay);
 
         // Condition 4: coverage is complete and exact. Keyset(parameterMeanings) equals the input set; each
         // input carries a sentence, a restricted paging mark, or the id mark; no key names a non-input.
@@ -258,11 +280,187 @@ public final class AttestationIntake {
         for (String input : inputs.keySet()) {
             parameterMeanings.put(input, record.parameters().get(input));
         }
-        Attestation attestation = new Attestation(AttestationCategory.PREDICATE, record.resultSemantic(),
-                parameterMeanings, null, provenance.assertedBy(), origin, provenance.date(),
+        // The subject entity rides the component only where it is the assertion (shape); a predicate entry
+        // tied structurally carries none, so its serialized form is unchanged by AT-2.
+        String subject = category == AttestationCategory.SHAPE ? record.subjectEntity() : null;
+        Attestation attestation = new Attestation(category, record.resultSemantic(),
+                parameterMeanings, subject, provenance.assertedBy(), origin, provenance.date(),
                 provenance.fingerprint());
-        attested.add(Capability.attested(minted, inputs, output, tie.get().multiple(),
+        attested.add(Capability.attested(minted, inputs, output, multiple,
                 new BindingRef(resolvedTarget.binding()), List.of(), attestation));
+    }
+
+    /**
+     * The frame a CATEGORY B (SHAPE) assertion is allowed to sit inside (AT-2, Volume 5 section 4.15.2).
+     * The assertion says what the read RETURNS; everything around that claim is still proven here, and a
+     * frame that does not verify keeps the read refused with a located reason.
+     *
+     * <p>The four checks, in the order a refusal is most informative: the LOCAL-TIE PRECONDITION (a shape
+     * assertion is only honest over a body whose persistence the read-safety check could actually inspect,
+     * so a delegation-built wrapper routes to AT-3 by name, never to AT-2); the asserted subject entity
+     * exists in the model; no structural contradiction (a body whose SINGLE repository access provably
+     * reads a different entity refuses, section 4.15.7); and, when the entry claims a by-primary-key
+     * identifier through the reserved id mark, that load is structurally present, because the assertion
+     * covers the enrichment and never the load.
+     */
+    private ShapeFrame shapeFrame(AttestationRecord record, ResolvedTarget resolvedTarget, String target,
+                                  Map<String, Type> inputs) {
+        // The category boundary, checked first because it is the most actionable refusal: each hole is
+        // filled by its own category or stays refused, and a predicate assertion may not ride in on a
+        // shape entry. A parameter covered by a MEANING SENTENCE is a predicate claim; only the reserved
+        // paging and id marks are structural coverage. So a target with any sentence-covered input has a
+        // predicate hole too, and belongs to the compound category rather than to shape alone.
+        for (String input : inputs.keySet()) {
+            String coverage = record.parameters().get(input);
+            if (coverage != null && !Attestation.PAGING_MARK.equals(coverage)
+                    && !Attestation.ID_MARK.equals(coverage)) {
+                return ShapeFrame.refused(refusal(target, record.name(), Cause.CATEGORY_MISMATCH,
+                        "input '" + input + "' is covered by a meaning sentence, which is a PREDICATE "
+                                + "claim, so this target has a predicate hole as well as a shape hole. One "
+                                + "entry fills both only as category 'both', which is a separate step and "
+                                + "not yet built; a shape entry never carries a predicate assertion "
+                                + "(section 4.15.2, the category taxonomy)"));
+            }
+        }
+
+        // The asserted subject: present, and an entity of this model. The tool never invents it, and core
+        // rule 8 re-checks it, but intake refuses first so the failure is located at the entry.
+        String asserted = record.subjectEntity();
+        if (isBlank(asserted)) {
+            return ShapeFrame.refused(refusal(target, record.name(), Cause.STRUCTURAL_FRAME,
+                    "a shape assertion must name the subject entity it claims the read returns, and this "
+                            + "entry has no subjectEntity (section 4.15.2, category B)"));
+        }
+        Optional<String> assertedKey = keyForDisplay(asserted);
+        if (assertedKey.isEmpty()) {
+            return ShapeFrame.refused(refusal(target, record.name(), Cause.STRUCTURAL_FRAME,
+                    "the asserted subjectEntity '" + asserted + "' is not an entity in the model; an "
+                            + "assertion names what the tool already modeled, it never introduces an "
+                            + "entity (section 4.15.2, category B)"));
+        }
+
+        // The local-tie precondition. Every repository-typed access the read-safety check can inspect
+        // counts; zero of them means the real work is a delegation the tool never saw, so its read-safety
+        // is structurally unprovable and only a human's own read-only affirmation could carry it. That is
+        // category C, by name, and it stays refused until AT-3 is ratified and built.
+        List<RepoAccess> accesses = repositoryAccesses(resolvedTarget);
+        if (accesses.isEmpty()) {
+            return ShapeFrame.refused(refusal(target, record.name(), Cause.CATEGORY_NOT_BUILT,
+                    "the target has no in-tree persistence access, so there is no local tie for the "
+                            + "read-safety check to inspect and its read-only-ness rests entirely on a "
+                            + "human's word. That is category C (BOUNDARY, AT-3), which is deferred by "
+                            + "name and not yet ratified; it is never accepted as shape (section 4.15.2, "
+                            + "category B, the local-tie precondition)"));
+        }
+
+        // Non-contradiction, in exactly the ratified scope: when the body has a SINGLE repository access
+        // and that access provably reads a different entity, structure contradicts the assertion. An
+        // aggregate legitimately touches other repositories to enrich, so a multi-access body is not a
+        // contradiction and is not treated as one.
+        if (accesses.size() == 1) {
+            String tied = accesses.get(0).entityKey();
+            if (tied != null && !tied.equals(assertedKey.get())) {
+                return ShapeFrame.refused(refusal(target, record.name(), Cause.STRUCTURAL_CONTRADICTION,
+                        "the assertion says this read returns '" + asserted + "', but the body's only "
+                                + "repository access provably reads '"
+                                + displayByKey.getOrDefault(tied, tied) + "'. Structure contradicts the "
+                                + "assertion, so the assertion is refused, not carried (section 4.15.7)"));
+            }
+        }
+
+        // The aggregate obligation. The reserved id mark means "a structurally-proven by-primary-key
+        // identifier", so an entry that claims it must have that load actually present, of the asserted
+        // entity. Without this the mark would be a second place a semantic hole could be filled by
+        // assertion, which is the one thing the category boundary forbids.
+        if (claimsIdMark(record, inputs)) {
+            boolean loaded = accesses.stream().anyMatch(access ->
+                    PK_READS.contains(access.methodName()) && assertedKey.get().equals(access.entityKey()));
+            if (!loaded) {
+                return ShapeFrame.refused(refusal(target, record.name(), Cause.STRUCTURAL_FRAME,
+                        "an input carries the reserved id mark, so this entry claims a by-primary-key read "
+                                + "of '" + asserted + "', but no by-primary-key load of that entity is "
+                                + "present in the body. The assertion covers the enrichment, never the "
+                                + "load (section 4.15.2, category B)"));
+            }
+        }
+
+        // Multiplicity is never asserted. Structure decides it: the proven tie where there is one, else the
+        // declared return type being a recognized container.
+        Optional<EntityTie> tie = resolveOutputTie(resolvedTarget);
+        boolean multiple = tie.isPresent() && assertedKey.get().equals(tie.get().entityKey())
+                ? tie.get().multiple()
+                : returnsContainer(resolvedTarget);
+        return ShapeFrame.of(Type.entityRef(asserted), multiple);
+    }
+
+    /** The outcome of the category B frame check: the attested output, or the refusal that stops it. */
+    private record ShapeFrame(Type output, boolean multiple, IntakeRefusal refusal) {
+
+        static ShapeFrame refused(IntakeRefusal refusal) {
+            return new ShapeFrame(null, false, refusal);
+        }
+
+        static ShapeFrame of(Type output, boolean multiple) {
+            return new ShapeFrame(output, multiple, null);
+        }
+
+        boolean isRefused() {
+            return refusal != null;
+        }
+    }
+
+    /** One repository-typed access in the target's body: the method called and the entity it reads. */
+    private record RepoAccess(String methodName, String entityKey) {
+    }
+
+    // Every call in the target's body whose receiver is a repository-typed field of the declaring class.
+    // The entity key is null when the repository's type argument does not resolve to an in-tree entity,
+    // which is not a disqualification: an unresolvable element type is exactly the hole a shape assertion
+    // fills, and the ACCESS still counts as the local tie the read-safety check inspected.
+    private List<RepoAccess> repositoryAccesses(ResolvedTarget resolvedTarget) {
+        Map<String, String> repoFields = repositoryFields(resolvedTarget.declaringType());
+        List<RepoAccess> accesses = new ArrayList<>();
+        for (MethodCallExpr call : resolvedTarget.method().findAll(MethodCallExpr.class)) {
+            String field = receiverFieldName(call);
+            String fieldType = field == null ? null : repoFields.get(field);
+            // repositoryFields maps EVERY field to its declared type, so the receiver has to be checked
+            // against the repository catalog here. Without this a call on a service or client field would
+            // count as a local persistence tie, and a delegation would be accepted as category B instead
+            // of routing to AT-3, which is the precise thing the precondition exists to prevent.
+            if (fieldType == null || !catalog.isRepositoryType(fieldType)) {
+                continue;
+            }
+            String entityKey = catalog.springDataRepo(fieldType)
+                    .map(SpringDataRepo::entityKey)
+                    .orElse(null);
+            accesses.add(new RepoAccess(call.getNameAsString(), entityKey));
+        }
+        return accesses;
+    }
+
+    private boolean claimsIdMark(AttestationRecord record, Map<String, Type> inputs) {
+        for (String input : inputs.keySet()) {
+            if (Attestation.ID_MARK.equals(record.parameters().get(input))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean returnsContainer(ResolvedTarget resolvedTarget) {
+        return resolvedTarget.method().getType() instanceof ClassOrInterfaceType returnClass
+                && CONTAINERS.contains(returnClass.getNameAsString());
+    }
+
+    // The model key of an entity by its display name (the reverse of displayByKey). A key that carries no
+    // display entry is matched directly, so an unrenamed entity resolves by its own key too.
+    private Optional<String> keyForDisplay(String display) {
+        for (Map.Entry<String, String> entry : displayByKey.entrySet()) {
+            if (entry.getValue().equals(display) || entry.getKey().equals(display)) {
+                return Optional.of(entry.getKey());
+            }
+        }
+        return Optional.empty();
     }
 
     // Condition 4, the coverage check. The keyset must equal the input set; a paging mark is permitted only
@@ -312,10 +510,17 @@ public final class AttestationIntake {
         return type == Primitive.STRING && ORDER_NAMES.contains(lower);
     }
 
-    // The fingerprinted slice for a PREDICATE target (Volume 5 section 4.15.4): the target method
-    // declaration, the compilation-unit imports, and, for every repository-typed field the body calls,
-    // that field declaration and the repository interface declaration. If the frame changes, the hash
-    // changes.
+    // The fingerprinted slice of a target (Volume 5 section 4.15.4): the target method declaration, the
+    // compilation-unit imports, for every repository-typed field the body calls that field declaration and
+    // the repository interface declaration, and the target's own return type where it resolves to an
+    // in-tree declaration (the wrapper or projection class, a listed slice member). If the frame changes,
+    // the hash changes.
+    //
+    // The slice is ONE function of the target, not of the asserting category (AT-2 build decision). A
+    // category-dependent slice would give one target two fingerprints, so changing an entry's category
+    // would silently re-stamp it, and the CLI's fingerprintFor(target) contract assumes a target has one
+    // slice. The return type is frame-load-bearing for a predicate entry too, since the output tie reads
+    // it, so pinning it strengthens AT-1 rather than perturbing it.
     private Map<String, Node> sliceMembers(ResolvedTarget resolvedTarget) {
         Map<String, Node> members = new TreeMap<>();
         String fqcn = resolvedTarget.declaringType().getFullyQualifiedName().orElse(resolvedTarget.binding());
@@ -336,7 +541,37 @@ public final class AttestationIntake {
                         decl.getFullyQualifiedName().orElse(repoType), decl));
             }
         });
+        returnTypeDeclaration(resolvedTarget).ifPresent(decl -> members.put(
+                decl.getFullyQualifiedName().orElse(decl.getNameAsString()), decl));
         return members;
+    }
+
+    // The target's return type resolved to an in-tree class or interface declaration: the wrapper, the
+    // projection, or the view whose shape a category B assertion describes. Empty for a library type or a
+    // primitive, and empty when the name does not resolve to exactly one in-tree type.
+    private Optional<ClassOrInterfaceDeclaration> returnTypeDeclaration(ResolvedTarget resolvedTarget) {
+        Optional<CompilationUnit> cu = resolvedTarget.method().findCompilationUnit();
+        if (cu.isEmpty()) {
+            return Optional.empty();
+        }
+        String simple = lastSegment(stripTypeArguments(resolvedTarget.method().getType().asString()));
+        List<ClassOrInterfaceDeclaration> matches = new ArrayList<>();
+        for (CompilationUnit unit : units) {
+            for (ClassOrInterfaceDeclaration type : unit.findAll(ClassOrInterfaceDeclaration.class)) {
+                if (type.getNameAsString().equals(simple)) {
+                    matches.add(type);
+                }
+            }
+        }
+        // Exactly one, or nothing. A colliding simple name is not narrowed by guessing a unit order: the
+        // member is left out of the slice rather than pinned to an arbitrary one of two declarations,
+        // which would make the fingerprint depend on scan order and break determinism (rule 10).
+        return matches.size() == 1 ? Optional.of(matches.get(0)) : Optional.empty();
+    }
+
+    private static String stripTypeArguments(String type) {
+        int open = type.indexOf('<');
+        return open < 0 ? type : type.substring(0, open);
     }
 
     // The output entity tie: a direct entity return, a collection of an entity, or (the wrapper case) a

@@ -129,6 +129,12 @@ final class ManifestWriter {
         out.append("      \"attestation\": {\n");
         out.append("        \"category\": ").append(quote(attestation.category().token())).append(",\n");
         out.append("        \"resultSemantic\": ").append(quote(attestation.resultSemantic())).append(",\n");
+        // The asserted subject entity, present only on a shape claim (AT-2): it IS the claim there, so it
+        // is carried character-exactly like every other asserted word. A predicate attestation carries
+        // none, so an AT-1 manifest is byte-identical to what it was before AT-2.
+        if (attestation.subjectEntity() != null) {
+            out.append("        \"subjectEntity\": ").append(quote(attestation.subjectEntity())).append(",\n");
+        }
         out.append("        \"assertedBy\": ").append(quote(attestation.assertedBy())).append(",\n");
         out.append("        \"origin\": ").append(quote(attestation.origin().token())).append(",\n");
         out.append("        \"date\": ").append(quote(attestation.date())).append(",\n");
