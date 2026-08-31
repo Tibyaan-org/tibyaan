@@ -106,3 +106,24 @@ Read its coverage the way the other ledgers are read: it shares a private founda
 erp-backend and pms-backend, so its idioms do not prove generality. What it proves is that the
 by-primary-key discriminator has to be asked on every path, which is a structural claim and not an
 idiom-bound one.
+
+## 7. AT-2 (SHAPE) re-measurement (2026-09-01)
+
+Attestation AT-2 built the SHAPE category, the one this app's deferral profile ranks first: 201 of its 219
+deferred reads are SHAPE-category (115 projection collections, 86 multi-read assemblies, 15 opaque
+wrappers). Re-measured after the build: discovered 5, failed 154, mis-bound 0, attested 0, and the
+serialized IR, generated MCP output and generated OpenAPI document all BYTE-IDENTICAL to a worktree built
+at the pre-build commit.
+
+Byte-identical is the correct and expected result, and reading it as "AT-2 did nothing here" would be a
+misreading. as-backend carries no `tibyan/attestations.json`, and it never will until a person who knows
+the code writes one. AT-2 builds the mechanism that lets those 201 reads BE attested; it does not attest
+them, and the tool authoring an assertion about code it does not know is the first thing section 4.15.9
+forbids. The count that moves is `attested`, and it moves only when a named human moves it.
+
+What this app can expect when someone does attest, stated honestly rather than as a ceiling: the 86
+multi-read assemblies include the aggregate-enrichment by-id reads AT-2 covers directly, provided their
+only inputs are the identifier and paging. Any read with a domain filter parameter needs the compound
+category `both`, which is NOT built, so a large part of the 115 projection collections (the
+`getAllXByFilters` family, which is most of them) stays refused after AT-2. The honest summary is that
+AT-2 opens the by-id aggregates on this app and leaves the filtered surface for a later step.

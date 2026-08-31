@@ -1055,3 +1055,19 @@ return type.
 erp's contribution to this phase is negative evidence, which is the useful kind here: a rule that
 tightens the path 33 of its capabilities do not use, and 2 of them do, moved nothing. That is what
 "can only remove candidates, never add one" looks like when the candidates were all provable.
+
+## AT-2 (SHAPE) re-measurement (2026-09-01), erp-backend
+
+Attestation AT-2 built the SHAPE category. erp's ledger section 15 census estimated "roughly 14 projection
+and transformed reads under AT-2".
+
+Measured: discovered 35, failed 137 (NO_BACKING_METHOD 135, AMBIGUOUS_BINDING 2), mis-bound 0, attested 0,
+with the serialized IR, generated MCP output and generated OpenAPI document BYTE-IDENTICAL to a worktree
+built at the pre-build commit. erp carries no `tibyan/attestations.json`, so the phase is provably additive
+exactly as fixture ATT-11 requires.
+
+One correction to how that "roughly 14" should be read after the build: a projection read whose inputs
+include a domain filter carries a predicate hole as well as a shape hole, and one entry filling both is
+the compound category `both`, which AT-2 deliberately does not build. So the reads AT-2 alone unlocks here
+are the projections and transformed returns whose only inputs are identifiers and paging. The rest wait,
+and the ledger says so rather than carrying the pre-build number forward unqualified.

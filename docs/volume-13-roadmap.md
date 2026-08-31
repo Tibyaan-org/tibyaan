@@ -355,6 +355,25 @@ and it is stated here so no later session inherits it as settled.
 
 Sequence after this: unchanged. EI-1, then AT-2 (SHAPE).
 
+
+### Attestation AT-2, the SHAPE category (ratified 2026-07-21 with the phase; BUILT 2026-09-01)
+
+WHAT IT ADDS. The third category of knowledge can now be asserted about what a read RETURNS, not only about what its predicate means. A human names the subject entity and the result shape; the tool proves everything around that claim and refuses the entry if any of it fails. It is the third and last of the three measured blockers, and the one both pms and as-backend rank first.
+
+SEQUENCE NOTE, recorded because it departs from the written order: the roadmap put EI-1 before AT-2, and the maintainer reordered them. AT-2's only hard dependency is AT-1's machinery, which has been built since 2026-07-25, so the reorder is a ranking decision, not a dependency violation. EI-1 stays pending and unblocked.
+
+WHAT THE TOOL STILL PROVES around a shape assertion: the local-tie precondition (a shape claim is honest only over a body whose persistence the read-safety check could actually inspect, so a delegation-built wrapper routes to AT-3 BY NAME and is never accepted here); the asserted subject entity exists in the model; structural non-contradiction (a body whose SINGLE repository access provably reads a different entity refuses); the by-primary-key load where the entry claims an identifier; and read-safety over the whole fingerprinted slice, unsoftened.
+
+THREE RATIFIED-TEXT UNDERSPECIFICATIONS RESOLVED IN THE BUILD, all recorded in Volume 5 section 4.15.2.2 rather than quietly chosen: the aggregate discriminator is the reserved `id` mark, which now obliges a proven by-primary-key load instead of merely a typed parameter; a sentence-covered input means the target has a predicate hole too and belongs to `both`; and the fingerprinted slice is one function of the target, not of the category, which adds the return type declaration for every category and re-stamps every existing fingerprint.
+
+SCOPE, DELIBERATE: `both` is NOT built. AT-2's ratified scope is "adds one category". Every compound target, a filtered read whose element type is also unresolvable, stays refused with a located message. This is the main limit on what the build unlocks, and it means the section 4.15.11 ceilings are NOT reachable by AT-2 alone: those counts include compound targets.
+
+MEASURED (2026-09-01): all three benchmarks BYTE-IDENTICAL across serialized IR, generated MCP output, and generated OpenAPI document, verified by `diff -r` against a worktree at the pre-build commit. None carries an attestations file, so the phase is provably additive exactly as fixture ATT-11 requires. pms 5 / erp 35 / as-backend 5 discovered, mis-bound 0, attested 0.
+
+THE OPEN VERIFICATION, unchanged and now the deciding one: no real attesting human has run this flow. The build did not manufacture one, because the tool authoring an assertion about code it does not know is the first thing section 4.15.9 forbids. The first real attestation is the adopting team's to write, and the first-use measurement is what decides whether AT-3 proceeds.
+
+Sequence after this: EI-1 remains pending. AT-3 (BOUNDARY) needs its own ratification with stronger guards; AT-4 is optional and separable; `both` needs a decision of its own.
+
 ## 4. Tier 3: direction only (production readiness and beyond)
 
 This tier is deliberately coarse: one short paragraph per item, no designs, no phase plans, no acceptance criteria. Everything here is conditional on Tier 2 proving the semantic core on real applications, meaning the benchmark discovers a meaningful share of a real app's reads with zero mis-bindings. Writing detailed plans for this tier before that proof would repeat the original roadmap's mistake.

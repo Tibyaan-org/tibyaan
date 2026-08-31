@@ -1471,3 +1471,20 @@ BYTE-IDENTICAL to a worktree built at the pre-build commit, verified by `diff -r
 
 pms is recorded here as the control: a benchmark that exercises none of a phase's new machinery and
 must therefore not move by a single byte. It did not.
+
+## AT-2 (SHAPE) re-measurement (2026-09-01), pms-backend
+
+Attestation AT-2 built the SHAPE category. pms is the app whose ledger section 10 estimated "up to 8 more
+under AT-2", the aggregate by-id reads (Building, Property, ChatRoom, Ticket, Group, Event,
+`getUserDetails`, `findPropertyByBuildingId`).
+
+Measured: discovered 5, failed 38 (COMPOSITE_KEY 3, NO_BACKING_METHOD 35), mis-bound 0, attested 0, with
+the serialized IR, generated MCP output and generated OpenAPI document BYTE-IDENTICAL to a worktree built
+at the pre-build commit. pms carries no `tibyan/attestations.json`, so nothing could move, and the phase is
+provably additive as fixture ATT-11 requires.
+
+The "up to 8" is unchanged as an estimate and is now bounded by one thing the estimate did not account for:
+AT-2 builds the shape category only, not the compound `both`. An aggregate whose inputs are the identifier
+and paging is attestable now; an aggregate that also takes a domain filter has a predicate hole as well and
+needs `both`, which is not built. Whether all 8 fall on the clean side is a question for the person who
+attests them, which is the open verification this phase does not close.
