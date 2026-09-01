@@ -22,6 +22,8 @@ import com.tibyaan.core.ir.Primitive;
 import com.tibyaan.core.ir.Type;
 import com.tibyaan.provider.spring.JavaTypeMapper;
 import com.tibyaan.provider.spring.attest.IntakeRefusal.Cause;
+import com.tibyaan.core.ir.CapabilityKind;
+import com.tibyaan.provider.spring.extractors.EnumInputValues;
 import com.tibyaan.provider.spring.extractors.RepositoryCatalog;
 import com.tibyaan.provider.spring.extractors.SpringDataRepo;
 import com.tibyaan.provider.spring.extractors.TypeReferenceResolver;
@@ -71,6 +73,7 @@ public final class AttestationIntake {
     private final RepositoryCatalog catalog;
     private final JavaTypeMapper typeMapper;
     private final ReadSafety readSafety;
+    private final EnumInputValues enumInputValues;
     private final Map<String, String> displayByKey;
 
     public AttestationIntake(List<CompilationUnit> units, TypeReferenceResolver resolver,
@@ -81,6 +84,7 @@ public final class AttestationIntake {
         this.catalog = catalog;
         this.typeMapper = typeMapper;
         this.readSafety = new ReadSafety(catalog);
+        this.enumInputValues = new EnumInputValues(resolver, units);
         this.displayByKey = displayByKey;
     }
 
@@ -185,20 +189,47 @@ public final class AttestationIntake {
         // Condition 3, part 1: every parameter type maps; the modeled inputs are built in declared order,
         // framework paging types (Pageable, Sort) excluded exactly as E4 excludes a lone Pageable.
         Map<String, Type> inputs = new LinkedHashMap<>();
+        Map<String, List<String>> inputValues = new LinkedHashMap<>();
+        Optional<CompilationUnit> targetUnit = resolvedTarget.method().findCompilationUnit();
         for (Parameter parameter : resolvedTarget.method().getParameters()) {
             String typeSimple = lastSegment(parameter.getType().asString());
             if (PAGING_TYPES.contains(typeSimple)) {
                 continue;
             }
-            Optional<Type> mapped = typeMapper.map(parameter.getType().asString());
-            if (mapped.isEmpty()) {
+            String parameterName = parameter.getNameAsString();
+            String declaredType = parameter.getType().asString();
+
+            // Phase Enum Inputs (Volume 5 section 4.16.4): an in-tree enum parameter maps to STRING and
+            // carries the closed set of wire values the tool READ from its declaration. An enum whose
+            // values it cannot read REFUSES; it never degrades to an unconstrained STRING, because a
+            // schema that invites an agent to send a value the call will reject is a worse outcome than a
+            // named refusal, and it is the same choice E3 made for enum FIELDS.
+            EnumInputValues.Outcome enumOutcome = targetUnit
+                    .map(unit -> enumInputValues.resolve(declaredType, unit))
+                    .orElseGet(EnumInputValues.Outcome::notAnEnum);
+            if (enumOutcome.isRefused()) {
                 refusals.add(refusal(target, record.name(), Cause.STRUCTURAL_FRAME,
-                        "parameter '" + parameter.getNameAsString() + "' has type '"
-                                + parameter.getType().asString() + "', which does not map to a modeled "
-                                + "type (section 4.15.4, condition 3)"));
+                        "parameter '" + parameterName + "': " + enumOutcome.refusal()
+                                + ". No value set is carried and the capability is refused rather than "
+                                + "advertised unconstrained (section 4.15.4, condition 3)"));
                 return;
             }
-            inputs.put(parameter.getNameAsString(), mapped.get());
+            if (enumOutcome.isProvable()) {
+                inputs.put(parameterName, Primitive.STRING);
+                inputValues.put(parameterName, enumOutcome.values());
+                continue;
+            }
+
+            Optional<Type> mapped = typeMapper.map(declaredType);
+            if (mapped.isEmpty()) {
+                refusals.add(refusal(target, record.name(), Cause.STRUCTURAL_FRAME,
+                        "parameter '" + parameterName + "' has type '" + declaredType
+                                + "', which does not map to a modeled type; if it is an enum it does not "
+                                + "resolve to an in-tree declaration, so its values cannot be read "
+                                + "(section 4.16.4, EI-1; section 4.15.4, condition 3)"));
+                return;
+            }
+            inputs.put(parameterName, mapped.get());
         }
 
         // Condition 3, part 2: read-safety over the fingerprinted slice. A visible write refuses; a
@@ -286,8 +317,11 @@ public final class AttestationIntake {
         Attestation attestation = new Attestation(category, record.resultSemantic(),
                 parameterMeanings, subject, provenance.assertedBy(), origin, provenance.date(),
                 provenance.fingerprint());
-        attested.add(Capability.attested(minted, inputs, output, multiple,
-                new BindingRef(resolvedTarget.binding()), List.of(), attestation));
+        // The value sets ride the capability, never the attestation: the tool PROVES values and the human
+        // ATTESTS meaning, and an attestation can neither supply, extend, nor override a set
+        // (Volume 5 section 4.16.5).
+        attested.add(new Capability(minted, CapabilityKind.READ, inputs, output, multiple, true,
+                new BindingRef(resolvedTarget.binding()), List.of(), attestation, inputValues));
     }
 
     /**

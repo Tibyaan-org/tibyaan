@@ -6,6 +6,9 @@ import com.github.javaparser.ParserConfiguration;
 import com.github.javaparser.ParserConfiguration.LanguageLevel;
 import com.github.javaparser.Problem;
 import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.body.MethodDeclaration;
+import com.github.javaparser.ast.body.Parameter;
+import com.github.javaparser.ast.expr.MethodCallExpr;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.tibyaan.core.ir.Annotation;
 import com.tibyaan.core.ir.BindingRef;
@@ -229,7 +232,59 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
                 moduleName(sourceRoot), IR_VERSION, finalized.entities(), capabilities,
                 dedupeAndSort(finalized.relations()), Metadata.empty());
         return new ScanReport(model, finalized.outcomes(), parsed.skips(), finalized.skippedFields(),
-                listReads.outcomes(), listReads.deferrals(), attestationRefusals);
+                listReads.outcomes(), listReads.deferrals(), attestationRefusals,
+                enumParsedInBody(serviceSources, resolver));
+    }
+
+    private static String lastSegment(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot < 0 ? name : name.substring(dot + 1);
+    }
+
+    // Phase Enum Inputs, the STRING-PARSED-INTERNALLY case (Volume 5 section 4.16.4). A String parameter
+    // the body parses into an in-tree enum has its closed set OUTSIDE the signature, so the tool carries no
+    // constraint and does not refuse: the declared contract genuinely is a string, and this is the one
+    // place an unconstrained STRING is the truthful rendering. The ledger names it so the case is visible
+    // rather than silently unconstrained. Detection stays structural and narrow: a call whose receiver is a
+    // bare name resolving to an in-tree ENUM, taking that String parameter verbatim as an argument.
+    private static List<String> enumParsedInBody(List<ServiceMethodSource> serviceSources,
+                                                 TypeReferenceResolver resolver) {
+        List<String> found = new ArrayList<>();
+        for (ServiceMethodSource source : serviceSources) {
+            MethodDeclaration method = source.declaration();
+            Optional<CompilationUnit> unit = method.findCompilationUnit();
+            if (unit.isEmpty()) {
+                continue;
+            }
+            for (Parameter parameter : method.getParameters()) {
+                if (!"String".equals(lastSegment(parameter.getType().asString()))) {
+                    continue;
+                }
+                String name = parameter.getNameAsString();
+                for (MethodCallExpr call : method.findAll(MethodCallExpr.class)) {
+                    if (call.getScope().isEmpty() || !call.getScope().get().isNameExpr()) {
+                        continue;
+                    }
+                    String receiver = call.getScope().get().asNameExpr().getNameAsString();
+                    TypeReferenceResolver.Resolution resolution = resolver.resolve(receiver, unit.get());
+                    if (!resolution.isResolved()
+                            || resolution.kind() != TypeReferenceResolver.Kind.ENUM) {
+                        continue;
+                    }
+                    boolean takesParameter = call.getArguments().stream()
+                            .anyMatch(argument -> argument.isNameExpr()
+                                    && argument.asNameExpr().getNameAsString().equals(name));
+                    if (takesParameter) {
+                        found.add(source.method().signature() + ": parameter '" + name + "' is parsed into "
+                                + "the in-tree enum '" + receiver + "' inside the body, so its closed set "
+                                + "is not in the signature; carried unconstrained, not refused "
+                                + "(enum-parsed-in-body, section 4.16.4)");
+                        break;
+                    }
+                }
+            }
+        }
+        return found;
     }
 
     /**

@@ -34,6 +34,12 @@ import java.util.TreeMap;
  *                         (Volume 5 sections 4.8, 4.7)
  * @param listOutcomes     one entry per entity with a list-all candidate (discovered or ambiguous), never null
  * @param deferredListReads one entry per collection read E4 does not model, never null
+ * @param enumParsedInBody one signature per read whose closed set is NOT in its signature because a String
+ *                         parameter is parsed into an in-tree enum inside the body (phase Enum Inputs,
+ *                         Volume 5 section 4.16.4). These reads carry NO constraint and are NOT refused on
+ *                         that account: the declared contract genuinely is a string, so an unconstrained
+ *                         STRING is the truthful rendering. The ledger names them anyway, so the case is
+ *                         visible rather than silently unconstrained
  */
 public record ScanReport(
         CapabilityModel model,
@@ -42,7 +48,16 @@ public record ScanReport(
         List<SkippedField> skippedFields,
         List<ListOutcome> listOutcomes,
         List<DeferredListRead> deferredListReads,
-        List<IntakeRefusal> attestationRefusals) {
+        List<IntakeRefusal> attestationRefusals,
+        List<String> enumParsedInBody) {
+
+    /** The pre-Enum-Inputs shape, kept so existing construction sites stay correct and unchanged. */
+    public ScanReport(CapabilityModel model, List<EntityOutcome> entityOutcomes, List<ParseSkip> parseSkips,
+            List<SkippedField> skippedFields, List<ListOutcome> listOutcomes,
+            List<DeferredListRead> deferredListReads, List<IntakeRefusal> attestationRefusals) {
+        this(model, entityOutcomes, parseSkips, skippedFields, listOutcomes, deferredListReads,
+                attestationRefusals, List.of());
+    }
 
     public ScanReport {
         if (model == null) {
@@ -54,6 +69,7 @@ public record ScanReport(
         listOutcomes = listOutcomes == null ? List.of() : List.copyOf(listOutcomes);
         deferredListReads = deferredListReads == null ? List.of() : List.copyOf(deferredListReads);
         attestationRefusals = attestationRefusals == null ? List.of() : List.copyOf(attestationRefusals);
+        enumParsedInBody = enumParsedInBody == null ? List.of() : List.copyOf(enumParsedInBody);
     }
 
     /**

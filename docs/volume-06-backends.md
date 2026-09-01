@@ -203,7 +203,7 @@ Backends generate code from templates (Volume 16). Every backend is covered by g
 2. A backend never depends on a provider, never depends on a runtime, and never calls a framework directly.
 3. Generated code invokes logic only through the ExecutionAdapter.
 
-## 3.7 MCP: enum-typed inputs render as an ENFORCED closed set (phase Enum Inputs; designed 2026-08-04, pending ratification)
+## 3.7 MCP: enum-typed inputs render as an ENFORCED closed set (phase Enum Inputs; designed 2026-08-04, RATIFIED, BUILT 2026-09-01 as EI-1)
 
 An input carrying a value constraint (Volume 4, section 3.9) renders in the tool's `inputSchema` as the
 JSON Schema shape the wire already uses for a closed string set:
@@ -226,7 +226,7 @@ tool-proven `enum`, and the input's `description` carries the human's meaning se
 `Human-attested, not tool-verified.` prefix the attestation carriage already requires. The value set is never
 part of the attested text and an attestation can never alter it.
 
-## 4.5 OpenAPI: enum-typed inputs render as a parameter enum (phase Enum Inputs; designed 2026-08-04, pending ratification)
+## 4.5 OpenAPI: enum-typed inputs render as a parameter enum (phase Enum Inputs; designed 2026-08-04, RATIFIED, BUILT 2026-09-01 as EI-1)
 
 The same constraint renders as the parameter's `schema.enum`, in the same order, with the same gate:
 

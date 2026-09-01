@@ -8,12 +8,14 @@ import com.tibyaan.core.ir.CapabilityModel;
 import com.tibyaan.core.ir.Entity;
 import com.tibyaan.core.ir.EntityRef;
 import com.tibyaan.core.ir.Field;
+import com.tibyaan.core.ir.Primitive;
 import com.tibyaan.core.ir.Relation;
 import com.tibyaan.core.ir.Type;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -49,6 +51,7 @@ public final class SemanticValidator {
         checkOutputMultiple(model, errors);
         checkAttestationCompleteness(model, errors);
         checkAttestedPrefix(model, errors);
+        checkInputValueConstraints(model, errors);
 
         return new ValidationResult(errors);
     }
@@ -275,6 +278,41 @@ public final class SemanticValidator {
             if (capability.outputMultiple() && capability.kind() != CapabilityKind.READ) {
                 errors.add("capability '" + capability.name() + "' has outputMultiple true but kind "
                         + capability.kind() + "; a list output is a READ in the MVP");
+            }
+        }
+    }
+
+    // Rule 10 (Volume 4 section 5, rule 10; phase Enum Inputs, section 3.9): input value constraints are
+    // complete and well formed. Every key names an existing input; every keyed input is STRING-typed;
+    // every set is non-empty with distinct values. This is what makes the phase's invariant, that a
+    // rendered closed set is an enforced closed set, core-enforced rather than conventional: a constraint
+    // the core cannot check is a constraint a backend could render over nothing.
+    private static void checkInputValueConstraints(CapabilityModel model, List<String> errors) {
+        for (Capability capability : model.capabilities()) {
+            for (Map.Entry<String, List<String>> constraint : capability.inputValues().entrySet()) {
+                String input = constraint.getKey();
+                String where = "capability '" + capability.name() + "' constrains input '" + input + "'";
+
+                Type type = capability.inputs().get(input);
+                if (type == null) {
+                    errors.add(where + ", which is not an input of that capability (rule 10)");
+                    continue;
+                }
+                if (type != Primitive.STRING) {
+                    errors.add(where + ", whose type is " + type.canonical() + ", not STRING; a closed value"
+                            + " set is a set of wire strings (rule 10)");
+                }
+                List<String> values = constraint.getValue();
+                if (values.isEmpty()) {
+                    errors.add(where + " with an empty value set; a constraint that admits nothing is not"
+                            + " a constraint (rule 10)");
+                    continue;
+                }
+                Set<String> distinct = new LinkedHashSet<>(values);
+                if (distinct.size() != values.size()) {
+                    errors.add(where + " with duplicated values " + values + "; a closed set's values are"
+                            + " distinct (rule 10)");
+                }
             }
         }
     }

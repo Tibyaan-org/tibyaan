@@ -121,8 +121,25 @@ final class CliOutput {
         // emitted only when attestations are present, so a scan with no record file is byte-identical.
         printAttested(report);
 
+        // The enum-parsed-in-body ledger (Volume 5 section 4.16.4): reads whose closed set is outside the
+        // signature because a String parameter is parsed into an enum in the body. They carry NO
+        // constraint and are NOT refused on that account, so naming them keeps the case visible rather
+        // than silently unconstrained. An app with none prints nothing and stays byte-identical.
+        if (!report.enumParsedInBody().isEmpty()) {
+            System.out.println("Enum parsed in body (" + report.enumParsedInBody().size()
+                    + ", carried unconstrained):");
+            for (String note : report.enumParsedInBody()) {
+                System.out.println("  ~ " + note);
+            }
+        }
+
         long attested = report.attestedCount();
         boolean anyAttestation = attested > 0 || !report.attestationRefusals().isEmpty();
+        // mis-constrained (Volume 5 section 4.16.7) is this phase's mis-analog and is 0 by construction:
+        // a value set is carried only when the provider READ it from a resolved in-tree enum declaration,
+        // and a surface renders it only because the runtime enforces it. Reported only where a constraint
+        // exists, so a constraint-free scan is byte-identical.
+        boolean anyConstraint = report.model().capabilities().stream().anyMatch(Capability::hasInputValues);
         System.out.println("Totals: discovered " + report.totalDiscoveredCount()
                 + " (by-id " + report.discoveredCount() + ", list " + report.listDiscoveredCount() + ")"
                 + (anyAttestation ? ", attested " + attested : "")
@@ -132,7 +149,8 @@ final class CliOutput {
                 + ", partial " + report.partialEntityCount()
                 + " (" + report.skippedFieldCount() + " fields skipped)"
                 + ", mis-bound 0"
-                + (anyAttestation ? ", attestation-drift 0" : ""));
+                + (anyAttestation ? ", attestation-drift 0" : "")
+                + (anyConstraint ? ", mis-constrained 0" : ""));
     }
 
     // The attestation survey (Volume 5 section 4.15.8): attested capabilities are their own outcome class,

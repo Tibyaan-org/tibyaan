@@ -1071,3 +1071,23 @@ include a domain filter carries a predicate hole as well as a shape hole, and on
 the compound category `both`, which AT-2 deliberately does not build. So the reads AT-2 alone unlocks here
 are the projections and transformed returns whose only inputs are identifiers and paging. The rest wait,
 and the ledger says so rather than carrying the pre-build number forward unqualified.
+
+## EI-1 re-measurement (2026-09-01), erp-backend
+
+Step EI-1 built the input value constraint. erp is the app section 4.16.9 named as the real payoff: its
+enums are BARE (no `@JsonValue` in the sampled declarations), so shape (a) applies and the carried set is
+the constant names, and its 10 enum-parameter READS tie cleanly through direct Spring Data repositories.
+
+Measured: discovered 35, failed 137, mis-bound 0, attested 0, and the serialized IR, generated MCP output
+and generated OpenAPI document all BYTE-IDENTICAL to a worktree built at the pre-build commit. The survey
+text is identical too: erp produces no `enum-parsed-in-body` lines.
+
+Byte-identical is the ratified forecast, not a shortfall, and the reason is structural rather than
+incidental: no DISCOVERED capability can have an enum input, because a by-id read takes one identifier and
+a list-all read takes none. So the constraint has exactly one place to attach, the attestation intake, and
+erp has no record file.
+
+What changed for erp is therefore its CEILING, not its count. The 10 reads move from "refused because the
+parameter type does not map" to "attestable, with the closed set proven and carried the moment a human
+authors the entry". This is the first phase whose payoff waits on an attester rather than on a build, and
+the ledger records it as attestable rather than counting it as delivered.

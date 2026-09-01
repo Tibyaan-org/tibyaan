@@ -127,3 +127,20 @@ only inputs are the identifier and paging. Any read with a domain filter paramet
 category `both`, which is NOT built, so a large part of the 115 projection collections (the
 `getAllXByFilters` family, which is most of them) stays refused after AT-2. The honest summary is that
 AT-2 opens the by-id aggregates on this app and leaves the filtered surface for a later step.
+
+## 8. EI-1 re-measurement (2026-09-01)
+
+Step EI-1 built the input value constraint. Measured: discovered 5, failed 154, mis-bound 0, attested 0,
+with serialized IR, generated MCP output and generated OpenAPI document all BYTE-IDENTICAL to a worktree
+built at the pre-build commit, and an identical survey: as-backend produces no `enum-parsed-in-body` lines.
+
+This app is unmoved by EI-1 for the same structural reason erp is, and the reason is worth stating rather
+than leaving as a bare zero. No discovered capability can carry an enum input, because a by-id read takes
+one identifier and a list-all read takes none. The constraint attaches only at attestation intake, and
+as-backend has no record file. What EI-1 changes here is what would happen IF someone attested one of the
+219 deferred reads whose filters are enum-typed: the closed set would now be proven and carried instead of
+the entry refusing at the parameter gate.
+
+Read alongside section 7: AT-2 opened the by-id aggregates on this app, EI-1 removes the enum-parameter
+obstacle from the filtered ones, and what still blocks most of the filtered surface is the compound
+category `both`, which is not built.
