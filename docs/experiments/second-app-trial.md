@@ -1488,3 +1488,26 @@ AT-2 builds the shape category only, not the compound `both`. An aggregate whose
 and paging is attestable now; an aggregate that also takes a domain filter has a predicate hole as well and
 needs `both`, which is not built. Whether all 8 fall on the clean side is a question for the person who
 attests them, which is the open verification this phase does not close.
+
+## EI-1 re-measurement (2026-09-01), pms-backend
+
+Step EI-1 built the input value constraint. pms contributed the phase's most important negative: its
+hand-written `LeaseStatus` declares `DRAFT("Draft"), ACTIVE("Active")` with a Lombok getter and NO
+`@JsonValue`, so Jackson serializes the CONSTANT NAME and those literals are decorative labels. Fixture
+EI-3 reproduces that shape and pins that the tool carries DRAFT, never Draft. A rule that read constructor
+literals whenever it saw them would have advertised values this application rejects, which is the
+mis-constrained breach.
+
+Measured: discovered 5, failed 38, mis-bound 0, attested 0, with serialized IR, generated MCP output and
+generated OpenAPI document all BYTE-IDENTICAL to a worktree built at the pre-build commit.
+
+The one measured change on any benchmark is here, and it is a ledger line rather than a capability: pms's
+survey gains two `enum-parsed-in-body` entries, `LeaseServiceImpl#updateStatus(Long, String)` and
+`LeaseSigningServiceImpl#applyWebhookUpdate(String, String)`. Both are WRITES, so neither was ever a
+candidate; they are named because their closed set sits in the body rather than the signature, and the
+ratified rule is that such a read carries no constraint, is not refused on that account, and is recorded so
+the case is visible rather than silently unconstrained.
+
+Section 4.16.9's pms forecast stands unchanged: the three authored entries that this step unblocks at the
+parameter gate then refuse at their NEXT gate, the output entity tie, because pms ties through hand-written
+one-hop repositories. pms is blocked on AT-2, not on this.

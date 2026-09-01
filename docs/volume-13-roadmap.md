@@ -374,6 +374,44 @@ THE OPEN VERIFICATION, unchanged and now the deciding one: no real attesting hum
 
 Sequence after this: EI-1 remains pending. AT-3 (BOUNDARY) needs its own ratification with stronger guards; AT-4 is optional and separable; `both` needs a decision of its own.
 
+
+### Enum inputs, step EI-1: the input value constraint (ratified 2026-08-04 with the phase; BUILT 2026-09-01)
+
+The second and last step of the enum-input phase, and the fourth deliberate IR growth after FLOAT,
+`outputMultiple`, and `Attestation`. A capability may now carry a per-input closed value set, and both
+backends render it as an enforced closed set because the runtime enforces it (EI-R, built 2026-08-05, which
+is why the phase was split in this order).
+
+RATIFICATION RECONCILIATION, done before any code. Volume 5 section 4.16, this roadmap, and CLAUDE.md all
+recorded the phase as RATIFIED with only its build pending, and rule 10 was already written into Volume 4
+section 5; but the headings of Volume 4 section 3.9 and Volume 6 sections 3.7 and 4.5 still read "pending
+ratification", having been written in the same session and never updated. Four concurring records beat
+three stale headings; the build corrected them and recorded the reconciliation (Volume 5, section 4.16.10).
+
+WHAT THE TOOL PROVES. A bare enum carries its CONSTANT NAMES; a value-mapped enum whose single `@JsonValue`
+no-argument accessor returns a field assigned from one constructor parameter, with every constant passing a
+string literal there, carries THOSE LITERALS; anything else refuses to constrain and therefore refuses the
+capability, because an unconstrained STRING on a parameter that only accepts a closed set invites an agent
+to send a value the call will reject. The constructor-literal trap is the phase's most important negative
+and fixture EI-3 pins it.
+
+FOUR BUILD DECISIONS, recorded in Volume 5 section 4.16.10 rather than quietly chosen: the constraint is
+carried at attestation intake, the only place an enum input can exist; the ratified `enum-parsed-in-body`
+deferral needed a new survey channel; byte-identity is the serializer's job through a mixin scoped to one
+property, because core carries no Jackson annotations; and `mis-constrained 0` prints only where a
+constraint exists.
+
+MEASURED (2026-09-01): pms 5 / erp 35 / as-backend 5 discovered, with serialized IR, generated MCP output
+and generated OpenAPI document all BYTE-IDENTICAL to a worktree at the pre-build commit. Discovered is
+byte-identical BY CONSTRUCTION, not merely by measurement. The one measured change anywhere is pms's survey
+gaining two `enum-parsed-in-body` lines, both writes, correctly named as visible-and-unconstrained.
+
+STILL GATED ON AN ATTESTER: erp's 10 enum-parameter reads become ATTESTABLE, not attested. This is the
+first phase whose payoff waits on a human authoring entries rather than on a further build.
+
+Sequence after this: nothing pending from the ratified sequence. AT-3 (BOUNDARY) needs its own ratification
+with stronger guards, AT-4 is optional and separable, and the compound category `both` needs a decision.
+
 ## 4. Tier 3: direction only (production readiness and beyond)
 
 This tier is deliberately coarse: one short paragraph per item, no designs, no phase plans, no acceptance criteria. Everything here is conditional on Tier 2 proving the semantic core on real applications, meaning the benchmark discovers a meaningful share of a real app's reads with zero mis-bindings. Writing detailed plans for this tier before that proof would repeat the original roadmap's mistake.
