@@ -1511,3 +1511,17 @@ the case is visible rather than silently unconstrained.
 Section 4.16.9's pms forecast stands unchanged: the three authored entries that this step unblocks at the
 parameter gate then refuse at their NEXT gate, the output entity tie, because pms ties through hand-written
 one-hop repositories. pms is blocked on AT-2, not on this.
+
+## AT-3 (BOUNDARY) re-measurement (2026-09-01)
+
+Attestation AT-3 built the BOUNDARY category, member C2: the remote delegation, attested for what it
+returns AND for read-only-ness itself, which is the one property the tool cannot check for that shape.
+
+Measured: BYTE-IDENTICAL across the serialized IR, the generated MCP output, and the generated OpenAPI
+document, verified by `diff -r` against a worktree built at the pre-build commit. This app carries no
+`tibyan/attestations.json`, so nothing could move, and the phase is provably additive.
+
+The counted evidence for this category lives on the private enterprise benchmark (15 by-id delegation
+reads), not here, so byte-identical is the expected and correct result rather than a disappointment. What
+matters for this ledger is the negative: a phase that adds a whole new epistemic class, three IR fields,
+two core rules, and a runtime exposure control moved not one byte of any existing output.

@@ -144,3 +144,17 @@ the entry refusing at the parameter gate.
 Read alongside section 7: AT-2 opened the by-id aggregates on this app, EI-1 removes the enum-parameter
 obstacle from the filtered ones, and what still blocks most of the filtered surface is the compound
 category `both`, which is not built.
+
+## AT-3 (BOUNDARY) re-measurement (2026-09-01)
+
+Attestation AT-3 built the BOUNDARY category, member C2: the remote delegation, attested for what it
+returns AND for read-only-ness itself, which is the one property the tool cannot check for that shape.
+
+Measured: BYTE-IDENTICAL across the serialized IR, the generated MCP output, and the generated OpenAPI
+document, verified by `diff -r` against a worktree built at the pre-build commit. This app carries no
+`tibyan/attestations.json`, so nothing could move, and the phase is provably additive.
+
+The counted evidence for this category lives on the private enterprise benchmark (15 by-id delegation
+reads), not here, so byte-identical is the expected and correct result rather than a disappointment. What
+matters for this ledger is the negative: a phase that adds a whole new epistemic class, three IR fields,
+two core rules, and a runtime exposure control moved not one byte of any existing output.

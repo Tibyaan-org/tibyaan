@@ -1091,3 +1091,17 @@ What changed for erp is therefore its CEILING, not its count. The 10 reads move 
 parameter type does not map" to "attestable, with the closed set proven and carried the moment a human
 authors the entry". This is the first phase whose payoff waits on an attester rather than on a build, and
 the ledger records it as attestable rather than counting it as delivered.
+
+## AT-3 (BOUNDARY) re-measurement (2026-09-01)
+
+Attestation AT-3 built the BOUNDARY category, member C2: the remote delegation, attested for what it
+returns AND for read-only-ness itself, which is the one property the tool cannot check for that shape.
+
+Measured: BYTE-IDENTICAL across the serialized IR, the generated MCP output, and the generated OpenAPI
+document, verified by `diff -r` against a worktree built at the pre-build commit. This app carries no
+`tibyan/attestations.json`, so nothing could move, and the phase is provably additive.
+
+The counted evidence for this category lives on the private enterprise benchmark (15 by-id delegation
+reads), not here, so byte-identical is the expected and correct result rather than a disappointment. What
+matters for this ledger is the negative: a phase that adds a whole new epistemic class, three IR fields,
+two core rules, and a runtime exposure control moved not one byte of any existing output.
