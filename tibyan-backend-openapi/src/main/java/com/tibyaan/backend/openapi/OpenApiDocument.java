@@ -200,7 +200,17 @@ final class OpenApiDocument {
             parameter.put("name", input.getKey());
             parameter.put("in", isId ? "path" : "query");
             parameter.put("required", isId ? Boolean.TRUE : Boolean.FALSE);
-            parameter.put("schema", typeSchema(input.getValue()));
+            // Phase Enum Inputs (Volume 6 section 4.5): the constraint renders as the parameter's
+            // schema.enum, in declaration order, with no vendor extension because `enum` is native to the
+            // OpenAPI schema object and means exactly what this phase means by it. Same honesty gate as
+            // MCP: the key is emitted only because the runtime enforces it.
+            Map<String, Object> schema = typeSchema(input.getValue());
+            List<String> values = capability.inputValues().get(input.getKey());
+            if (values != null && !values.isEmpty()) {
+                schema = new LinkedHashMap<>(schema);
+                schema.put("enum", List.copyOf(values));
+            }
+            parameter.put("schema", schema);
             parameter.put("description", attestedInputDescription(capability, input.getKey()));
             parameters.add(parameter);
         }

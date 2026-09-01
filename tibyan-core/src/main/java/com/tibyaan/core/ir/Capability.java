@@ -25,6 +25,15 @@ import java.util.Map;
  * @param attestation    the human-attested claim and its provenance (Volume 4 section 3.8), or null on
  *                       every tool-verified capability; an attested capability's name carries the
  *                       reserved {@code attested_} prefix (rule 9)
+ * @param inputValues    per-input closed value sets (Volume 4 section 3.9; phase Enum Inputs), keyed by
+ *                       input name, each set non-empty, ordered, and distinct. EMPTY on every capability
+ *                       that has none, and omitted from the serialized IR when empty, so a constraint-free
+ *                       model is byte-identical. A set here is a CONTRACT the backends render and the
+ *                       runtime enforces, never a hint: it is carried only when the provider READ it from
+ *                       a resolved in-tree enum declaration (Volume 5 section 4.16.4). The omission of an
+ *                       empty map from the serialized IR is the serializer's job, not this record's:
+ *                       {@code tibyan-core} carries no Jackson annotations because it carries no
+ *                       dependencies (CLAUDE.md rule 1)
  */
 public record Capability(
         String name,
@@ -35,7 +44,20 @@ public record Capability(
         boolean readOnly,
         BindingRef binding,
         List<Annotation> annotations,
-        Attestation attestation) {
+        Attestation attestation,
+        Map<String, List<String>> inputValues) {
+
+    /**
+     * The pre-Enum-Inputs shape, kept so every existing construction site stays correct and unchanged: a
+     * capability with no value constraints. Adding a constraint is deliberate, through the canonical
+     * constructor, never by accident.
+     */
+    public Capability(String name, CapabilityKind kind, Map<String, Type> inputs, Type output,
+            boolean outputMultiple, boolean readOnly, BindingRef binding, List<Annotation> annotations,
+            Attestation attestation) {
+        this(name, kind, inputs, output, outputMultiple, readOnly, binding, annotations, attestation,
+                Map.of());
+    }
 
     public Capability {
         if (name == null || name.isBlank()) {
@@ -54,6 +76,22 @@ public record Capability(
                 ? Map.of()
                 : Collections.unmodifiableMap(new LinkedHashMap<>(inputs));
         annotations = annotations == null ? List.of() : List.copyOf(annotations);
+        // Never null, and each set copied immutably in its declaration order. The record enforces its own
+        // internal shape; completeness against the capability's inputs is core rule 10, which needs both.
+        if (inputValues == null || inputValues.isEmpty()) {
+            inputValues = Map.of();
+        } else {
+            Map<String, List<String>> copy = new LinkedHashMap<>();
+            for (Map.Entry<String, List<String>> entry : inputValues.entrySet()) {
+                copy.put(entry.getKey(), List.copyOf(entry.getValue()));
+            }
+            inputValues = Collections.unmodifiableMap(copy);
+        }
+    }
+
+    /** Whether this capability constrains any input to a closed value set (Volume 4 section 3.9). */
+    public boolean hasInputValues() {
+        return !inputValues.isEmpty();
     }
 
     // Named hasAttestation, not isAttested, deliberately: an is-prefixed method would be auto-detected as

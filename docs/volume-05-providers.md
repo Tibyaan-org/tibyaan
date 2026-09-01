@@ -1482,7 +1482,7 @@ Stated as "attestable up to N given a knowledgeable human," never as a promise: 
 THE OPEN VERIFICATION, named: no real attesting human has run this flow, so the design's central quantity, the real attestation rate (attested versus declined versus refused-at-intake), is unmeasurable until first real use. The first-use measurement is designed now: the first adopter session records, per entry, time to attest, assist used or not, intake refusals hit, and declines with reasons; and the first month records staleness churn (invalidations per code change). Those numbers, not internal predictions, decide whether AT-2 through AT-4 proceed, exactly as benchmark evidence has decided every phase before.
 
 
-### 4.16 Enum-typed capability INPUTS (the E3 reopening; phase Enum Inputs; designed 2026-08-04, RATIFIED; two build steps, EI-R BUILT 2026-08-05 in Volume 7 sections 9 and 9.1, EI-1 pending)
+### 4.16 Enum-typed capability INPUTS (the E3 reopening; phase Enum Inputs; designed 2026-08-04, RATIFIED; two build steps, EI-R BUILT 2026-08-05 in Volume 7 sections 9 and 9.1, EI-1 BUILT 2026-09-01)
 
 #### 4.16.1 The trigger, recorded
 
@@ -1771,6 +1771,22 @@ is recorded here as evidence for a future decision and is deliberately NOT chang
 annotation is a hint a backend may ignore, not a contract a runtime enforces, so the stake is lower, but the
 inconsistency is real and should be resolved when outputs are next opened.
 
+
+#### 4.16.10 EI-1 build record: the ratification reconciliation and the four build decisions (BUILT 2026-09-01)
+
+THE RATIFICATION RECONCILIATION, done first because rule 12 forbids building an unratified design. This section's heading has read RATIFIED since 2026-08-04, Volume 13's enum entry reads RATIFIED, CLAUDE.md records the constraint as "designed and pending its BUILD", and validation rule 10 was already written into Volume 4, section 5. But the headings of Volume 4, section 3.9 and Volume 6, sections 3.7 and 4.5 still read "pending ratification": they were written in the same session as this section and never updated when the phase was ratified. The weight of evidence is that the phase IS ratified and three headings went stale, so the build proceeded and corrected them rather than treating one stale heading as a veto over four concurring records. Recorded here so the reconciliation is visible rather than assumed.
+
+DECISION 1: THE CONSTRAINT IS CARRIED AT INTAKE, WHICH IS THE ONLY PLACE IT CAN APPLY. Section 4.16.9 already establishes that no DISCOVERED capability can have an enum input, because a by-id read takes one identifier and a list-all read takes none. So the provider rule of section 4.16.4 has exactly one call site: the attestation intake's parameter mapping (section 4.15.4, condition 3). An in-tree provable enum parameter now maps to STRING and carries its value set; a shape (c) enum refuses the entry with its located reason; a not-in-tree enum refuses with the existing unmapped-type message, enriched to name condition EI-1. This is not a narrowing of the ratified rule, it is the ratified rule meeting the only inputs that exist.
+
+DECISION 2: THE `enum-parsed-in-body` LEDGER IS A NEW SURVEY CHANNEL. Section 4.16.4 requires that the STRING-PARSED-INTERNALLY case be recorded as a named deferral so it is "visible rather than silently unconstrained", and no existing channel carried it: it is not a refusal, not a deferred list read, and not an entity outcome. The build adds `ScanReport.enumParsedInBody`, one entry per read whose String parameter is fed to an in-tree enum inside the body, detected structurally (a call whose receiver is a bare name resolving to an in-tree ENUM, taking that parameter verbatim). It is a diagnostic: those reads carry no constraint and are NOT refused on that account, exactly as ratified.
+
+DECISION 3: BYTE-IDENTITY IS THE SERIALIZER'S JOB, NOT THE RECORD'S. `inputValues` is never null on a Capability, so an unconstrained capability holds an empty map; the empty map is omitted from the serialized IR by a Jackson mixin scoped to that ONE property. A type-wide NON_EMPTY was rejected because it would also drop the empty `annotations` list every unannotated capability currently serializes, which would change existing output. And the annotation lives in `tibyan-pipeline`, never on the record: `tibyan-core` carries no Jackson annotations because it carries no dependencies (CLAUDE.md rule 1). Both `Capability` and `ScanReport` keep their previous constructor signatures as compatibility overloads, so adding a constraint is deliberate rather than accidental.
+
+DECISION 4: `mis-constrained 0` IS REPORTED ONLY WHERE A CONSTRAINT EXISTS. The invariant is absolute (section 4.16.7) but printing it on every scan of every constraint-free app would change the totals line of every existing benchmark for no information. It is emitted when at least one capability carries a value set, exactly as `attestation-drift 0` is emitted only when an attestation exists.
+
+MEASURED (2026-09-01), and the forecast of section 4.16.9 held: pms 5 discovered, erp 35, as-backend 5, with the serialized IR, the generated MCP output and the generated OpenAPI document all BYTE-IDENTICAL to a worktree built at the pre-build commit. DISCOVERED IS BYTE-IDENTICAL BY CONSTRUCTION, not merely by measurement, for the reason section 4.16.9 gives. The one measured change on any benchmark is pms's survey gaining two `enum-parsed-in-body` lines, both of them WRITES (`LeaseServiceImpl#updateStatus`, `LeaseSigningServiceImpl#applyWebhookUpdate`), correctly named as visible-and-unconstrained rather than refused. erp and as-backend produce no such lines.
+
+WHAT IS STILL GATED ON AN ATTESTER, restated so the payoff is not misread as delivered. erp's 10 enum-parameter reads (section 4.16.9) become ATTESTABLE by this build, not attested: erp has no record file, so attested stays 0. This is the first phase whose payoff is gated on a human authoring entries rather than on a further build, and the tool does not and will not author them.
 ## 5. Future providers
 
 | Provider | Source | Why it matters |

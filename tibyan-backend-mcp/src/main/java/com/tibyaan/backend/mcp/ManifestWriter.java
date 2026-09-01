@@ -115,6 +115,20 @@ final class ManifestWriter {
                     out.append(",\n          \"description\": ")
                             .append(quote(inputDescription(capability, input.getKey())));
                 }
+                // Phase Enum Inputs (Volume 6 section 3.7): an input carrying a value constraint renders
+                // as the closed string set, in DECLARATION ORDER, verbatim as the provider read it, never
+                // sorted, filtered, relabelled, or case-normalised. THE HONESTY GATE: the key is emitted
+                // only because the runtime enforces it (EI-R, built 2026-08-05). A schema enum an agent
+                // reads as binding, backed by nothing, is the input-side modeled-opaque claim this project
+                // permanently rejected. An unconstrained input renders exactly as before.
+                List<String> values = capability.inputValues().get(input.getKey());
+                if (values != null && !values.isEmpty()) {
+                    out.append(",\n          \"enum\": [");
+                    for (int v = 0; v < values.size(); v++) {
+                        out.append(v > 0 ? ", " : "").append(quote(values.get(v)));
+                    }
+                    out.append("]");
+                }
                 out.append("\n").append(i < inputs.size() - 1 ? "        },\n" : "        }\n");
                 i++;
             }

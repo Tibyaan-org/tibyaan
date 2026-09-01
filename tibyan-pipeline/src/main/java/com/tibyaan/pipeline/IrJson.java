@@ -22,6 +22,8 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Reads and writes the Capability IR as inspectable JSON. This is the productionized form of the
@@ -88,7 +90,20 @@ public final class IrJson {
                 .setInclude(JsonInclude.Value.construct(JsonInclude.Include.NON_NULL, null));
         mapper.configOverride(Attestation.class)
                 .setInclude(JsonInclude.Value.construct(JsonInclude.Include.NON_NULL, null));
+        // The optional inputValues component (Volume 4 section 3.9, phase Enum Inputs) is omitted when
+        // EMPTY, so a constraint-free model serializes byte-identically. The override is scoped to that
+        // one property through a mixin rather than applied to Capability as a whole, because a type-wide
+        // NON_EMPTY would also drop the empty `annotations` list that every unannotated capability
+        // currently serializes, which would change existing output.
+        mapper.addMixIn(Capability.class, CapabilityInputValuesMixin.class);
         return mapper;
+    }
+
+    /** Scopes NON_EMPTY to Capability's inputValues alone (Volume 4 section 3.9). */
+    private abstract static class CapabilityInputValuesMixin {
+
+        @JsonInclude(JsonInclude.Include.NON_EMPTY)
+        abstract Map<String, List<String>> inputValues();
     }
 
     private static final class TypeSerializer extends JsonSerializer<Type> {

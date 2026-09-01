@@ -126,7 +126,7 @@ Growth path within the component, stated so the closed set is honest: the `categ
 What this growth will never become: no policy or permission model (who MAY invoke stays future, section 7); no workflow, no event; no second epistemic class beyond the three (verified, attested, refused); no attestation on a WRITE or ACTION capability (validation refuses it); and never a substitute for structure: the binding, the types, and the read-safety of the target stay structurally checked, and `Attestation` carries only the semantics structure cannot reach.
 
 
-### 3.9 Input value constraints (phase Enum Inputs; designed 2026-08-04, pending ratification)
+### 3.9 Input value constraints (phase Enum Inputs; designed 2026-08-04, RATIFIED, BUILT 2026-09-01 as EI-1)
 
 An optional component on Capability: a map from INPUT NAME to the closed set of values that input accepts on
 the wire, absent on every capability that has none. It is the fourth deliberate growth (FLOAT,
