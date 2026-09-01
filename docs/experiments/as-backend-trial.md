@@ -168,3 +168,18 @@ worktree at the pre-build commit. This app carries no record file, so nothing co
 C1's evidence lives on the private enterprise benchmark, not here. What this ledger records is the same
 negative as the C2 row: settling a targeting model, adding a core contradiction guard, and completing an
 epistemic class moved not one byte of any existing output.
+
+### The compound category `both` (2026-09-01)
+
+The compound category was built, closing the two-hole target: a filtered read whose element type structure
+cannot tie, which before this could not be attested by either narrow category because condition 1 forbids
+two entries against one declaration.
+
+Re-measured: BYTE-IDENTICAL across the serialized IR, the generated MCP output and the generated OpenAPI
+document, verified by `diff -r` against a worktree at the pre-build commit. This app carries no record
+file, so nothing could move.
+
+This is the category that matters most to this ledger's own numbers, and the reason is worth stating: the
+earlier rows here noted that a read with a domain filter AND an unresolvable element type needed `both`,
+and that `both` was not built. That caveat is now discharged. What those reads still need is a human to
+write the entry.

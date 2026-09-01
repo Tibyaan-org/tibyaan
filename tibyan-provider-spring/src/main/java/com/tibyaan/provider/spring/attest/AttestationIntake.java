@@ -178,13 +178,6 @@ public final class AttestationIntake {
                 return;
             }
         }
-        if (category == AttestationCategory.BOTH) {
-            refusals.add(refusal(target, record.name(), Cause.CATEGORY_NOT_BUILT,
-                    "category 'both' is not yet ratified and built; AT-1 built predicate and AT-2 builds "
-                            + "shape, and the compound entry that fills both holes at one target is a "
-                            + "separate step (section 4.15.4, condition 2)"));
-            return;
-        }
 
         // Condition 6, provenance (checked early so a draft or unattested entry never reaches structure).
         AttestationRecord.Provenance provenance = record.provenance();
@@ -286,8 +279,14 @@ public final class AttestationIntake {
             }
             output = frame.output();
             multiple = frame.multiple();
-        } else if (category == AttestationCategory.SHAPE) {
-            ShapeFrame frame = shapeFrame(record, resolvedTarget, target, inputs);
+        } else if (category == AttestationCategory.SHAPE || category == AttestationCategory.BOTH) {
+            // The compound category runs the SAME frame as shape, and that is the point of it: `both`
+            // fills a predicate hole IN ADDITION to a shape hole, never INSTEAD of the shape checks. The
+            // local tie, the subject's existence, non-contradiction, the by-primary-key obligation, and
+            // read-safety all still apply; what differs is only which holes the category must match
+            // (section 4.15.3).
+            ShapeFrame frame = shapeFrame(record, resolvedTarget, target, inputs,
+                    category == AttestationCategory.BOTH);
             if (frame.isRefused()) {
                 refusals.add(frame.refusal());
                 return;
@@ -299,9 +298,9 @@ public final class AttestationIntake {
             if (tie.isEmpty()) {
                 refusals.add(refusal(target, record.name(), Cause.CATEGORY_MISMATCH,
                         "the read's output entity tie is not structurally provable, so it has a shape hole "
-                                + "a predicate assertion cannot fill; use category shape (AT-2), or both "
-                                + "for a target that also has a predicate hole (section 4.15.4, "
-                                + "condition 2; section 4.15.2)"));
+                                + "a predicate assertion cannot fill. Use category 'shape', or 'both' when "
+                                + "the target also has a predicate hole (section 4.15.4, condition 2; "
+                                + "section 4.15.3, the category must match the holes)"));
                 return;
             }
             output = Type.entityRef(displayByKey.getOrDefault(tie.get().entityKey(), tie.get().entityKey()));
@@ -355,9 +354,9 @@ public final class AttestationIntake {
         // The subject entity rides the component only where it is the assertion (shape); a predicate entry
         // tied structurally carries none, so its serialized form is unchanged by AT-2.
         boolean boundary = category == AttestationCategory.BOUNDARY;
-        String subject = (category == AttestationCategory.SHAPE || boundary)
-                ? record.subjectEntity()
-                : null;
+        // The subject rides every category that ASSERTS one: shape, both, and boundary. A pure predicate
+        // is tied structurally and carries none, so its serialized form is untouched by later phases.
+        String subject = category.requiresSubjectEntity() || boundary ? record.subjectEntity() : null;
         // The security fields ride ONLY a boundary attestation. Core rule 11 enforces the same in both
         // directions; intake never populates them on a data category, so a data claim can never be read
         // as a security one.
@@ -388,24 +387,46 @@ public final class AttestationIntake {
      * covers the enrichment and never the load.
      */
     private ShapeFrame shapeFrame(AttestationRecord record, ResolvedTarget resolvedTarget, String target,
-                                  Map<String, Type> inputs) {
-        // The category boundary, checked first because it is the most actionable refusal: each hole is
-        // filled by its own category or stays refused, and a predicate assertion may not ride in on a
-        // shape entry. A parameter covered by a MEANING SENTENCE is a predicate claim; only the reserved
-        // paging and id marks are structural coverage. So a target with any sentence-covered input has a
-        // predicate hole too, and belongs to the compound category rather than to shape alone.
+                                  Map<String, Type> inputs, boolean compound) {
+        // THE CATEGORY MUST MATCH THE HOLES THE TOOL FOUND (section 4.15.3). Checked first, because it is
+        // the most actionable refusal and because it is what stops `both` from becoming a catch-all that
+        // skips the narrower categories' checks. A parameter covered by a MEANING SENTENCE is a PREDICATE
+        // claim; only the reserved paging and id marks are structural coverage. So the presence of a
+        // sentence-covered input is exactly the presence of a predicate hole, and the two categories are
+        // decided by it in opposite directions.
+        boolean predicateHole = false;
         for (String input : inputs.keySet()) {
             String coverage = record.parameters().get(input);
             if (coverage != null && !Attestation.PAGING_MARK.equals(coverage)
                     && !Attestation.ID_MARK.equals(coverage)) {
-                return ShapeFrame.refused(refusal(target, record.name(), Cause.CATEGORY_MISMATCH,
-                        "input '" + input + "' is covered by a meaning sentence, which is a PREDICATE "
-                                + "claim, so this target has a predicate hole as well as a shape hole. One "
-                                + "entry fills both only as category 'both', which is a separate step and "
-                                + "not yet built; a shape entry never carries a predicate assertion "
-                                + "(section 4.15.2, the category taxonomy)"));
+                predicateHole = true;
+                break;
             }
         }
+        if (!compound && predicateHole) {
+            return ShapeFrame.refused(refusal(target, record.name(), Cause.CATEGORY_MISMATCH,
+                    "an input is covered by a meaning sentence, which is a PREDICATE claim, so this target "
+                            + "has a predicate hole as well as a shape hole. One entry fills both only as "
+                            + "category 'both'; a shape entry never carries a predicate assertion "
+                            + "(section 4.15.2, the category taxonomy)"));
+        }
+        if (compound && !predicateHole) {
+            return ShapeFrame.refused(refusal(target, record.name(), Cause.CATEGORY_MISMATCH,
+                    "this entry is category 'both', but no input carries a meaning sentence, so the target "
+                            + "has no predicate hole to fill: every input is structurally covered by the "
+                            + "paging or id mark. Use category 'shape', which is the category whose holes "
+                            + "this target actually has (section 4.15.3, the category must match the holes)"));
+        }
+        // THE OTHER HALF OF THE MATCH IS NOT SEPARATELY ENFORCED, and the reason is worth stating rather
+        // than leaving as an omission. "The element type is unresolvable" is not cleanly decidable here:
+        // the E6a transparency tie (T2, AT-0) resolves a wrapper's subject from the repository access
+        // behind it, so a wrapper whose ELEMENT type is not an entity can still have a provable tie. A
+        // compound entry over such a target is not a second answer to a settled question, because the
+        // shape frame's NON-CONTRADICTION check below is exactly the guard for that: an assertion that
+        // disagrees with what the single repository access provably reads refuses. Enforcing an
+        // unprovable-tie precondition on `both` alone would also make it stricter than `shape`, which no
+        // ratified text asks for. The predicate half above IS cleanly decidable, and it is what separates
+        // the two categories.
 
         // The asserted subject: present, and an entity of this model. The tool never invents it, and core
         // rule 8 re-checks it, but intake refuses first so the failure is located at the entry.

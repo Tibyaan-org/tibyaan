@@ -278,17 +278,19 @@ class AttestationIntakeProviderTest {
     }
 
     @Test
-    void aBothCategoryRefusesAsNotYetBuilt(@TempDir Path root) throws IOException {
-        // AT-1 built predicate and AT-2 built shape; the compound entry that fills a predicate hole and a
-        // shape hole at one target, with one minted name, is a separate step and stays refused. This test
-        // previously asserted the same of 'shape', which AT-2 makes untrue.
+    void anUnknownCategoryTokenRefuses_theClosedSetGuard(@TempDir Path root) throws IOException {
+        // Every ratified category is now built: predicate (AT-1), shape (AT-2), both (the compound), and
+        // boundary (AT-3). What remains permanently true of condition 2 is the CLOSED SET: a token outside
+        // the four is refused rather than guessed at. This test asserted the not-yet-built case of shape,
+        // then of both, and each build in turn made that statement false; the closed-set guard is the part
+        // of condition 2 that no later phase can retire.
         copyFixture(root);
         String fingerprint = fingerprint(root, FILTER_TARGET);
-        String entry = entry(FILTER_TARGET, "both", "searchTenants", "Returns tenants.",
+        String entry = entry(FILTER_TARGET, "semantic", "searchTenants", "Returns tenants.",
                 "\"fullName\":\"m\",\"pageNum\":\"paging\"", "Tenant", "a.elseginy", "human-authored",
                 fingerprint);
         writeAttestations(root, "[" + entry + "]");
-        assertRefused(root, IntakeRefusal.Cause.CATEGORY_NOT_BUILT);
+        assertRefused(root, IntakeRefusal.Cause.CATEGORY_MISMATCH);
     }
 
     @Test
