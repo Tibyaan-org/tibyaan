@@ -167,7 +167,7 @@ class McpBackendGoldenTest {
         Map<String, Type> inputs = new LinkedHashMap<>();
         inputs.put("id", Primitive.LONG);
 
-        Capability getUnit = new Capability(
+        Capability getUnit = Capability.of(
                 "getUnit",
                 CapabilityKind.READ,
                 inputs,
@@ -216,13 +216,13 @@ class McpBackendGoldenTest {
 
         Map<String, Type> warehouseInputs = new LinkedHashMap<>();
         warehouseInputs.put("id", Primitive.LONG);
-        Capability getWarehouse = new Capability("getWarehouse", CapabilityKind.READ, warehouseInputs,
+        Capability getWarehouse = Capability.of("getWarehouse", CapabilityKind.READ, warehouseInputs,
                 Type.entityRef("Warehouse"), false, true, new BindingRef("WarehouseService#findById"),
                 List.of(new Annotation("requiredAuthorities", List.of("480012", "480013"))), null);
 
         Map<String, Type> reportInputs = new LinkedHashMap<>();
         reportInputs.put("id", Primitive.LONG);
-        Capability getReport = new Capability("getReport", CapabilityKind.READ, reportInputs,
+        Capability getReport = Capability.of("getReport", CapabilityKind.READ, reportInputs,
                 Type.entityRef("Report"), false, true, new BindingRef("ReportService#findById"),
                 List.of(new Annotation("securityUnverifiable", List.of("unparseable-expression"))), null);
 

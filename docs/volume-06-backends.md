@@ -241,3 +241,24 @@ The same constraint renders as the parameter's `schema.enum`, in the same order,
 No vendor extension is used and none is needed: `enum` is native to the OpenAPI schema object and means
 exactly what this phase means by it. As with MCP, the key is emitted only when the runtime enforces it, and
 a constraint-free document is byte-identical to today.
+
+## 3.8 MCP and OpenAPI: the BOUNDARY class is distinct on both surfaces (phase Attestation AT-3; ratified and built 2026-09-01)
+
+A boundary capability (Volume 5, section 4.15.2.3) is an attested capability, so everything section 3.6 and
+section 4.4 already do applies unchanged. What AT-3 adds is the distinction a consumer acts on, and it is
+added rather than substituted, so nothing about the attested carriage is weakened:
+
+- THE NAME is `attested_boundary_<name>`. It still begins with the reserved `attested_` prefix, so core rule
+  9 is unchanged, and an agent listing tools reads the elevated class before any description.
+- THE MARKER is `"attestedBoundary": true` in the MCP manifest and `x-tibyan-attested-boundary: true` in
+  OpenAPI, alongside the existing attested marker.
+- THE ATTESTATION OBJECT carries `securityOwner` always, and carries `readOnlyAffirmed` or
+  `assertedAuthorities` where the entry made that assertion. `assertedAuthorities` is rendered under its own
+  name and NEVER as `requiredAuthorities`: an asserted authority is not a compiled one, and the
+  `securityUnverifiable` marker stays exactly where it was.
+- THE DESCRIPTION leads with the stronger label, in place of the data categories' label:
+  `Human-attested BOUNDARY, not tool-verified: its read-only-ness or its security contract rests on a human
+  assertion, not on structure.` followed by the result semantic and the provenance sentence, with the
+  security owner named.
+
+A document or manifest with no boundary capability is byte-identical, as always.

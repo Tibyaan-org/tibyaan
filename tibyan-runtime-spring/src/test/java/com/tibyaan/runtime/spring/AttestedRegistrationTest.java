@@ -28,7 +28,7 @@ class AttestedRegistrationTest {
     private static CapabilityDescriptor attested(boolean securityUnverifiable) {
         return new CapabilityDescriptor("attested_searchTenants", "Human-attested, not tool-verified.",
                 "TenantServiceImpl#getAllByFilter", "Tenant",
-                List.of(new InputDescriptor("fullName", "STRING")), true, securityUnverifiable);
+                List.of(new InputDescriptor("fullName", "STRING")), true, securityUnverifiable, false);
     }
 
     private List<String> registeredNames(CapabilitiesManifest manifest, boolean exposeAttested,

@@ -2,6 +2,7 @@ package com.tibyaan.provider.spring.attest;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -17,6 +18,9 @@ import java.util.Map;
  * @param resultSemantic the one-sentence result claim
  * @param parameters     per-input coverage: a sentence, the {@code paging} mark, or the {@code id} mark
  * @param subjectEntity  the asserted subject entity for a shape or both claim, else null
+ * @param securityOwner  AT-3: the named owner of the security decision a boundary entry makes
+ * @param readOnlyAffirmed AT-3: the explicit read-only affirmation for a delegation; null or false refuses
+ * @param assertedAuthorities AT-3: the authorities asserted for a securityUnverifiable contract (C1)
  * @param provenance     who asserted, how, when, and the tool-stamped fingerprint
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -27,6 +31,9 @@ public record AttestationRecord(
         String resultSemantic,
         Map<String, String> parameters,
         String subjectEntity,
+        String securityOwner,
+        Boolean readOnlyAffirmed,
+        List<String> assertedAuthorities,
         Provenance provenance) {
 
     /** The provenance block of a raw entry (Volume 5 section 4.15.3). */
@@ -37,5 +44,15 @@ public record AttestationRecord(
     /** The parameter coverage map, never null. */
     public Map<String, String> parameters() {
         return parameters == null ? Map.of() : parameters;
+    }
+
+    /** The asserted authorities, never null (AT-3). */
+    public List<String> assertedAuthorities() {
+        return assertedAuthorities == null ? List.of() : assertedAuthorities;
+    }
+
+    /** Whether the entry explicitly affirmed read-only-ness; silence is never an affirmation (AT-3). */
+    public boolean affirmedReadOnly() {
+        return Boolean.TRUE.equals(readOnlyAffirmed);
     }
 }

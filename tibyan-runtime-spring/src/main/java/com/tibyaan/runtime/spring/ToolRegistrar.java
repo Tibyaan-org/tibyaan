@@ -18,10 +18,11 @@ public final class ToolRegistrar {
     private final ObjectMapper objectMapper;
     private final boolean exposeAttested;
     private final boolean exposeSecurityUnverifiable;
+    private final boolean exposeBoundary;
 
     /** The default policy (Volume 5 section 4.15.7): attested tools expose, security-unverifiable do not. */
     public ToolRegistrar(ObjectMapper objectMapper) {
-        this(objectMapper, true, false);
+        this(objectMapper, true, false, false);
     }
 
     /**
@@ -33,9 +34,23 @@ public final class ToolRegistrar {
      */
     public ToolRegistrar(ObjectMapper objectMapper, boolean exposeAttested,
             boolean exposeSecurityUnverifiable) {
+        this(objectMapper, exposeAttested, exposeSecurityUnverifiable, false);
+    }
+
+    /**
+     * AT-3 guard 5 (Volume 5 section 4.15.2.3): a BOUNDARY tool does not register unless
+     * {@code tibyan.attested.exposeBoundary} is set deliberately. The two older controls do not cover it:
+     * the wholesale one defaults TRUE and would ship a boundary tool by default, and the
+     * security-unverifiable one governs a declared-contract marker, not a read-only affirmation. For every
+     * other attested tool the tool proved no write is visible in what it read; for a delegation it proved
+     * nothing of the kind, so exposing one is a deliberate choice.
+     */
+    public ToolRegistrar(ObjectMapper objectMapper, boolean exposeAttested,
+            boolean exposeSecurityUnverifiable, boolean exposeBoundary) {
         this.objectMapper = objectMapper;
         this.exposeAttested = exposeAttested;
         this.exposeSecurityUnverifiable = exposeSecurityUnverifiable;
+        this.exposeBoundary = exposeBoundary;
     }
 
     public List<ToolCallback> register(CapabilitiesManifest manifest, ExecutionAdapter executionAdapter) {
@@ -59,6 +74,9 @@ public final class ToolRegistrar {
             return false;
         }
         if (!exposeAttested) {
+            return true;
+        }
+        if (descriptor.attestedBoundary() && !exposeBoundary) {
             return true;
         }
         return descriptor.securityUnverifiable() && !exposeSecurityUnverifiable;

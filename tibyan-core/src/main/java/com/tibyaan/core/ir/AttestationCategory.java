@@ -13,7 +13,10 @@ public enum AttestationCategory {
     /** What a read RETURNS when structure cannot tie it (AT-2). */
     SHAPE("shape"),
     /** A filtered read whose element type is also unresolvable: one entry filling both holes (AT-2). */
-    BOTH("both");
+    BOTH("both"),
+    /** A security contract or a remote delegation, where a false assertion breaches a SECURITY boundary
+     * rather than mislabelling data (AT-3, Volume 5 section 4.15.2.3). */
+    BOUNDARY("boundary");
 
     private final String token;
 

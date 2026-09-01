@@ -21,7 +21,9 @@ public record CapabilityDescriptor(
         String output,
         List<InputDescriptor> inputs,
         boolean attested,
-        boolean securityUnverifiable) {
+        boolean securityUnverifiable,
+        boolean attestedBoundary) {
+
 
     public CapabilityDescriptor {
         inputs = inputs == null ? List.of() : List.copyOf(inputs);
@@ -33,6 +35,6 @@ public record CapabilityDescriptor(
      */
     public CapabilityDescriptor(String name, String description, String binding, String output,
             List<InputDescriptor> inputs) {
-        this(name, description, binding, output, inputs, false, false);
+        this(name, description, binding, output, inputs, false, false, false);
     }
 }

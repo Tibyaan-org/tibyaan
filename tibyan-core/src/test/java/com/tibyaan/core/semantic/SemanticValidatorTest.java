@@ -131,7 +131,7 @@ class SemanticValidatorTest {
 
     @Test
     void readOnlyCapabilityWithWriteKindIsReported() {
-        Capability cap = new Capability("createProduct", CapabilityKind.WRITE, Map.of(),
+        Capability cap = Capability.of("createProduct", CapabilityKind.WRITE, Map.of(),
                 Primitive.LONG, false, true, new BindingRef("a#b"), List.of(), null);
         CapabilityModel model = new CapabilityModel("m", "0.1",
                 List.of(), List.of(cap), List.of(), Metadata.empty());

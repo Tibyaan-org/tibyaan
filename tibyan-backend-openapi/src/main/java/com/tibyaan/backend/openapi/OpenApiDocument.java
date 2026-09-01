@@ -175,15 +175,25 @@ final class OpenApiDocument {
         Attestation attestation = capability.attestation();
         Map<String, Object> operation = new LinkedHashMap<>();
         operation.put("operationId", capability.name());
-        operation.put("summary", "Human-attested, not tool-verified. " + attestation.resultSemantic()
-                + " Asserted by " + attestation.assertedBy() + " (" + attestation.origin().token() + "), "
-                + attestation.date() + ".");
+        // AT-3: a boundary operation leads with the stronger label and names the security owner.
+        operation.put("summary", attestation.hasBoundaryClass()
+                ? "Human-attested BOUNDARY, not tool-verified: its read-only-ness or its security contract "
+                        + "rests on a human assertion, not on structure. " + attestation.resultSemantic()
+                        + " Asserted by " + attestation.assertedBy() + " ("
+                        + attestation.origin().token() + "), " + attestation.date() + ", security owner "
+                        + attestation.securityOwner() + "."
+                : "Human-attested, not tool-verified. " + attestation.resultSemantic()
+                        + " Asserted by " + attestation.assertedBy() + " ("
+                        + attestation.origin().token() + "), " + attestation.date() + ".");
         List<Object> parameters = attestedParameters(capability);
         if (!parameters.isEmpty()) {
             operation.put("parameters", parameters);
         }
         operation.put("responses", responses(capability));
         operation.put("x-tibyan-attested", Boolean.TRUE);
+        if (attestation.hasBoundaryClass()) {
+            operation.put("x-tibyan-attested-boundary", Boolean.TRUE);
+        }
         operation.put("x-tibyan-attestation", attestationObject(attestation));
 
         Map<String, Object> item = new LinkedHashMap<>();
@@ -229,6 +239,15 @@ final class OpenApiDocument {
         object.put("assertedBy", attestation.assertedBy());
         object.put("origin", attestation.origin().token());
         object.put("date", attestation.date());
+        // AT-3: the security fields, boundary only. assertedAuthorities never becomes a compiled
+        // security requirement and never clears the securityUnverifiable marker.
+        if (attestation.hasBoundaryClass()) {
+            object.put("securityOwner", attestation.securityOwner());
+            object.put("readOnlyAffirmed", attestation.readOnlyAffirmed());
+            if (!attestation.assertedAuthorities().isEmpty()) {
+                object.put("assertedAuthorities", List.copyOf(attestation.assertedAuthorities()));
+            }
+        }
         object.put("fingerprint", attestation.fingerprint());
         return object;
     }

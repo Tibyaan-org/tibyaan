@@ -333,8 +333,13 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
                 String stampedDate = date != null ? date : (prior == null ? null : prior.date());
                 AttestationRecord.Provenance provenance = new AttestationRecord.Provenance(assertedBy,
                         origin, stampedDate, fingerprint.get());
+                // Stamping rewrites only provenance. Every asserted field, including AT-3's security
+                // fields, is carried through untouched: the tool stamps the fingerprint and the date, and
+                // never edits a word a human wrote.
                 stamped.add(new AttestationRecord(record.target(), record.category(), record.name(),
-                        record.resultSemantic(), record.parameters(), record.subjectEntity(), provenance));
+                        record.resultSemantic(), record.parameters(), record.subjectEntity(),
+                        record.securityOwner(), record.readOnlyAffirmed(), record.assertedAuthorities(),
+                        provenance));
                 outcomes.add(new StampOutcome(record.target(), true, fingerprint.get()));
             } else {
                 stamped.add(record);
@@ -694,7 +699,7 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
         }
         // Section 4.2.5: output stays ENTITY_REF(E); the view's concrete shape is recorded as a hint.
         List<Annotation> annotations = List.of(new Annotation("view", List.of(candidate.view())));
-        return new Capability(intent.capabilityName(), CapabilityKind.READ, inputs, output, false, true,
+        return Capability.of(intent.capabilityName(), CapabilityKind.READ, inputs, output, false, true,
                 binding, annotations, null);
     }
 

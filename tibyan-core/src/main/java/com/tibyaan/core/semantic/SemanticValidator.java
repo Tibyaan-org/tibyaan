@@ -52,6 +52,7 @@ public final class SemanticValidator {
         checkAttestationCompleteness(model, errors);
         checkAttestedPrefix(model, errors);
         checkInputValueConstraints(model, errors);
+        checkBoundaryAttestations(model, errors);
 
         return new ValidationResult(errors);
     }
@@ -316,4 +317,82 @@ public final class SemanticValidator {
             }
         }
     }
+
+    // The compiled declared-security contract, which the provider attaches through the Annotation hook
+    // (Volume 5 section 4.14). Core does not model a permission system; it only needs to know whether a
+    // compiled contract is present, so the asserted one can never sit beside it.
+    private static boolean hasCompiledAuthorities(Capability capability) {
+        for (com.tibyaan.core.ir.Annotation annotation : capability.annotations()) {
+            if (annotation.key().equals("requiredAuthorities") && !annotation.values().isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Rule 11 (Volume 4 section 5, rule 11; phase Attestation AT-3, Volume 5 section 4.15.2.3): boundary
+    // attestation completeness, enforced in BOTH directions. A boundary entry must name a security owner
+    // and must actually assert something; a data entry must carry no security fields at all. The second
+    // half is what keeps the two classes from blurring: a data attestation wearing security fields would
+    // read as a security one to any consumer, and that is the confusion this whole category was deferred
+    // over.
+    private static void checkBoundaryAttestations(CapabilityModel model, List<String> errors) {
+        for (Capability capability : model.capabilities()) {
+            if (!capability.hasAttestation()) {
+                continue;
+            }
+            Attestation attestation = capability.attestation();
+            String where = "capability '" + capability.name() + "'";
+
+            if (attestation.category() == AttestationCategory.BOUNDARY) {
+                if (isBlank(attestation.securityOwner())) {
+                    errors.add(where + " is a boundary attestation with no securityOwner; the owner of the"
+                            + " security decision is named, never implied (rule 11)");
+                }
+                if (!attestation.readOnlyAffirmed() && attestation.assertedAuthorities().isEmpty()) {
+                    errors.add(where + " is a boundary attestation that asserts nothing: it neither affirms"
+                            + " read-only-ness nor asserts any authority (rule 11)");
+                }
+                Set<String> distinct = new LinkedHashSet<>(attestation.assertedAuthorities());
+                if (distinct.size() != attestation.assertedAuthorities().size()) {
+                    errors.add(where + " asserts duplicated authorities " + attestation.assertedAuthorities()
+                            + " (rule 11)");
+                }
+                for (String authority : attestation.assertedAuthorities()) {
+                    if (isBlank(authority)) {
+                        errors.add(where + " asserts an empty authority (rule 11)");
+                    }
+                }
+                // THE CONTRADICTION GUARD (AT-3 member C1). The declared-security composition runs after
+                // attestation intake, so this is the only place the two axes can be compared. If the tool
+                // COMPILED a contract for this read, a human assertion over it is redundant at best and
+                // contradictory at worst, and the model fails loud rather than shipping two answers to one
+                // question. An asserted authority never becomes a compiled one; it never even sits beside
+                // one.
+                if (!attestation.assertedAuthorities().isEmpty() && hasCompiledAuthorities(capability)) {
+                    errors.add(where + " carries both a compiled requiredAuthorities and asserted"
+                            + " authorities " + attestation.assertedAuthorities() + "; the tool proved a"
+                            + " contract for this read, so a human assertion over it is not carried"
+                            + " alongside it (rule 11, the contradiction guard)");
+                }
+                continue;
+            }
+
+            // The other direction: a data category carries no security fields, so it can never be mistaken
+            // for a boundary claim by a reader or by a consumer.
+            if (attestation.securityOwner() != null) {
+                errors.add(where + " is a " + attestation.category().token() + " attestation carrying a"
+                        + " securityOwner; only a boundary attestation names one (rule 11)");
+            }
+            if (attestation.readOnlyAffirmed()) {
+                errors.add(where + " is a " + attestation.category().token() + " attestation affirming"
+                        + " read-only-ness; only a boundary attestation makes that assertion (rule 11)");
+            }
+            if (!attestation.assertedAuthorities().isEmpty()) {
+                errors.add(where + " is a " + attestation.category().token() + " attestation asserting"
+                        + " authorities; only a boundary attestation does that (rule 11)");
+            }
+        }
+    }
+
 }
