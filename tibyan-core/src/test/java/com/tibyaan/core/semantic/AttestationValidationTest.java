@@ -33,7 +33,7 @@ class AttestationValidationTest {
     private final SemanticValidator validator = new SemanticValidator();
 
     private static Attestation predicate(Map<String, String> parameterMeanings) {
-        return new Attestation(AttestationCategory.PREDICATE, "Returns the tenants matching the filters.",
+        return Attestation.data(AttestationCategory.PREDICATE, "Returns the tenants matching the filters.",
                 parameterMeanings, null, "a.elseginy", AttestationOrigin.HUMAN_AUTHORED, "2026-07-24",
                 "sha256:abc");
     }
@@ -114,7 +114,7 @@ class AttestationValidationTest {
     @Test
     void rule8_aShapeAttestationWithoutSubjectEntityFails() {
         Map<String, Type> inputs = Map.of("id", Primitive.LONG);
-        Attestation shape = new Attestation(AttestationCategory.SHAPE, "Returns the building, enriched.",
+        Attestation shape = Attestation.data(AttestationCategory.SHAPE, "Returns the building, enriched.",
                 meanings("id", Attestation.ID_MARK), null, "a.elseginy", AttestationOrigin.HUMAN_AUTHORED,
                 "2026-07-24", "sha256:abc");
         Capability cap = Capability.attested("attested_getBuilding", inputs, Type.entityRef("Tenant"),
@@ -127,7 +127,7 @@ class AttestationValidationTest {
     @Test
     void rule8_anAttestationOnAWriteCapabilityFails() {
         Map<String, Type> inputs = Map.of("fullName", Primitive.STRING);
-        Capability cap = new Capability("attested_doThing", CapabilityKind.WRITE, inputs,
+        Capability cap = Capability.of("attested_doThing", CapabilityKind.WRITE, inputs,
                 Type.entityRef("Tenant"), false, false, new BindingRef("X#y"), List.of(),
                 predicate(meanings("fullName", "Matches the full name.")));
 

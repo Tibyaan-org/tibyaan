@@ -2,6 +2,7 @@ package com.tibyaan.core.ir;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -29,6 +30,15 @@ import java.util.Map;
  * @param origin            how the words were produced (human-authored or ai-drafted-human-confirmed)
  * @param date              the assertion date, from the file, never a clock (determinism, rule 10)
  * @param fingerprint       the SHA-256 of the structural slice the assertion was validated against
+ * @param securityOwner     AT-3: the named owner of the SECURITY DECISION a boundary entry makes, separate
+ *                          from {@code assertedBy} and possibly a different person; null on every data
+ *                          category, so a data attestation can never look like a security one
+ * @param readOnlyAffirmed  AT-3: the explicit affirmation that invoking a delegation performs no write
+ *                          ANYWHERE, which is the one property the tool cannot check for that member.
+ *                          False on every data category; silence is never an affirmation
+ * @param assertedAuthorities AT-3: the authorities a human asserts a securityUnverifiable contract
+ *                          requires. It NEVER populates {@code requiredAuthorities} and never clears the
+ *                          unverifiable marker: an asserted authority is not a compiled one
  */
 public record Attestation(
         AttestationCategory category,
@@ -38,7 +48,23 @@ public record Attestation(
         String assertedBy,
         AttestationOrigin origin,
         String date,
-        String fingerprint) {
+        String fingerprint,
+        String securityOwner,
+        boolean readOnlyAffirmed,
+        List<String> assertedAuthorities) {
+
+    /**
+     * A DATA-category attestation: no security fields at all. A static factory rather than a second
+     * constructor, because a record with two constructors is ambiguous to a record-aware JSON mapper and
+     * the IR round-trip is part of the zero-drift invariant. A boundary attestation is built through the
+     * canonical constructor, deliberately, never by accident.
+     */
+    public static Attestation data(AttestationCategory category, String resultSemantic,
+            Map<String, String> parameterMeanings, String subjectEntity, String assertedBy,
+            AttestationOrigin origin, String date, String fingerprint) {
+        return new Attestation(category, resultSemantic, parameterMeanings, subjectEntity, assertedBy,
+                origin, date, fingerprint, null, false, List.of());
+    }
 
     /** The reserved coverage mark for a framework paging or ordering parameter (Volume 5 section 4.15.2). */
     public static final String PAGING_MARK = "paging";
@@ -56,6 +82,15 @@ public record Attestation(
         parameterMeanings = parameterMeanings == null
                 ? Map.of()
                 : Collections.unmodifiableMap(new LinkedHashMap<>(parameterMeanings));
+        assertedAuthorities = assertedAuthorities == null ? List.of() : List.copyOf(assertedAuthorities);
+    }
+
+    // Named hasBoundaryClass, not isBoundary, for the same reason hasAttestation is not isAttested: an
+    // is-prefixed method is auto-detected as a serialized boolean property by the IR JSON mapper and
+    // breaks the record round-trip.
+    /** Whether this is a BOUNDARY attestation, the elevated class (Volume 5 section 4.15.2.3). */
+    public boolean hasBoundaryClass() {
+        return category == AttestationCategory.BOUNDARY;
     }
 
     /** Whether a coverage value is one of the two reserved structural marks (not a human sentence). */

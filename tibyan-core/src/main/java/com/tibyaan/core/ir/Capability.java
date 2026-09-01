@@ -48,15 +48,15 @@ public record Capability(
         Map<String, List<String>> inputValues) {
 
     /**
-     * The pre-Enum-Inputs shape, kept so every existing construction site stays correct and unchanged: a
-     * capability with no value constraints. Adding a constraint is deliberate, through the canonical
-     * constructor, never by accident.
+     * A capability with no input value constraints, which is every capability the structural rules emit.
+     * A static factory rather than a second constructor: a record with two constructors is ambiguous to a
+     * record-aware JSON mapper, and the IR round-trip is load-bearing.
      */
-    public Capability(String name, CapabilityKind kind, Map<String, Type> inputs, Type output,
+    public static Capability of(String name, CapabilityKind kind, Map<String, Type> inputs, Type output,
             boolean outputMultiple, boolean readOnly, BindingRef binding, List<Annotation> annotations,
             Attestation attestation) {
-        this(name, kind, inputs, output, outputMultiple, readOnly, binding, annotations, attestation,
-                Map.of());
+        return new Capability(name, kind, inputs, output, outputMultiple, readOnly, binding, annotations,
+                attestation, Map.of());
     }
 
     public Capability {
@@ -103,7 +103,7 @@ public record Capability(
 
     /** A read only capability of kind READ, with no annotations, the MVP singular shape. */
     public static Capability read(String name, Map<String, Type> inputs, Type output, BindingRef binding) {
-        return new Capability(name, CapabilityKind.READ, inputs, output, false, true, binding, List.of(), null);
+        return Capability.of(name, CapabilityKind.READ, inputs, output, false, true, binding, List.of(), null);
     }
 
     /**
@@ -112,7 +112,7 @@ public record Capability(
      */
     public static Capability readList(String name, Map<String, Type> inputs, Type element,
             BindingRef binding, List<Annotation> annotations) {
-        return new Capability(name, CapabilityKind.READ, inputs, element, true, true, binding, annotations, null);
+        return Capability.of(name, CapabilityKind.READ, inputs, element, true, true, binding, annotations, null);
     }
 
     /**
@@ -122,7 +122,7 @@ public record Capability(
     public static Capability attested(String name, Map<String, Type> inputs, Type output,
             boolean outputMultiple, BindingRef binding, List<Annotation> annotations,
             Attestation attestation) {
-        return new Capability(name, CapabilityKind.READ, inputs, output, outputMultiple, true, binding,
+        return Capability.of(name, CapabilityKind.READ, inputs, output, outputMultiple, true, binding,
                 annotations, attestation);
     }
 }

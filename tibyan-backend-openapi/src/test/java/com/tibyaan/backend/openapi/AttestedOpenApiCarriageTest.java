@@ -38,7 +38,7 @@ class AttestedOpenApiCarriageTest {
         Map<String, String> meanings = new LinkedHashMap<>();
         meanings.put("fullName", FULL_NAME_MEANING);
         meanings.put("pageNum", Attestation.PAGING_MARK);
-        Attestation attestation = new Attestation(AttestationCategory.PREDICATE, RESULT_SEMANTIC, meanings,
+        Attestation attestation = Attestation.data(AttestationCategory.PREDICATE, RESULT_SEMANTIC, meanings,
                 null, "a.elseginy", AttestationOrigin.HUMAN_AUTHORED, "2026-07-24", "sha256:abc123");
         Capability attested = Capability.attested("attested_searchTenants", inputs, Type.entityRef("Tenant"),
                 true, new BindingRef("TenantServiceImpl#getAllByFilter"), List.of(), attestation);

@@ -67,9 +67,10 @@ public class TibyanAutoConfiguration {
             SpringExecutionAdapter executionAdapter,
             ObjectMapper objectMapper,
             @Value("${tibyan.attested.expose:true}") boolean exposeAttested,
-            @Value("${tibyan.attested.exposeSecurityUnverifiable:false}") boolean exposeSecurityUnverifiable) {
+            @Value("${tibyan.attested.exposeSecurityUnverifiable:false}") boolean exposeSecurityUnverifiable,
+            @Value("${tibyan.attested.exposeBoundary:false}") boolean exposeBoundary) {
         List<ToolCallback> callbacks = new ToolRegistrar(objectMapper, exposeAttested,
-                exposeSecurityUnverifiable).register(manifest, executionAdapter);
+                exposeSecurityUnverifiable, exposeBoundary).register(manifest, executionAdapter);
         log.info("Tibyaan: registered {} MCP tool(s): {}",
                 callbacks.size(), manifest.tools().stream().map(CapabilityDescriptor::name).toList());
         return ToolCallbackProvider.from(callbacks);

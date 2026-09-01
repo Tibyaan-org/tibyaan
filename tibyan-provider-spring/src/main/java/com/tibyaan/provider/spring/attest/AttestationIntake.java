@@ -53,6 +53,9 @@ public final class AttestationIntake {
 
     private static final Pattern NAME = Pattern.compile("[A-Za-z][A-Za-z0-9_]*");
     private static final String ATTESTED_PREFIX = "attested_";
+    // Guard 4 (section 4.15.2.3): the boundary class is readable from the name. It still begins with the
+    // reserved attested_ prefix, so core rule 9 needs no change.
+    private static final String BOUNDARY_PREFIX = "attested_boundary_";
 
     // Framework paging types, excluded from the modeled input set exactly as E4 excludes a lone Pageable.
     private static final Set<String> PAGING_TYPES = Set.of("Pageable", "Sort");
@@ -147,6 +150,32 @@ public final class AttestationIntake {
         } catch (RuntimeException e) {
             refusals.add(refusal(target, record.name(), Cause.CATEGORY_MISMATCH,
                     "unknown category token '" + record.category() + "' (section 4.15.4, condition 2)"));
+            return;
+        }
+        // The other direction of guard 1 and core rule 11: a DATA category never carries security fields,
+        // so a data attestation can never be mistaken for a security one by a reader or by a consumer.
+        if (category != AttestationCategory.BOUNDARY
+                && (!isBlank(record.securityOwner()) || record.affirmedReadOnly()
+                        || !record.assertedAuthorities().isEmpty())) {
+            refusals.add(refusal(target, record.name(), Cause.CATEGORY_MISMATCH,
+                    "this is a '" + category.token() + "' entry carrying boundary fields (a securityOwner, "
+                            + "a read-only affirmation, or asserted authorities). Only a boundary entry "
+                            + "carries those, so a data attestation can never look like a security one "
+                            + "(section 4.15.2.3, guard 1; Volume 4 rule 11)"));
+            return;
+        }
+
+        // AT-3 scope split (section 4.15.2.3): C2, the remote delegation, is built. C1, the security
+        // contract, is refused by name because its target is an ALREADY-EMITTED capability and that
+        // targeting model is an unresolved decision with a security consequence, not an oversight.
+        if (category == AttestationCategory.BOUNDARY && !record.assertedAuthorities().isEmpty()) {
+            refusals.add(refusal(target, record.name(), Cause.CATEGORY_NOT_BUILT,
+                    "this entry asserts authorities, which is the boundary category's SECURITY CONTRACT "
+                            + "member (C1). Its target is a capability the tool already emitted, and that "
+                            + "targeting model is its own decision: minting a second capability collides "
+                            + "with binding uniqueness, and enriching the emitted one would put a human "
+                            + "assertion on a verified capability. C1 is not yet built; the remote "
+                            + "delegation member (C2) is (section 4.15.2.3, the scope split)"));
             return;
         }
         if (category == AttestationCategory.BOTH) {
@@ -249,7 +278,15 @@ public final class AttestationIntake {
         // the entry claims a by-primary-key identifier, a load of that entity actually present.
         Type output;
         boolean multiple;
-        if (category == AttestationCategory.SHAPE) {
+        if (category == AttestationCategory.BOUNDARY) {
+            BoundaryFrame frame = boundaryFrame(record, resolvedTarget, target, inputs);
+            if (frame.isRefused()) {
+                refusals.add(frame.refusal());
+                return;
+            }
+            output = frame.output();
+            multiple = frame.multiple();
+        } else if (category == AttestationCategory.SHAPE) {
             ShapeFrame frame = shapeFrame(record, resolvedTarget, target, inputs);
             if (frame.isRefused()) {
                 refusals.add(frame.refusal());
@@ -287,7 +324,11 @@ public final class AttestationIntake {
                             + "the reserved '" + ATTESTED_PREFIX + "' prefix (section 4.15.4, condition 5)"));
             return;
         }
-        String minted = ATTESTED_PREFIX + rawName;
+        // Guard 4: the minted name carries the elevated class. It still begins with the reserved
+        // attested_ prefix, so core rule 9 is unchanged in both directions, and an agent listing tools
+        // reads the class before any description (section 4.15.2.3, guard 4).
+        String minted = (category == AttestationCategory.BOUNDARY ? BOUNDARY_PREFIX : ATTESTED_PREFIX)
+                + rawName;
         if (!takenNames.add(minted)) {
             refusals.add(refusal(target, minted, Cause.NAME,
                     "the minted name '" + minted + "' collides with an existing capability (section 4.15.4, "
@@ -313,10 +354,19 @@ public final class AttestationIntake {
         }
         // The subject entity rides the component only where it is the assertion (shape); a predicate entry
         // tied structurally carries none, so its serialized form is unchanged by AT-2.
-        String subject = category == AttestationCategory.SHAPE ? record.subjectEntity() : null;
+        boolean boundary = category == AttestationCategory.BOUNDARY;
+        String subject = (category == AttestationCategory.SHAPE || boundary)
+                ? record.subjectEntity()
+                : null;
+        // The security fields ride ONLY a boundary attestation. Core rule 11 enforces the same in both
+        // directions; intake never populates them on a data category, so a data claim can never be read
+        // as a security one.
         Attestation attestation = new Attestation(category, record.resultSemantic(),
                 parameterMeanings, subject, provenance.assertedBy(), origin, provenance.date(),
-                provenance.fingerprint());
+                provenance.fingerprint(),
+                boundary ? record.securityOwner() : null,
+                boundary && record.affirmedReadOnly(),
+                boundary ? record.assertedAuthorities() : List.of());
         // The value sets ride the capability, never the attestation: the tool PROVES values and the human
         // ATTESTS meaning, and an attestation can neither supply, extend, nor override a set
         // (Volume 5 section 4.16.5).
@@ -425,6 +475,80 @@ public final class AttestationIntake {
                 ? tie.get().multiple()
                 : returnsContainer(resolvedTarget);
         return ShapeFrame.of(Type.entityRef(asserted), multiple);
+    }
+
+    /**
+     * The frame a CATEGORY C (BOUNDARY) assertion must sit inside, C2 member only (AT-3, Volume 5 section
+     * 4.15.2.3). This is the elevated-stakes category: the tool's read-safety check has almost nothing to
+     * inspect because the real work is behind a delegation it cannot see, so the READ-ONLY property itself
+     * rests on the human's affirmation rather than on structure.
+     *
+     * <p>The conditions, in the order a refusal is most informative: the security owner is named (guard 1);
+     * the read-only affirmation is explicit (guard 2), because silence is never an affirmation; the target
+     * really is a delegation, meaning it has NO in-tree persistence access, which is the exact complement
+     * of category B's local-tie precondition, so the two categories partition the space and a target with
+     * a local tie is sent to shape rather than accepted here; and the asserted subject entity exists in the
+     * model, exactly as for a shape claim.
+     */
+    private BoundaryFrame boundaryFrame(AttestationRecord record, ResolvedTarget resolvedTarget,
+                                        String target, Map<String, Type> inputs) {
+        // Guard 1: the distinguished asserter. Signing for a security decision is a different act from
+        // knowing the code, and one signature never stands for both.
+        if (isBlank(record.securityOwner())) {
+            return BoundaryFrame.refused(refusal(target, record.name(), Cause.STRUCTURAL_FRAME,
+                    "a boundary entry must name the securityOwner, the person who owns the SECURITY "
+                            + "decision it makes, separately from assertedBy who wrote the words "
+                            + "(section 4.15.2.3, guard 1)"));
+        }
+        // Guard 2: the affirmation is explicit or the entry does not ship. This is the property the tool
+        // cannot check for this member, so the design refuses to infer it from anything.
+        if (!record.affirmedReadOnly()) {
+            return BoundaryFrame.refused(refusal(target, record.name(), Cause.STRUCTURAL_FRAME,
+                    "a boundary entry over a delegation must carry readOnlyAffirmed true, the explicit "
+                            + "affirmation that invoking this performs no write ANYWHERE. It is absent or "
+                            + "false here, and silence is never an affirmation (section 4.15.2.3, guard 2)"));
+        }
+
+        // The local-tie MIRROR: a boundary target is one with NO in-tree persistence access. A target that
+        // has one is a category B target, and sending it here would let a shape claim skip category B's
+        // structural checks by wearing a boundary label.
+        List<RepoAccess> accesses = repositoryAccesses(resolvedTarget);
+        if (!accesses.isEmpty()) {
+            return BoundaryFrame.refused(refusal(target, record.name(), Cause.CATEGORY_MISMATCH,
+                    "this target HAS an in-tree persistence access, so its read-safety is inspectable and "
+                            + "it is a category B target: use category shape, which proves what boundary "
+                            + "can only affirm (section 4.15.2.3, the local-tie mirror)"));
+        }
+
+        String asserted = record.subjectEntity();
+        if (isBlank(asserted)) {
+            return BoundaryFrame.refused(refusal(target, record.name(), Cause.STRUCTURAL_FRAME,
+                    "a boundary entry must name the subject entity it claims the read returns "
+                            + "(section 4.15.2.3, member C2)"));
+        }
+        Optional<String> assertedKey = keyForDisplay(asserted);
+        if (assertedKey.isEmpty()) {
+            return BoundaryFrame.refused(refusal(target, record.name(), Cause.STRUCTURAL_FRAME,
+                    "the asserted subjectEntity '" + asserted + "' is not an entity in the model; an "
+                            + "assertion names what the tool already modeled (section 4.15.2.3)"));
+        }
+        return BoundaryFrame.of(Type.entityRef(asserted), returnsContainer(resolvedTarget));
+    }
+
+    /** The outcome of the category C frame check. */
+    private record BoundaryFrame(Type output, boolean multiple, IntakeRefusal refusal) {
+
+        static BoundaryFrame refused(IntakeRefusal refusal) {
+            return new BoundaryFrame(null, false, refusal);
+        }
+
+        static BoundaryFrame of(Type output, boolean multiple) {
+            return new BoundaryFrame(output, multiple, null);
+        }
+
+        boolean isRefused() {
+            return refusal != null;
+        }
     }
 
     /** The outcome of the category B frame check: the attested output, or the refusal that stops it. */

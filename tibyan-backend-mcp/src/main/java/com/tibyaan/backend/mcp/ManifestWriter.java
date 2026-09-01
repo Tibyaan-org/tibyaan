@@ -95,6 +95,11 @@ final class ManifestWriter {
         // existing manifest byte is unchanged (the byte-identity guard, fixture ATT-11).
         if (capability.hasAttestation()) {
             out.append("      \"attested\": true,\n");
+            // Guard 4 (Volume 5 section 4.15.2.3): the boundary marker rides ALONGSIDE the attested marker,
+            // never instead of it, so a consumer filtering on either one behaves correctly.
+            if (capability.attestation().hasBoundaryClass()) {
+                out.append("      \"attestedBoundary\": true,\n");
+            }
             appendAttestation(out, capability.attestation());
         }
         Map<String, Type> inputs = capability.inputs();
@@ -152,6 +157,23 @@ final class ManifestWriter {
         out.append("        \"assertedBy\": ").append(quote(attestation.assertedBy())).append(",\n");
         out.append("        \"origin\": ").append(quote(attestation.origin().token())).append(",\n");
         out.append("        \"date\": ").append(quote(attestation.date())).append(",\n");
+        // AT-3: the security fields, present only on a boundary attestation. assertedAuthorities is
+        // rendered under its OWN name and never as requiredAuthorities, and the securityUnverifiable
+        // marker the capability may carry is untouched: an asserted authority is not a compiled one.
+        if (attestation.hasBoundaryClass()) {
+            out.append("        \"securityOwner\": ").append(quote(attestation.securityOwner()))
+                    .append(",\n");
+            out.append("        \"readOnlyAffirmed\": ").append(attestation.readOnlyAffirmed())
+                    .append(",\n");
+            if (!attestation.assertedAuthorities().isEmpty()) {
+                out.append("        \"assertedAuthorities\": [");
+                List<String> authorities = attestation.assertedAuthorities();
+                for (int a = 0; a < authorities.size(); a++) {
+                    out.append(a > 0 ? ", " : "").append(quote(authorities.get(a)));
+                }
+                out.append("],\n");
+            }
+        }
         out.append("        \"fingerprint\": ").append(quote(attestation.fingerprint())).append("\n");
         out.append("      },\n");
     }
@@ -180,6 +202,17 @@ final class ManifestWriter {
         // result sentence verbatim, then the provenance. Built only from the attestation's own fields.
         if (capability.hasAttestation()) {
             Attestation attestation = capability.attestation();
+            // AT-3: a boundary tool leads with the STRONGER label, because its class is not "a human
+            // described this data" but "a human took responsibility for a security property the tool
+            // could not check". The security owner is named in the same sentence that names the asserter.
+            if (attestation.hasBoundaryClass()) {
+                return "Human-attested BOUNDARY, not tool-verified: its read-only-ness or its security "
+                        + "contract rests on a human assertion, not on structure. "
+                        + attestation.resultSemantic()
+                        + " Asserted by " + attestation.assertedBy() + " (" + attestation.origin().token()
+                        + "), " + attestation.date() + ", security owner " + attestation.securityOwner()
+                        + ".";
+            }
             return "Human-attested, not tool-verified. " + attestation.resultSemantic()
                     + " Asserted by " + attestation.assertedBy() + " (" + attestation.origin().token()
                     + "), " + attestation.date() + ".";
