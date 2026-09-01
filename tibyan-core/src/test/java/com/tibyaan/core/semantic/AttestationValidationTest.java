@@ -38,6 +38,80 @@ class AttestationValidationTest {
                 "sha256:abc");
     }
 
+    // ---------- rule 11, the AT-3 boundary rules (Volume 5 section 4.15.2.3) ----------
+
+    @Test
+    void rule11_aBoundaryAttestationWithoutASecurityOwnerFails() {
+        Capability cap = boundaryCapability(null, true, List.of());
+
+        assertThat(validator.validate(modelWith(cap)).errors())
+                .anyMatch(e -> e.contains("securityOwner") && e.contains("rule 11"));
+    }
+
+    @Test
+    void rule11_aBoundaryAttestationThatAssertsNothingFails() {
+        // A security owner who signs for nothing: neither read-only-ness nor any authority.
+        Capability cap = boundaryCapability("s.owner", false, List.of());
+
+        assertThat(validator.validate(modelWith(cap)).errors())
+                .anyMatch(e -> e.contains("asserts nothing") && e.contains("rule 11"));
+    }
+
+    @Test
+    void rule11_aDataAttestationCarryingSecurityFieldsFails() {
+        // The other direction, which is what keeps the two classes from blurring: a predicate attestation
+        // wearing a security owner would read as a security claim to any consumer.
+        Attestation predicateWithOwner = new Attestation(AttestationCategory.PREDICATE,
+                "Returns the tenants matching the filters.", meanings("fullName", "Matches the name."),
+                null, "a.elseginy", AttestationOrigin.HUMAN_AUTHORED, "2026-09-01", "sha256:abc",
+                "s.owner", false, List.of());
+        Capability cap = Capability.attested("attested_searchTenants",
+                Map.of("fullName", Primitive.STRING), Type.entityRef("Tenant"), true,
+                new BindingRef("TenantServiceImpl#getAllByFilter"), List.of(), predicateWithOwner);
+
+        assertThat(validator.validate(modelWith(cap)).errors())
+                .anyMatch(e -> e.contains("securityOwner") && e.contains("rule 11"));
+    }
+
+    @Test
+    void rule11_theContradictionGuardRefusesACompiledAndAnAssertedContractTogether() {
+        // AT-3 member C1. Section 4.14's composition runs AFTER attestation intake, so this is the only
+        // place the two axes can be compared. If the tool PROVED a contract for this read, a human
+        // assertion over it is not carried alongside it: the model fails loud rather than shipping two
+        // answers to one question.
+        Attestation boundary = new Attestation(AttestationCategory.BOUNDARY, "Returns the tenant.",
+                meanings("id", Attestation.ID_MARK), "Tenant", "a.elseginy",
+                AttestationOrigin.HUMAN_AUTHORED, "2026-09-01", "sha256:abc",
+                "s.owner", true, List.of("TENANT_READ"));
+        Capability cap = new Capability("attested_boundary_getTenant", CapabilityKind.READ,
+                Map.of("id", Primitive.LONG), Type.entityRef("Tenant"), false, true,
+                new BindingRef("TenantServiceImpl#getRemote"),
+                List.of(new com.tibyaan.core.ir.Annotation("requiredAuthorities", List.of("TENANT_READ"))),
+                boundary, Map.of());
+
+        assertThat(validator.validate(modelWith(cap)).errors())
+                .anyMatch(e -> e.contains("contradiction guard") && e.contains("rule 11"));
+    }
+
+    @Test
+    void rule11_aBoundaryAttestationAssertingOnlyAuthoritiesIsValid() {
+        // C1 without C2's affirmation: a security assertion is an assertion, so the entry stands.
+        Capability cap = boundaryCapability("s.owner", false, List.of("TENANT_READ", "TENANT_ADMIN"));
+
+        assertThat(validator.validate(modelWith(cap)).isValid()).isTrue();
+    }
+
+    private static Capability boundaryCapability(String securityOwner, boolean readOnlyAffirmed,
+                                                 List<String> assertedAuthorities) {
+        Attestation boundary = new Attestation(AttestationCategory.BOUNDARY, "Returns the tenant.",
+                meanings("id", Attestation.ID_MARK), "Tenant", "a.elseginy",
+                AttestationOrigin.HUMAN_AUTHORED, "2026-09-01", "sha256:abc",
+                securityOwner, readOnlyAffirmed, assertedAuthorities);
+        return Capability.attested("attested_boundary_getTenant", Map.of("id", Primitive.LONG),
+                Type.entityRef("Tenant"), false, new BindingRef("TenantServiceImpl#getRemote"),
+                List.of(), boundary);
+    }
+
     private static CapabilityModel modelWith(Capability capability) {
         Entity tenant = new Entity("Tenant", "Tenant",
                 List.of(Field.of("id", Primitive.LONG, false)), List.of(), Metadata.empty());

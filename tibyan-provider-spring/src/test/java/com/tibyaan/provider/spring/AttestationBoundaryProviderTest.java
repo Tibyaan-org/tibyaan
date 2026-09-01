@@ -152,21 +152,51 @@ class AttestationBoundaryProviderTest {
         assertThat(onlyRefusal(root).cause()).isEqualTo(IntakeRefusal.Cause.READ_SAFETY);
     }
 
+    // ---------- ATT-13, member C1: the security contract ----------
+
     @Test
-    void theSecurityContractMemberC1IsRefusedByNameWithItsReason(@TempDir Path root) throws IOException {
-        // AT-3's scope split (section 4.15.2.3): C1's target is an ALREADY-EMITTED capability, and that
-        // targeting model is its own decision with a security consequence. It refuses rather than guessing.
+    void att13_aBoundaryEntryCarriesTheAssertedAuthoritiesWithoutEverCompilingThem(@TempDir Path root)
+            throws IOException {
+        // C1 is carried BY the boundary entry, on the read it is already attesting (section 4.15.2.3,
+        // C1 RESOLVED). One entry, one capability, no assertion on anything verified.
         copyFixture(root);
         String fingerprint = fingerprint(root, DELEGATION_TARGET);
-        String entry = boundaryEntry(DELEGATION_TARGET, "getRemoteInvoice", "Returns the invoice.",
-                "\"id\":\"id\"", "Invoice", "s.owner", true, fingerprint)
-                .replace("\"provenance\"", "\"assertedAuthorities\":[\"INVOICE_READ\"],\"provenance\"");
-        writeAttestations(root, "[" + entry + "]");
+        writeAttestations(root, "[" + withAuthorities(boundaryEntry(DELEGATION_TARGET, "getRemoteInvoice",
+                "Returns the invoice with this id from the billing service.", "\"id\":\"id\"", "Invoice",
+                "s.owner", true, fingerprint), "\"INVOICE_READ\",\"BILLING_ADMIN\"") + "]");
 
-        IntakeRefusal refusal = onlyRefusal(root);
-        assertThat(refusal.cause()).isEqualTo(IntakeRefusal.Cause.CATEGORY_NOT_BUILT);
-        assertThat(refusal.detail()).contains("SECURITY CONTRACT").contains("binding uniqueness");
+        ScanReport report = provider.scan(new ProviderInput(root));
+
+        assertThat(report.attestationRefusals()).isEmpty();
+        Capability capability = attested(report, "attested_boundary_getRemoteInvoice");
+        Attestation attestation = capability.attestation();
+        assertThat(attestation.assertedAuthorities())
+                .containsExactly("INVOICE_READ", "BILLING_ADMIN");
+
+        // ATT-18, the never-compiled guard, this member's mis-bind fixture. The assertion rides its own
+        // field and NEVER becomes the compiled contract a consumer's enforcement layer trusts.
+        assertThat(capability.annotations()).noneMatch(a -> a.key().equals("requiredAuthorities"));
+        assertThat(validator.validate(report.model()).isValid()).isTrue();
     }
+
+    @Test
+    void att13_anEmptyOrRepeatedAssertedAuthorityRefuses(@TempDir Path root) throws IOException {
+        copyFixture(root);
+        String fingerprint = fingerprint(root, DELEGATION_TARGET);
+        String base = boundaryEntry(DELEGATION_TARGET, "getRemoteInvoice", "Returns the invoice.",
+                "\"id\":\"id\"", "Invoice", "s.owner", true, fingerprint);
+
+        writeAttestations(root, "[" + withAuthorities(base, "\"INVOICE_READ\",\"\"") + "]");
+        IntakeRefusal empty = onlyRefusal(root);
+        assertThat(empty.cause()).isEqualTo(IntakeRefusal.Cause.STRUCTURAL_FRAME);
+        assertThat(empty.detail()).contains("empty");
+
+        writeAttestations(root, "[" + withAuthorities(base, "\"A\",\"A\"") + "]");
+        IntakeRefusal repeated = onlyRefusal(root);
+        assertThat(repeated.cause()).isEqualTo(IntakeRefusal.Cause.STRUCTURAL_FRAME);
+        assertThat(repeated.detail()).contains("repeated");
+    }
+
 
     // ---------- ATT-19, the counting guard (guard 3) ----------
 
@@ -220,6 +250,12 @@ class AttestationBoundaryProviderTest {
         Path dir = root.resolve("tibyan");
         Files.createDirectories(dir);
         Files.write(dir.resolve("attestations.json"), json.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** Splices an assertedAuthorities array into an entry, before its provenance block. */
+    private static String withAuthorities(String entry, String authorities) {
+        return entry.replace("\"provenance\"",
+                "\"assertedAuthorities\":[" + authorities + "],\"provenance\"");
     }
 
     private static String boundaryEntry(String target, String name, String resultSemantic,

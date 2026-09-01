@@ -1525,3 +1525,13 @@ The counted evidence for this category lives on the private enterprise benchmark
 reads), not here, so byte-identical is the expected and correct result rather than a disappointment. What
 matters for this ledger is the negative: a phase that adds a whole new epistemic class, three IR fields,
 two core rules, and a runtime exposure control moved not one byte of any existing output.
+
+### AT-3 member C1 (2026-09-01)
+
+Member C1, the security contract, was built the session after C2. Re-measured: BYTE-IDENTICAL across the
+serialized IR, the generated MCP output and the generated OpenAPI document, verified by `diff -r` against a
+worktree at the pre-build commit. This app carries no record file, so nothing could move.
+
+C1's evidence lives on the private enterprise benchmark, not here. What this ledger records is the same
+negative as the C2 row: settling a targeting model, adding a core contradiction guard, and completing an
+epistemic class moved not one byte of any existing output.

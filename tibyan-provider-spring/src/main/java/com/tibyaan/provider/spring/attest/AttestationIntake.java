@@ -165,18 +165,18 @@ public final class AttestationIntake {
             return;
         }
 
-        // AT-3 scope split (section 4.15.2.3): C2, the remote delegation, is built. C1, the security
-        // contract, is refused by name because its target is an ALREADY-EMITTED capability and that
-        // targeting model is an unresolved decision with a security consequence, not an oversight.
-        if (category == AttestationCategory.BOUNDARY && !record.assertedAuthorities().isEmpty()) {
-            refusals.add(refusal(target, record.name(), Cause.CATEGORY_NOT_BUILT,
-                    "this entry asserts authorities, which is the boundary category's SECURITY CONTRACT "
-                            + "member (C1). Its target is a capability the tool already emitted, and that "
-                            + "targeting model is its own decision: minting a second capability collides "
-                            + "with binding uniqueness, and enriching the emitted one would put a human "
-                            + "assertion on a verified capability. C1 is not yet built; the remote "
-                            + "delegation member (C2) is (section 4.15.2.3, the scope split)"));
-            return;
+        // AT-3 member C1, the SECURITY CONTRACT (section 4.15.2.3, C1 RESOLVED). The assertion is carried
+        // BY THIS BOUNDARY ENTRY, on the read it is already attesting, never as an entry of its own
+        // against an already-emitted capability. Intake checks the assertion's own shape only: section
+        // 4.14's composition runs AFTER intake, so whether a compiled contract exists for this read is
+        // not knowable here, and the contradiction between a compiled and an asserted contract is core
+        // rule 11's to catch, where the whole model is visible.
+        if (!record.assertedAuthorities().isEmpty()) {
+            Optional<IntakeRefusal> authorities = checkAssertedAuthorities(record, target);
+            if (authorities.isPresent()) {
+                refusals.add(authorities.get());
+                return;
+            }
         }
         if (category == AttestationCategory.BOTH) {
             refusals.add(refusal(target, record.name(), Cause.CATEGORY_NOT_BUILT,
@@ -533,6 +533,26 @@ public final class AttestationIntake {
                             + "assertion names what the tool already modeled (section 4.15.2.3)"));
         }
         return BoundaryFrame.of(Type.entityRef(asserted), returnsContainer(resolvedTarget));
+    }
+
+    // AT-3 member C1: the asserted authorities' own shape. What the tool can check here is only that the
+    // human wrote a usable set; whether the tool ALSO compiled a contract for this read is core rule 11's
+    // contradiction guard, because the composition has not run yet at intake time.
+    private Optional<IntakeRefusal> checkAssertedAuthorities(AttestationRecord record, String target) {
+        Set<String> seen = new java.util.LinkedHashSet<>();
+        for (String authority : record.assertedAuthorities()) {
+            if (isBlank(authority)) {
+                return Optional.of(refusal(target, record.name(), Cause.STRUCTURAL_FRAME,
+                        "an asserted authority is empty; a security assertion names the authorities it "
+                                + "claims, it never claims a blank one (section 4.15.2.3, member C1)"));
+            }
+            if (!seen.add(authority)) {
+                return Optional.of(refusal(target, record.name(), Cause.STRUCTURAL_FRAME,
+                        "the asserted authority '" + authority + "' is repeated; an any-of contract's "
+                                + "authorities are distinct (section 4.15.2.3, member C1)"));
+            }
+        }
+        return Optional.empty();
     }
 
     /** The outcome of the category C frame check. */
