@@ -4,8 +4,9 @@ This document records the release decisions for v1 and the exact steps to publis
 that the parts a machine cannot do (accounts, key ceremonies, external verification) are enumerated as
 human steps, never faked. Everything preparable in the repository is prepared and verifiable locally.
 
-Release history: `0.1.0` was published to Maven Central on 2026-07-08 (tag `v0.1.0`, commit f01d390)
-and `0.2.0` on 2026-07-17 (tag `v0.2.0`, commit ff22554), both under groupId `io.github.tibyaan-org`.
+Release history, all under groupId `io.github.tibyaan-org`: `0.1.0` was published to Maven Central on
+2026-07-08 (tag `v0.1.0`, commit f01d390), `0.2.0` on 2026-07-17 (tag `v0.2.0`, commit ff22554), and
+`0.3.0` on 2026-09-03 (tag `v0.3.0`, commit 1528cab).
 Per-release contents are in [CHANGELOG.md](../CHANGELOG.md).
 
 The publishing machinery is proven, not theoretical: the namespace is verified, the GPG key
@@ -38,7 +39,8 @@ metadata and documentation.
 
 ## 2. Versioning discipline (pre-1.0)
 
-The current version is `0.3.0`. The scheme is semantic-versioning-shaped, with the pre-1.0 caveat stated
+The latest release is `0.3.0`; the development tree is `0.4.0-SNAPSHOT`. The scheme is
+semantic-versioning-shaped, with the pre-1.0 caveat stated
 plainly:
 
 - Patch (`0.1.x`): documentation, build metadata, and bug fixes that change no discovery, backend,

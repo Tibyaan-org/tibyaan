@@ -12,7 +12,7 @@ not stable before 1.0.0.
 
 ---
 
-## 0.3.0 (unreleased)
+## 0.3.0 (2026-09-03)
 
 The attestation release. Everything a human can assert about a read that the tool cannot prove
 structurally, plus the enum-input constraint and one mis-bind fix.
