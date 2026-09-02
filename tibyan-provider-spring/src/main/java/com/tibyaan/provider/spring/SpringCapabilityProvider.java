@@ -11,6 +11,7 @@ import com.github.javaparser.ast.body.Parameter;
 import com.github.javaparser.ast.expr.MethodCallExpr;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.tibyaan.core.ir.Annotation;
+import com.tibyaan.core.ir.AttestationOrigin;
 import com.tibyaan.core.ir.BindingRef;
 import com.tibyaan.core.ir.Capability;
 import com.tibyaan.core.ir.CapabilityKind;
@@ -27,6 +28,7 @@ import com.tibyaan.provider.spring.EntityOutcome.Cause;
 import com.tibyaan.provider.spring.attest.AttestationFile;
 import com.tibyaan.provider.spring.attest.AttestationIntake;
 import com.tibyaan.provider.spring.attest.AttestationRecord;
+import com.tibyaan.provider.spring.attest.DraftProposal;
 import com.tibyaan.provider.spring.attest.IntakeRefusal;
 import com.tibyaan.provider.spring.extractors.ControllerSecurity;
 import com.tibyaan.provider.spring.extractors.DisplayNames;
@@ -233,7 +235,7 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
                 dedupeAndSort(finalized.relations()), Metadata.empty());
         return new ScanReport(model, finalized.outcomes(), parsed.skips(), finalized.skippedFields(),
                 listReads.outcomes(), listReads.deferrals(), attestationRefusals,
-                enumParsedInBody(serviceSources, resolver));
+                enumParsedInBody(serviceSources, resolver), intake.drafts());
     }
 
     private static String lastSegment(String name) {
@@ -303,6 +305,88 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
 
     /** The outcome of stamping one entry: its target, whether it resolved, and the fingerprint if so. */
     public record StampOutcome(String target, boolean resolved, String fingerprint) {
+    }
+
+    /** The outcome of confirming one draft: whether it was confirmed, and the reason when it was not. */
+    public record ConfirmOutcome(boolean confirmed, String reason) {
+    }
+
+    /**
+     * Confirms EXACTLY ONE draft entry (phase Attestation AT-4, Volume 5 section 4.15.5): rewrites that
+     * entry's origin from {@code ai-draft} to {@code ai-drafted-human-confirmed} and puts the confirmer's
+     * name in {@code assertedBy}, then writes the file back.
+     *
+     * <p>AI MAY PROPOSE, ONLY A HUMAN MAY CONFIRM, ONLY CONFIRMED CLAIMS SHIP. Three properties of this
+     * method are the rule text rather than an implementation choice, and each is enforced by construction
+     * rather than by a check that could be relaxed later:
+     *
+     * <ul>
+     *   <li>ONE ENTRY. It takes a single target and rewrites a single entry. There is no all-targets
+     *       form and no batch form, here or in the CLI, because confirmation is a per-entry human act
+     *       (section 4.15.5). A team that wants ten drafts confirmed reviews ten drafts.</li>
+     *   <li>NEVER AUTO-CONFIRM. Nothing calls this except a person typing the command with a name. The
+     *       scan path does not call it, and no default confirms anything.</li>
+     *   <li>THE CONFIRMER IS NAMED. A blank confirmer refuses. The whole value of the rewritten origin is
+     *       that it records WHO took the claim on, and an anonymous confirmation records nothing.</li>
+     * </ul>
+     *
+     * <p>The words are NOT rewritten. Confirming means a person read the proposal and takes it on as
+     * their own claim; if they wanted different words they edit the file, which is the same reviewable
+     * record either way. The tool never edits a claim's text, before or after confirmation.
+     */
+    public ConfirmOutcome confirmDraft(ProviderInput input, String target, String confirmedBy) {
+        if (target == null || target.isBlank()) {
+            return new ConfirmOutcome(false, "no target given; confirmation is per entry, by target");
+        }
+        if (confirmedBy == null || confirmedBy.isBlank()) {
+            return new ConfirmOutcome(false, "no confirmer named; a confirmation records WHO took the "
+                    + "claim on, so an anonymous one records nothing (section 4.15.5)");
+        }
+        Path root = input.sourceRoot();
+        List<AttestationRecord> records = AttestationFile.read(root);
+        if (records.isEmpty()) {
+            return new ConfirmOutcome(false, "no " + AttestationFile.RELATIVE_PATH + " to confirm in");
+        }
+
+        List<AttestationRecord> rewritten = new ArrayList<>();
+        boolean found = false;
+        boolean confirmed = false;
+        String reason = null;
+        for (AttestationRecord record : records) {
+            AttestationRecord.Provenance prior = record.provenance();
+            String origin = prior == null ? null : prior.origin();
+            if (!target.equals(record.target())) {
+                rewritten.add(record);
+                continue;
+            }
+            found = true;
+            if (!DraftProposal.DRAFT_ORIGIN.equals(origin)) {
+                // Not a draft: confirming an already-confirmed or hand-authored entry would silently
+                // relabel a human's own claim as AI-drafted, which is a provenance lie in the one field
+                // whose entire job is to be true about how the words were produced.
+                reason = "the entry for '" + target + "' has origin '" + origin + "', not '"
+                        + DraftProposal.DRAFT_ORIGIN + "'; only a draft is confirmed, and relabelling an "
+                        + "authored claim as AI-drafted would be a provenance lie (section 4.15.5)";
+                rewritten.add(record);
+                continue;
+            }
+            AttestationRecord.Provenance provenance = new AttestationRecord.Provenance(confirmedBy,
+                    AttestationOrigin.AI_DRAFTED_HUMAN_CONFIRMED.token(),
+                    prior.date(), prior.fingerprint());
+            rewritten.add(new AttestationRecord(record.target(), record.category(), record.name(),
+                    record.resultSemantic(), record.parameters(), record.subjectEntity(),
+                    record.securityOwner(), record.readOnlyAffirmed(), record.assertedAuthorities(),
+                    provenance));
+            confirmed = true;
+        }
+        if (!found) {
+            return new ConfirmOutcome(false, "no entry targets '" + target + "'");
+        }
+        if (!confirmed) {
+            return new ConfirmOutcome(false, reason);
+        }
+        AttestationFile.write(root, rewritten);
+        return new ConfirmOutcome(true, null);
     }
 
     /**

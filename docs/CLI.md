@@ -60,6 +60,7 @@ Note on the version: the released artifact is `0.1.0`; a local build of the curr
 |---|---|
 | `scan` | Resiliently survey a system's source into a Capability IR (never aborts on a bad file). |
 | `generate` | Generate a backend (MCP or OpenAPI) from an IR file, or by scanning a path (strict). |
+| `attest` | Stamp fingerprints into the attestations file, and confirm one drafted entry. |
 | `validate` | Validate an IR JSON file without generating. |
 | `version` | Print the tool and IR schema versions. |
 
@@ -188,6 +189,66 @@ java -jar $TIBYAN generate --backend mcp --ir edunest.ir.json --out ./generated
 # Generate an OpenAPI document by scanning an app directly (strict path)
 java -jar $TIBYAN generate --backend openapi --out ./generated "C:\path\to\app"
 ```
+
+---
+
+## `tibyan attest`
+
+Two actions on the adopter's committed `tibyan/attestations.json`, the reviewable record of every human
+assertion (Volume 5, section 4.15.3). The tool never writes a claim's WORDS in either action: the meaning
+is always the human's.
+
+### Synopsis
+
+```
+tibyan attest <path> [--date <yyyy-mm-dd>]
+tibyan attest <path> --confirm <target> --by <name>
+```
+
+### Stamping (the default action)
+
+Computes the structural fingerprint of each entry's slice over the CURRENT code and writes it back, with
+`--date` optionally stamping the assertion date at the same time. This is the only path that stamps a
+fingerprint, so a fingerprint always co-arrives with the code it pins; a hand-authored entry without one
+is refused at intake rather than silently completed.
+
+```
+java -jar $TIBYAN attest "C:\path\to\app" --date 2026-09-01
+```
+
+### Confirming a draft (`--confirm`)
+
+An entry whose `origin` is `ai-draft` is a PROPOSAL, not a claim. It is queued in the scan survey, counted
+apart from attested and from discovered, and it ships nothing: no capability, no manifest entry, no
+OpenAPI operation. Confirming it is the human act that turns it into a claim.
+
+```
+java -jar $TIBYAN attest "C:\path\to\app" --confirm "com.example.TenantServiceImpl#getAllByFilter(String,Integer)" --by a.elseginy
+```
+
+That rewrites exactly that entry's origin to `ai-drafted-human-confirmed` and records you in
+`assertedBy`. Then stamp it and re-scan to intake it.
+
+Four properties are deliberate, and each is enforced by construction rather than by a check that could be
+relaxed later (Volume 5, section 4.15.5):
+
+- ONE ENTRY AT A TIME. There is no `--confirm-all` and no multi-target form, here or in the API beneath.
+  Confirmation is a per-entry human act; a team with ten drafts reviews ten drafts.
+- YOU ARE NAMED. `--by` is required and may not be blank. The whole value of the rewritten origin is that
+  it records who took the claim on.
+- THE WORDS ARE NOT REWRITTEN. Confirming means you read the proposal and take it on as your own claim. If
+  you want different words, edit the file; it is the same reviewable record either way.
+- ONLY A DRAFT IS CONFIRMED. Confirming a `human-authored` entry refuses, because relabelling your own
+  claim as AI-drafted would be untrue in the one field whose job is to be true about how the words were
+  produced.
+
+### Exit codes
+
+| Code | When |
+|---|---|
+| 0 | The file was stamped, or the named draft was confirmed. |
+| 1 | `--confirm` did not apply: no such target, not a draft, or no `--by` given. |
+| 3 | The scan could not run: the path is missing or cannot be walked. |
 
 ---
 

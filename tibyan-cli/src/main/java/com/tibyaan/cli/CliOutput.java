@@ -6,6 +6,8 @@ import com.tibyaan.core.ir.Capability;
 import com.tibyaan.core.ir.CapabilityModel;
 import com.tibyaan.core.ir.Entity;
 import com.tibyaan.provider.spring.DeferredListRead;
+import com.tibyaan.provider.spring.attest.AttestationFile;
+import com.tibyaan.provider.spring.attest.DraftProposal;
 import com.tibyaan.provider.spring.attest.IntakeRefusal;
 import com.tibyaan.provider.spring.EntityOutcome;
 import com.tibyaan.provider.spring.EntityOutcome.Cause;
@@ -175,6 +177,20 @@ final class CliOutput {
             for (IntakeRefusal refusal : report.attestationRefusals()) {
                 System.out.println("  ! " + refusal.target() + " [" + refusal.cause() + "]: "
                         + refusal.detail());
+            }
+        }
+        // AT-4 (section 4.15.5): drafts are their OWN queue, listed after the refusals and counted apart
+        // from both attested and refused. A draft is not a failure and not a claim; it is a proposal
+        // waiting for a person. The line names the target, the proposed name, and the category, and
+        // deliberately NOT the drafted words: a drafted sentence printed on a tool surface can be read or
+        // pasted as though someone had claimed it, and no one has. Review happens in the file.
+        if (!report.attestationDrafts().isEmpty()) {
+            System.out.println("Drafts awaiting human confirmation (" + report.attestationDrafts().size()
+                    + "), none of which ships until confirmed:");
+            for (DraftProposal draft : report.attestationDrafts()) {
+                System.out.println("  ? " + draft.target() + " [" + draft.category() + "] proposes '"
+                        + draft.name() + "'; review it in " + AttestationFile.RELATIVE_PATH
+                        + ", then: tibyan attest <path> --confirm <target> --by <you>");
             }
         }
     }

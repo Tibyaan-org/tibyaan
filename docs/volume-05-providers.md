@@ -1167,7 +1167,7 @@ Existing discovered rows stay byte-identical everywhere except the forecast addi
 
 Build recommendation: BUILD, after ratification, unlike P1b and Discovery-Gap. Those discovered zero and moved no number; this phase changes real output on two of three benchmarks (compiled contracts on pms and the private benchmark) and delivers the first real user's actual request. The build session commits this ratified design first (rule 12), enables the ControllerExtractor, implements the anchor rule, the authority compiler, and the backend surfaces exactly as written here, runs fixtures CA-1 to CA-18, and re-runs all three benchmarks against this forecast.
 
-### 4.15 Attestation: the human-attested third category of knowledge (phase Attestation; designed 2026-07-20, RATIFIED 2026-07-21; sub-phases AT-0 to AT-4; AT-0 BUILT 2026-07-24, AT-1 BUILT 2026-07-25, AT-2 BUILT 2026-09-01, AT-3 RATIFIED and BUILT 2026-09-01, member C2 then member C1; AT-4 standing as designed)
+### 4.15 Attestation: the human-attested third category of knowledge (phase Attestation; designed 2026-07-20, RATIFIED 2026-07-21; sub-phases AT-0 to AT-4; AT-0 BUILT 2026-07-24, AT-1 BUILT 2026-07-25, AT-2 BUILT 2026-09-01, AT-3 RATIFIED and BUILT 2026-09-01, member C2 then member C1; AT-4 draft lifecycle BUILT 2026-09-01, the assist itself deferred with its open questions named in 4.15.5.1)
 
 This is the largest design in the project, and the first that is not a matching rule: it is a capability-AUTHORING mechanism. Per rule 12 this frozen design is committed first; each sub-phase's build is a separate later session implementing this text exactly. Until ratification, no attestation code is written.
 
@@ -1475,6 +1475,34 @@ AI MAY PROPOSE. ONLY A HUMAN MAY CONFIRM. ONLY CONFIRMED CLAIMS SHIP.
 - Provenance distinguishes `human-authored` from `ai-drafted-human-confirmed`, permanently. Argued: the two claims have the same authority (a human owns both), but HOW the words were produced is provenance fact, recording it costs nothing, and hiding it would be the design's first dishonesty about itself. Every surface that shows provenance shows the origin token verbatim.
 - What the assist may NEVER do, as rule text: never auto-confirm; never batch-confirm (confirmation is a per-entry human action; the record shape enforces it, one origin rewrite per entry, and the CLI offers no confirm-all); never draft for a category outside the ratified attestable set or a sub-phase not yet built; never let a draft reach ANY output (intake refuses `ai-draft` loudly, so a draft cannot reach the IR, a manifest, a document, or a survey count; drafts appear only in the worklist as proposals awaiting review).
 - Separability: AT-1 through AT-3 stand entirely without AT-4. If AT-4 is never built, the design loses convenience and nothing else.
+
+
+#### 4.15.5.1 AT-4 build record: the draft lifecycle is built, the assist itself is not (BUILT 2026-09-01, SPLIT recorded)
+
+Section 4.15.5 ratifies a BOUNDARY, not an implementation. It says what the assist may never do and what must happen around a draft; it does not say where a drafting model lives, which model it is, or what determinism means for a call to one. That distinction decides this build, so it is stated before anything else.
+
+WHAT IS BUILT: THE DRAFT LIFECYCLE, which is the whole human half of the section and every one of its safety properties.
+
+- A DRAFT IS A THIRD THING, neither attested nor refused. An entry whose `origin` is the reserved token `ai-draft` is recorded as a `DraftProposal` and reported in its own queue, counted apart from `attested` and from `discovered`, and it produces nothing: no capability, no IR entry, no manifest entry, no OpenAPI operation. AT-1 enforced the same outcome by REFUSING the entry under `PROVENANCE`, because a draft had nowhere else to go. It now has somewhere to go, so the mechanism changed and the invariant did not. The separation is deliberate and it is not cosmetic: a proposal doing exactly what the flow asks of it is not a failure, and reporting it as one trains a team to ignore the single queue this sub-phase exists to keep honest.
+- THE DRAFT'S WORDS ARE NOT PRINTED on any tool surface. The survey line names the target, the proposed name, and the category, and stops there. A drafted sentence rendered by the tool can be read, quoted, or pasted as though a person had claimed it, and no person has. Review happens in the file or in the confirm dialogue, where the reviewer knows they are looking at a proposal.
+- CONFIRMATION IS A PER-ENTRY HUMAN ACT, enforced by construction rather than by a check. `tibyan attest <path> --confirm <target> --by <name>` rewrites exactly one entry's origin to `ai-drafted-human-confirmed` and records the confirmer in `assertedBy`. There is no `--confirm-all` and no multi-target form, in the CLI or in the provider API beneath it, because an option that confirmed a queue would BE the batch-confirm the rule text forbids. A team with ten drafts reviews ten drafts.
+- THE CONFIRMER IS NAMED OR THERE IS NO CONFIRMATION. A blank `--by` refuses. The entire value of the rewritten origin is that it records who took the claim on, and an anonymous confirmation records nothing.
+- CONFIRMING REWRITES ONLY PROVENANCE. The tool does not edit a claim's words, before or after confirmation. Confirming means a person read the proposal and takes it on as their own claim; a person who wants different words edits the file, which is the same reviewable record either way.
+- CONFIRMING A NON-DRAFT REFUSES. Confirming a `human-authored` entry would relabel a person's own claim as AI-drafted, which is a lie in the one field whose entire job is to be true about how the words were produced.
+- THE DRAFT TOKEN IS EXACT. Any other unrecognized origin remains a `PROVENANCE` refusal, so a typo is still reported as the defect it is rather than quietly parked in the review queue.
+
+WHAT IS NOT BUILT: THE ASSIST, the thing that produces a draft. This build adds no model call, and the reason is that doing so is not a build decision:
+
+- Tibyan's stack is fixed (Volume 16) and contains no model client. Adding one is a Volume 16 decision, not a phase decision.
+- It would be the first network call in a tool whose entire contract is deterministic, offline source analysis, and CLAUDE.md rule 10 makes determinism a property of generation. Quarantining a non-deterministic drafting path from the deterministic generation path is a design, not a detail.
+- Module placement is unresolved under rule 6 (one plugin per module): the assist is not a provider, not a backend, and not a runtime.
+- Credentials, offline behaviour, cost, and model choice are all unanswered, and none of them is answered by section 4.15.5.
+
+Naming that split honestly is the point of this record. The ratified separability clause already says AT-1 through AT-3 stand entirely without AT-4 and that its absence costs convenience and nothing else; what this build shows is that the same is true INSIDE AT-4. The lifecycle is the safety half and it is built; the drafting is the convenience half and it waits for its own ratified design, which must answer the four questions above before any code.
+
+WHAT THIS MEANS FOR AN ADOPTER TODAY: any producer of drafts can be used, including a person with an editor or an external assistant, so long as what lands in `tibyan/attestations.json` carries `"origin": "ai-draft"`. The tool then queues it, refuses to ship it, and requires a named human to confirm it. The boundary holds regardless of who or what drafted, which is the property that matters and is the reason the lifecycle was worth building first.
+
+MEASURED (2026-09-01): all three benchmarks BYTE-IDENTICAL across the serialized IR, the generated MCP output, the generated OpenAPI document, AND the survey text, verified by `diff -r` against a worktree at the pre-build commit. None carries a record file, so no draft queue can appear and the phase is provably additive.
 
 #### 4.15.6 Name-and-signature honesty: how attested capabilities satisfy the E6b verdict
 

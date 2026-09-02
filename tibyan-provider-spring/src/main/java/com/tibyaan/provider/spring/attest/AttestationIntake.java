@@ -91,8 +91,18 @@ public final class AttestationIntake {
         this.displayByKey = displayByKey;
     }
 
-    /** The outcome of an intake pass: the attested capabilities and every located refusal. */
-    public record Result(List<Capability> attested, List<IntakeRefusal> refusals) {
+    /**
+     * The outcome of an intake pass: the attested capabilities, every located refusal, and every DRAFT
+     * awaiting human confirmation (AT-4). The three are separate lists because they are three different
+     * things: a claim a person made, a claim the tool refused, and a proposal no one has claimed yet.
+     */
+    public record Result(List<Capability> attested, List<IntakeRefusal> refusals,
+                         List<DraftProposal> drafts) {
+
+        /** The pre-AT-4 shape, for callers that have no drafts to report. */
+        public Result(List<Capability> attested, List<IntakeRefusal> refusals) {
+            this(attested, refusals, List.of());
+        }
     }
 
     /**
@@ -111,17 +121,18 @@ public final class AttestationIntake {
     public Result run(List<AttestationRecord> records, Set<String> existingCapabilityNames) {
         List<Capability> attested = new ArrayList<>();
         List<IntakeRefusal> refusals = new ArrayList<>();
+        List<DraftProposal> drafts = new ArrayList<>();
         Set<String> takenNames = new java.util.HashSet<>(existingCapabilityNames);
         Set<String> takenTargets = new java.util.HashSet<>();
 
         for (AttestationRecord record : records) {
-            evaluate(record, attested, refusals, takenNames, takenTargets);
+            evaluate(record, attested, refusals, drafts, takenNames, takenTargets);
         }
-        return new Result(attested, refusals);
+        return new Result(attested, refusals, drafts);
     }
 
     private void evaluate(AttestationRecord record, List<Capability> attested, List<IntakeRefusal> refusals,
-                          Set<String> takenNames, Set<String> takenTargets) {
+                          List<DraftProposal> drafts, Set<String> takenNames, Set<String> takenTargets) {
         String target = record.target() == null ? "(none)" : record.target();
 
         // Condition 1: the target resolves to exactly one in-tree declaration.
@@ -186,14 +197,25 @@ public final class AttestationIntake {
                     "provenance.assertedBy is empty (section 4.15.4, condition 6)"));
             return;
         }
+        // AT-4 (section 4.15.5): a DRAFT is a third thing, neither attested nor refused. It is recorded as
+        // a proposal awaiting review and produces nothing: no capability, no count of attested, no IR, no
+        // manifest, no document. AI MAY PROPOSE, ONLY A HUMAN MAY CONFIRM, ONLY CONFIRMED CLAIMS SHIP. It
+        // is separated from the unknown-origin refusal because nothing is WRONG with a draft: it is doing
+        // exactly what the flow asks of it, and calling that a failure would train a team to ignore the
+        // one queue this phase exists to keep honest.
+        if (DraftProposal.DRAFT_ORIGIN.equals(provenance.origin())) {
+            drafts.add(new DraftProposal(target, record.name(), record.category()));
+            return;
+        }
         AttestationOrigin origin;
         try {
             origin = AttestationOrigin.fromToken(provenance.origin());
         } catch (RuntimeException e) {
             refusals.add(refusal(target, record.name(), Cause.PROVENANCE,
-                    "origin '" + provenance.origin() + "' is not a shipping origin; a draft ('ai-draft') "
-                            + "or unknown origin is refused (section 4.15.4, condition 6; the AT-4 boundary "
-                            + "binds now even though the assist is unbuilt)"));
+                    "origin '" + provenance.origin() + "' is not a shipping origin (section 4.15.4, "
+                            + "condition 6). The only origins that ship are 'human-authored' and "
+                            + "'ai-drafted-human-confirmed'; an unconfirmed draft uses 'ai-draft' and is "
+                            + "reported as a proposal awaiting review, not as an error"));
             return;
         }
         if (isBlank(provenance.date())) {
