@@ -35,8 +35,24 @@ final class AttestCommand implements Callable<Integer> {
             description = "The assertion date to stamp; when omitted, each entry's existing date is kept.")
     String date;
 
+    // AT-4 (Volume 5 section 4.15.5). Confirmation takes ONE target and ONE confirmer, and there is no
+    // --confirm-all and no --confirm-many, by construction rather than by a check: confirmation is a
+    // per-entry human act, and an option that confirmed a queue would be the batch-confirm the rule text
+    // forbids. A team with ten drafts reviews ten drafts.
+    @Option(names = "--confirm", paramLabel = "<target>",
+            description = "Confirm ONE drafted entry by its target, taking its claim on as your own. "
+                    + "Requires --by. There is deliberately no confirm-all.")
+    String confirm;
+
+    @Option(names = "--by", paramLabel = "<name>",
+            description = "The confirmer's name, recorded in assertedBy. Required with --confirm.")
+    String by;
+
     @Override
     public Integer call() {
+        if (confirm != null) {
+            return confirmOne();
+        }
         System.out.println("Stamping attestations under " + path);
         List<StampOutcome> outcomes;
         try {
@@ -60,6 +76,29 @@ final class AttestCommand implements Callable<Integer> {
         }
         System.out.println("Stamped " + stamped + " of " + outcomes.size()
                 + " entr" + (outcomes.size() == 1 ? "y" : "ies") + "; run tibyan scan to intake them.");
+        return 0;
+    }
+
+    // Confirming one draft: the human act the whole assist boundary turns on. It rewrites that entry's
+    // origin to ai-drafted-human-confirmed and records the confirmer in assertedBy, and it rewrites no
+    // words: confirming means a person read the proposal and takes it on as their own claim, and if they
+    // want different words they edit the file, which is the same reviewable record either way.
+    private Integer confirmOne() {
+        SpringCapabilityProvider.ConfirmOutcome outcome;
+        try {
+            outcome = new SpringCapabilityProvider().confirmDraft(new ProviderInput(path), confirm, by);
+        } catch (ProviderException e) {
+            System.err.println("Provider error: " + e.getMessage());
+            return 3;
+        }
+        if (!outcome.confirmed()) {
+            System.err.println("Not confirmed: " + outcome.reason());
+            return 1;
+        }
+        System.out.println("Confirmed " + confirm);
+        System.out.println("  origin is now ai-drafted-human-confirmed, asserted by " + by + ".");
+        System.out.println("  The claim is yours now, not the assist's. Run tibyan attest to stamp its "
+                + "fingerprint, then tibyan scan to intake it.");
         return 0;
     }
 }

@@ -3,6 +3,7 @@ package com.tibyaan.provider.spring;
 import com.tibyaan.core.ir.CapabilityModel;
 import com.tibyaan.provider.spring.EntityOutcome.Cause;
 import com.tibyaan.provider.spring.EntityOutcome.Status;
+import com.tibyaan.provider.spring.attest.DraftProposal;
 import com.tibyaan.provider.spring.attest.IntakeRefusal;
 import com.tibyaan.provider.spring.extractors.SkippedField;
 
@@ -49,7 +50,17 @@ public record ScanReport(
         List<ListOutcome> listOutcomes,
         List<DeferredListRead> deferredListReads,
         List<IntakeRefusal> attestationRefusals,
-        List<String> enumParsedInBody) {
+        List<String> enumParsedInBody,
+        List<DraftProposal> attestationDrafts) {
+
+    /** The pre-AT-4 shape, for callers with no drafts to report. */
+    public ScanReport(CapabilityModel model, List<EntityOutcome> entityOutcomes, List<ParseSkip> parseSkips,
+            List<SkippedField> skippedFields, List<ListOutcome> listOutcomes,
+            List<DeferredListRead> deferredListReads, List<IntakeRefusal> attestationRefusals,
+            List<String> enumParsedInBody) {
+        this(model, entityOutcomes, parseSkips, skippedFields, listOutcomes, deferredListReads,
+                attestationRefusals, enumParsedInBody, List.of());
+    }
 
     /** The pre-Enum-Inputs shape, kept so existing construction sites stay correct and unchanged. */
     public ScanReport(CapabilityModel model, List<EntityOutcome> entityOutcomes, List<ParseSkip> parseSkips,
@@ -69,6 +80,7 @@ public record ScanReport(
         listOutcomes = listOutcomes == null ? List.of() : List.copyOf(listOutcomes);
         deferredListReads = deferredListReads == null ? List.of() : List.copyOf(deferredListReads);
         attestationRefusals = attestationRefusals == null ? List.of() : List.copyOf(attestationRefusals);
+        attestationDrafts = attestationDrafts == null ? List.of() : List.copyOf(attestationDrafts);
         enumParsedInBody = enumParsedInBody == null ? List.of() : List.copyOf(enumParsedInBody);
     }
 

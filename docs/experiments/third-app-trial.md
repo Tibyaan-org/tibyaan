@@ -1130,3 +1130,17 @@ This is the category that matters most to this ledger's own numbers, and the rea
 earlier rows here noted that a read with a domain filter AND an unresolvable element type needed `both`,
 and that `both` was not built. That caveat is now discharged. What those reads still need is a human to
 write the entry.
+
+### AT-4, the draft lifecycle (2026-09-01)
+
+The draft lifecycle was built: an `ai-draft` entry is queued for human review, counted apart from attested
+and from discovered, and ships nothing until a named person confirms it one entry at a time.
+
+Re-measured: BYTE-IDENTICAL across the serialized IR, the generated MCP output, the generated OpenAPI
+document AND the survey text, verified by `diff -r` against a worktree at the pre-build commit. This app
+carries no record file, so no draft queue can appear.
+
+The assist that would PRODUCE drafts is not built, and that is a stack decision rather than a phase one
+(Volume 5, section 4.15.5.1). What this changes for an adopter here is only this: if someone drafts entries
+for this app by any means, the tool will hold them in a review queue rather than shipping them, and the
+confirmation that releases one is a named human act.

@@ -294,13 +294,23 @@ class AttestationIntakeProviderTest {
     }
 
     @Test
-    void att9_anAiDraftOriginRefuses_theAssistBoundaryBindsNow(@TempDir Path root) throws IOException {
+    void att9_anAiDraftShipsNothing_theAssistBoundaryBindsHere(@TempDir Path root) throws IOException {
+        // ATT-9's enduring claim: an ai-draft entry NEVER reaches any output. AT-1 enforced that by
+        // refusing the entry under PROVENANCE, because the draft state had nowhere else to go. AT-4 gives
+        // it somewhere to go, a review queue, so the mechanism changed and the claim did not: a draft
+        // still produces no capability and enters no count. The test now asserts the claim rather than
+        // the mechanism, which is why it survives the next build too.
         copyFixture(root);
         String fingerprint = fingerprint(root, FILTER_TARGET);
         String entry = entry(FILTER_TARGET, "predicate", "searchTenants", "Returns tenants.",
                 "\"fullName\":\"m\",\"pageNum\":\"paging\"", null, "a.elseginy", "ai-draft", fingerprint);
         writeAttestations(root, "[" + entry + "]");
-        assertRefused(root, IntakeRefusal.Cause.PROVENANCE);
+
+        ScanReport report = provider.scan(new ProviderInput(root));
+
+        assertThat(report.attestedCount()).isZero();
+        assertThat(report.model().capabilities()).noneMatch(Capability::hasAttestation);
+        assertThat(report.attestationDrafts()).hasSize(1);
     }
 
     @Test
