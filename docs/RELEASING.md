@@ -4,12 +4,20 @@ This document records the release decisions for v1 and the exact steps to publis
 that the parts a machine cannot do (accounts, key ceremonies, external verification) are enumerated as
 human steps, never faked. Everything preparable in the repository is prepared and verifiable locally.
 
-Status at the time of writing: the reactor is at version `0.1.0` and groupId `io.github.tibyaan-org`,
-with full Central-required POM metadata and a `release` profile, and `mvn -Prelease verify` is green
-locally without any signing keys. The signing step has additionally been proven to run against a
-throwaway key (real `.asc` signatures were produced for a published module, then discarded along with
-the key), so only real key material and the accounts are missing. The artifacts are NOT yet published.
-The remaining work is entirely the human steps in section 4.
+Release history: `0.1.0` was published to Maven Central on 2026-07-08 (tag `v0.1.0`, commit f01d390)
+and `0.2.0` on 2026-07-17 (tag `v0.2.0`, commit ff22554), both under groupId `io.github.tibyaan-org`.
+Per-release contents are in [CHANGELOG.md](../CHANGELOG.md).
+
+The publishing machinery is proven, not theoretical: the namespace is verified, the GPG key
+(keyid E0AED2AC2B744C03) is reusable, the reactor carries full Central-required POM metadata and a
+`release` profile, and `mvn -Prelease verify` is green locally without any signing keys. Only a fresh
+Central token is needed per release. The steps a machine cannot do are section 4.
+
+A note on the version literals below: this document writes `<release>` for the version being cut and
+`<next>` for the development version restored after it, rather than naming concrete versions. That is
+deliberate. An earlier revision hardcoded them, and the 0.2.0 release followed step 6 literally and
+restored `0.2.0-SNAPSHOT`, a development version that sorts BEHIND the release which had just shipped.
+Keep these as placeholders.
 
 ## 1. License: Apache-2.0
 
@@ -30,7 +38,7 @@ metadata and documentation.
 
 ## 2. Versioning discipline (pre-1.0)
 
-The current version is `0.1.0`. The scheme is semantic-versioning-shaped, with the pre-1.0 caveat stated
+The current version is `0.3.0`. The scheme is semantic-versioning-shaped, with the pre-1.0 caveat stated
 plainly:
 
 - Patch (`0.1.x`): documentation, build metadata, and bug fixes that change no discovery, backend,
@@ -47,8 +55,8 @@ the runtime manifest formats are additive-where-possible but are not stable befo
 
 One version string is not carried by the POM: the CLI reports its version through a hardcoded
 `TOOL_VERSION` constant (`tibyan-cli/src/main/java/com/tibyaan/cli/TibyanCli.java`), which drives
-`tibyan version` and `tibyan --version`. It reads `0.1.0` for this release. Keep it in step with the POM
-version on every bump, the release and the snapshot restore alike (section 3 step 3, and section 4).
+`tibyan version` and `tibyan --version`. Keep it in step with the POM version on every bump, the release
+and the snapshot restore alike (section 3 step 3, and section 4).
 
 Post-release, the reactor returns to a snapshot development version (section 4, step 6).
 
@@ -60,7 +68,7 @@ on are the human steps in section 4.
 1. Confirm the tree is clean and the full reactor is green: `mvn clean verify`. This runs the unit,
    golden, and end-to-end tiers.
 2. Confirm the version is the intended release version (no `-SNAPSHOT`): the aggregator and every module
-   read `0.1.0`, and the CLI's `TOOL_VERSION` constant reads `0.1.0` too.
+   read `<release>`, and the CLI's `TOOL_VERSION` constant reads `<release>` too.
 3. Confirm the release artifacts build without keys: `mvn -Prelease verify`. This produces the main,
    `-sources`, and `-javadoc` jars for every published module (and no `-sources`/`-javadoc` jars for the
    two non-published modules, the example app and the integration-test harness) and runs the full test
@@ -69,15 +77,18 @@ on are the human steps in section 4.
    against a throwaway key, which produces real `.asc` detached signatures; the real release uses the
    publisher's key in exactly the same way.
 4. Publish (human, section 4): sign and deploy to Maven Central, then release the staging deployment.
-5. Tag the release: `git tag -a v0.1.0 -m "Tibyan 0.1.0"` and push the tag.
+5. Tag the release: `git tag -a v<release> -m "Tibyan <release>"` and push the tag.
 6. Verify the published artifacts resolve from Central in a scratch project (the quickstart in the root
    README is the acceptance check).
-7. Restore the development version: `mvn versions:set -DnewVersion=0.2.0-SNAPSHOT -DgenerateBackupPoms=false`,
-   bump the CLI `TOOL_VERSION` constant to match, and commit.
+7. Restore the development version: `mvn versions:set -DnewVersion=<next>-SNAPSHOT -DgenerateBackupPoms=false`,
+   bump the CLI `TOOL_VERSION` constant to match, and commit. `<next>` MUST SORT ABOVE `<release>`: after
+   cutting `0.3.0` the development version is `0.4.0-SNAPSHOT`, or `0.3.1-SNAPSHOT` if a patch is genuinely
+   the next thing intended, never `0.3.0-SNAPSHOT`. A snapshot equal to a released version sorts BELOW that
+   release in Maven's ordering, so the tree would claim to be older than an artifact already on Central.
 
 ## 4. Human-required steps (accounts, keys, verification): what only a person can do
 
-The published coordinates are groupId `io.github.tibyaan-org`, version `0.1.0`. The Java package root
+The published coordinates are groupId `io.github.tibyaan-org`, version `<release>`. The Java package root
 stays `com.tibyaan` regardless: that is a source convention (CLAUDE.md rule 8), independent of the Maven
 coordinates, and it does not change. None of the steps below can be done inside an automated session;
 each is written as an exact step, in order. They are the only work between the current commit and the
@@ -136,15 +147,20 @@ with the key). Only the real key, the accounts, and the external verification re
    review the deployment and release it manually in the Central Portal UI; set `autoPublish` to `true`
    only if you want it to publish without that manual gate.
 
-5. (PER-RELEASE) Tag and verify. `git tag -a v0.1.0 -m "Tibyan 0.1.0"` and push the tag. Then confirm
+5. (PER-RELEASE) Tag and verify. `git tag -a v<release> -m "Tibyan <release>"` and push the tag. Then confirm
    the published artifacts resolve from Central in a scratch project (the quickstart in the root README
    is the acceptance check).
 
 6. (PER-RELEASE) Restore the development version. Run
-   `mvn versions:set -DnewVersion=0.2.0-SNAPSHOT -DgenerateBackupPoms=false`, bump the CLI's hardcoded
+   `mvn versions:set -DnewVersion=<next>-SNAPSHOT -DgenerateBackupPoms=false`, bump the CLI's hardcoded
    `TOOL_VERSION` constant (`tibyan-cli/src/main/java/com/tibyaan/cli/TibyanCli.java`) to
-   `0.2.0-SNAPSHOT` to match, and commit. The constant is hardcoded because the CLI reports it through
+   `<next>-SNAPSHOT` to match, and commit. The constant is hardcoded because the CLI reports it through
    picocli, so it does not move with the POM automatically; keep the two in step on every bump.
+
+   `<next>` MUST SORT ABOVE the version just released. This step is where the 0.2.0 release went wrong: it
+   restored `0.2.0-SNAPSHOT` after publishing `0.2.0`, so for 62 commits the development tree carried a
+   version Maven orders BELOW an artifact that was already public. Pick the next minor (`0.4.0-SNAPSHOT`
+   after `0.3.0`) unless a patch release is genuinely the next thing intended.
 
 Interim option, if Central onboarding is not yet complete and a consumable artifact is needed sooner:
 publish to GitHub Packages from the `Tibyaan-org/tibyaan` repository. This is an EXPLICITLY INTERIM
