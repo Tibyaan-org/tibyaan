@@ -13,7 +13,7 @@ By design. v1 exposes only capabilities it can prove, structurally, from your so
 You are almost certainly not seeing everything the tool decided about your module. `generate` prints only the proven subset (see the next question). To see the full picture, including every refusal with its located reason, run `scan`:
 
 ```bash
-java -jar tibyan-cli-0.3.0-jar-with-dependencies.jar scan /path/to/your-app --report survey.md
+java -jar tibyan-cli-0.2.0-jar-with-dependencies.jar scan /path/to/your-app --report survey.md
 ```
 
 The survey lists what was discovered, what was refused and why (`NO_BACKING_METHOD`, `AMBIGUOUS_BINDING`, `NO_IDENTIFIER`, and so on), and the totals ending in `mis-bound 0`. A large real application turning into a small verified subset plus a long named ledger of refusals is the expected, honest result.

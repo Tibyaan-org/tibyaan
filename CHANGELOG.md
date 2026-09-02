@@ -12,7 +12,12 @@ not stable before 1.0.0.
 
 ---
 
-## 0.3.0 (2026-09-03)
+## 0.3.0 (prepared, NOT yet published)
+
+The version is set across the reactor and both release gates are green, but the artifacts are not on
+Maven Central: `0.2.0` is still the latest published version. Do not cite 0.3.0 as available. The
+remaining step is the human deploy in [docs/RELEASING.md](docs/RELEASING.md) section 4, after which
+this heading takes the publication date and the `v0.3.0` tag is placed.
 
 The attestation release. Everything a human can assert about a read that the tool cannot prove
 structurally, plus the enum-input constraint and one mis-bind fix.

@@ -5,8 +5,10 @@ that the parts a machine cannot do (accounts, key ceremonies, external verificat
 human steps, never faked. Everything preparable in the repository is prepared and verifiable locally.
 
 Release history, all under groupId `io.github.tibyaan-org`: `0.1.0` was published to Maven Central on
-2026-07-08 (tag `v0.1.0`, commit f01d390), `0.2.0` on 2026-07-17 (tag `v0.2.0`, commit ff22554), and
-`0.3.0` on 2026-09-03 (tag `v0.3.0`, commit 1528cab).
+2026-07-08 (tag `v0.1.0`, commit f01d390) and `0.2.0` on 2026-07-17 (tag `v0.2.0`, commit ff22554).
+`0.3.0` is PREPARED BUT NOT PUBLISHED: the version is set across the reactor at commit 1528cab and both
+release gates are green, but no artifacts were uploaded, `0.2.0` remains the latest version on Central,
+and no `v0.3.0` tag exists. The tag goes on only after the deploy succeeds, per section 3 step 5.
 Per-release contents are in [CHANGELOG.md](../CHANGELOG.md).
 
 The publishing machinery is proven, not theoretical: the namespace is verified, the GPG key
@@ -39,7 +41,8 @@ metadata and documentation.
 
 ## 2. Versioning discipline (pre-1.0)
 
-The latest release is `0.3.0`; the development tree is `0.4.0-SNAPSHOT`. The scheme is
+The latest PUBLISHED release is `0.2.0`; `0.3.0` is prepared but unpublished, and the development tree
+is `0.4.0-SNAPSHOT`. The scheme is
 semantic-versioning-shaped, with the pre-1.0 caveat stated
 plainly:
 

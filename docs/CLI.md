@@ -29,17 +29,17 @@ readable:
 
 ```powershell
 # PowerShell
-$TIBYAN = "C:\Users\HazeX01\Documents\GitHub\me-workspace\tibyaan\tibyan-cli\target\tibyan-cli-0.3.0-jar-with-dependencies.jar"
+$TIBYAN = "C:\Users\HazeX01\Documents\GitHub\me-workspace\tibyaan\tibyan-cli\target\tibyan-cli-0.4.0-SNAPSHOT-jar-with-dependencies.jar"
 ```
 ```bash
 # bash / zsh
-TIBYAN="$HOME/.../tibyaan/tibyan-cli/target/tibyan-cli-0.3.0-jar-with-dependencies.jar"
+TIBYAN="$HOME/.../tibyaan/tibyan-cli/target/tibyan-cli-0.4.0-SNAPSHOT-jar-with-dependencies.jar"
 ```
 
 So the fully written out form of a command looks exactly like this:
 
 ```
-java -jar "C:\Users\HazeX01\Documents\GitHub\me-workspace\tibyaan\tibyan-cli\target\tibyan-cli-0.3.0-jar-with-dependencies.jar" scan "C:\path\to\app" --report report.md
+java -jar "C:\Users\HazeX01\Documents\GitHub\me-workspace\tibyaan\tibyan-cli\target\tibyan-cli-0.4.0-SNAPSHOT-jar-with-dependencies.jar" scan "C:\path\to\app" --report report.md
 ```
 
 Optional convenience wrapper (then you can type `tibyan ...`):
@@ -51,8 +51,8 @@ function tibyan { java -jar $TIBYAN @args }   # PowerShell
 tibyan() { java -jar "$TIBYAN" "$@"; }        # bash / zsh
 ```
 
-Note on the version: the current released artifact is `0.3.0`, and a local build of this tree is
-`0.3.0` as well. Substitute the version you actually built into the jar name.
+Note on the version: the latest released artifact is `0.2.0`, and a local build of this tree is
+`0.4.0-SNAPSHOT`. Substitute the version you actually built into the jar name.
 
 ## Commands at a glance
 
@@ -298,7 +298,7 @@ tibyan version
 ### Example output
 
 ```
-tibyan 0.3.0
+tibyan 0.4.0-SNAPSHOT
 IR schema 0.1
 ```
 
