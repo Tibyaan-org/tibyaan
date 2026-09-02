@@ -24,7 +24,7 @@ import picocli.CommandLine.Command;
         exitCodeOnExecutionException = 3)
 public final class TibyanCli implements Runnable {
 
-    static final String TOOL_VERSION = "0.4.0-SNAPSHOT";
+    static final String TOOL_VERSION = "0.3.0";
     static final String IR_SCHEMA_VERSION = "0.1";
 
     @Override

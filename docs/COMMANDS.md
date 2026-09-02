@@ -11,7 +11,7 @@ located reason. `mis-bound 0` is the absolute bar.
 
 A note on versions: the latest released artifacts are `0.2.0` (on Maven Central under groupId
 `io.github.tibyaan-org`, with `0.1.0` still available). A local build of this tree reports
-`0.4.0-SNAPSHOT`.
+`0.3.0`.
 Substitute the version you actually have wherever a version appears below.
 
 ---
@@ -41,11 +41,11 @@ Download the self-contained jar from Maven Central (released line):
 curl -O https://repo1.maven.org/maven2/io/github/tibyaan-org/tibyan-cli/0.2.0/tibyan-cli-0.2.0-jar-with-dependencies.jar
 ```
 
-Or build it from a checkout of this repository (current tree, `0.4.0-SNAPSHOT`):
+Or build it from a checkout of this repository (current tree, `0.3.0`):
 
 ```bash
 mvn -q -pl tibyan-cli -am -DskipTests package
-# produces tibyan-cli/target/tibyan-cli-0.4.0-SNAPSHOT-jar-with-dependencies.jar
+# produces tibyan-cli/target/tibyan-cli-0.3.0-jar-with-dependencies.jar
 ```
 
 Invoke it as `java -jar <jar> <command> [options]`. To keep examples short, define `$TIBYAN` as the
@@ -184,7 +184,7 @@ tibyan version
 Prints the tool version and the IR schema version, for example:
 
 ```
-tibyan 0.4.0-SNAPSHOT
+tibyan 0.3.0
 IR schema 0.1
 ```
 
@@ -360,7 +360,7 @@ Reproduce the example app end to end:
 
 ```bash
 mvn -q -DskipTests package
-java -jar examples/legacy-spring-app/target/legacy-spring-app-0.4.0-SNAPSHOT.jar
+java -jar examples/legacy-spring-app/target/legacy-spring-app-0.3.0.jar
 # then, from another shell:
 curl -N http://localhost:8080/sse
 ```

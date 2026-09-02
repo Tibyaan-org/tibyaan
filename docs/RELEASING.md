@@ -41,8 +41,8 @@ metadata and documentation.
 
 ## 2. Versioning discipline (pre-1.0)
 
-The latest PUBLISHED release is `0.2.0`; `0.3.0` is prepared but unpublished, and the development tree
-is `0.4.0-SNAPSHOT`. The scheme is
+The latest PUBLISHED release is `0.2.0`; the tree is at `0.3.0`, prepared but not yet published. The
+scheme is
 semantic-versioning-shaped, with the pre-1.0 caveat stated
 plainly:
 

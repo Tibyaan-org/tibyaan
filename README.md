@@ -95,7 +95,7 @@ curl -O https://repo1.maven.org/maven2/io/github/tibyaan-org/tibyan-cli/0.2.0/ti
 java -jar tibyan-cli-0.2.0-jar-with-dependencies.jar scan /path/to/your-app
 ```
 
-Prefer to build from source? From a checkout of this repository, run `mvn -pl tibyan-cli -am -DskipTests package`, then use `tibyan-cli/target/tibyan-cli-0.4.0-SNAPSHOT-jar-with-dependencies.jar`.
+Prefer to build from source? From a checkout of this repository, run `mvn -pl tibyan-cli -am -DskipTests package`, then use `tibyan-cli/target/tibyan-cli-0.3.0-jar-with-dependencies.jar`.
 
 This prints the discovered capabilities, every refusal with its located reason, and the totals including `mis-bound 0`. Expect most of a real, layered application to be refused (see "What you will actually see" above); that is the tool working, not failing. If the preview discovers nothing useful for your app, stop here: you have spent no build changes to learn it.
 
