@@ -12,6 +12,26 @@ not stable before 1.0.0.
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **The MCP server now advertises the version it actually is.** The runtime reported
+  `spring.ai.mcp.server.version` as a hardcoded `0.1.0`, and never bumped it, so every MCP client
+  that connected to a Tibyaan server through the 0.2.0 and 0.3.0 releases was told it was talking to
+  0.1.0. The value is now derived from the runtime module's own Maven version at build time. If you
+  read that version programmatically, expect it to change from `0.1.0` to the real one.
+- **`tibyan version` and `tibyan --version` derive their version the same way.** The CLI's
+  `TOOL_VERSION` was the last hand-edited version literal, kept in step with the POM only by a step
+  in the release checklist. Because a resolved-at-runtime value is not a compile-time constant, the
+  command now declares a picocli `versionProvider` instead of a `version` attribute. Output format is
+  unchanged.
+
+Between them, no version the tool reports is written by hand any more: `mvn versions:set` is the
+single place a version is stated. Both literals had gone stale, which is what prompted this.
+
+---
+
 ## 0.3.0 (2026-09-03)
 
 The attestation release. Everything a human can assert about a read that the tool cannot prove
