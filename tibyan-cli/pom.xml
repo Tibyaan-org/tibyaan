@@ -66,6 +66,27 @@
     </dependencies>
 
     <build>
+        <!--
+            Only tibyan/cli-version.properties is filtered, so @project.version@ becomes the module's
+            real version. Everything else is copied verbatim, so no future resource is silently
+            rewritten because it happens to contain a delimiter.
+        -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>tibyan/cli-version.properties</exclude>
+                </excludes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>tibyan/cli-version.properties</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
             <!-- Package an executable jar so the flow is usable from a terminal as `java -jar`. -->
             <plugin>

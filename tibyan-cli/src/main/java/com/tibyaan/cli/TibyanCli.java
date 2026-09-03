@@ -12,7 +12,7 @@ import picocli.CommandLine.Command;
         name = "tibyan",
         description = "Modernize a system: scan it into a Capability IR and generate an AI-operable layer.",
         mixinStandardHelpOptions = true,
-        version = "tibyan " + TibyanCli.TOOL_VERSION,
+        versionProvider = TibyanVersionProvider.class,
         subcommands = {
                 ScanCommand.class,
                 GenerateCommand.class,
@@ -24,7 +24,11 @@ import picocli.CommandLine.Command;
         exitCodeOnExecutionException = 3)
 public final class TibyanCli implements Runnable {
 
-    static final String TOOL_VERSION = "0.4.0-SNAPSHOT";
+    /**
+     * The CLI version, resolved from the build rather than written here. It is no longer a
+     * compile-time constant, which is why the command declares a {@code versionProvider}.
+     */
+    static final String TOOL_VERSION = ToolVersion.read();
     static final String IR_SCHEMA_VERSION = "0.1";
 
     @Override

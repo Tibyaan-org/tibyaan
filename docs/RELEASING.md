@@ -66,15 +66,24 @@ plainly:
 The compatibility boundary is the plugin API (`tibyan-plugin-api`, Volume 10 section 6). The IR JSON and
 the runtime manifest formats are additive-where-possible but are not stable before 1.0.0.
 
-One version string is still not carried by the POM, and it is the last one: the CLI reports its
-version through a hardcoded `TOOL_VERSION` constant
-(`tibyan-cli/src/main/java/com/tibyaan/cli/TibyanCli.java`), which drives
-`tibyan version` and `tibyan --version`. Keep it in step with the POM version on every bump, the release
-and the snapshot restore alike (section 3 step 3, and section 4).
+NO VERSION STRING NEEDS BUMPING BY HAND ANY MORE. Every version the tool reports is derived from the
+POM at build time, through a resource filtered by Maven:
 
-The MCP server version the runtime advertises in `serverInfo` used to be a second such string and is
-no longer: it is derived from the runtime module's Maven version at build time (Volume 7 section 4),
-after sitting at `0.1.0` through the 0.2.0 and 0.3.0 releases. Nothing needs bumping there.
+- The CLI's `TOOL_VERSION`, which drives `tibyan version` and `tibyan --version`, reads
+  `tibyan/cli-version.properties`. Because the resolved value is no longer a compile-time constant,
+  the command declares a picocli `versionProvider` rather than a `version` attribute.
+- The MCP server version the runtime advertises in `serverInfo` reads
+  `tibyan/runtime-version.properties` (Volume 7 section 4).
+
+Both were literals, and both went stale: the MCP one reported `0.1.0` through the 0.2.0 and 0.3.0
+releases, telling every connecting client the wrong version. Do not reintroduce a hand-edited version
+anywhere; `mvn versions:set` is the single place a version is stated.
+
+Two implementation notes, so neither is rediscovered. The filtered files use `@project.version@`, not
+`${project.version}`: `spring-boot-starter-parent` sets `resource.delimiter` to `@` and disables the
+default form, so the `${...}` spelling is copied through unsubstituted. And the two files are named
+differently on purpose, because both modules can land in one shaded `jar-with-dependencies`, where
+resources sharing a path collide and one silently wins.
 
 Post-release, the reactor returns to a snapshot development version (section 4, step 6).
 
@@ -86,7 +95,8 @@ on are the human steps in section 4.
 1. Confirm the tree is clean and the full reactor is green: `mvn clean verify`. This runs the unit,
    golden, and end-to-end tiers.
 2. Confirm the version is the intended release version (no `-SNAPSHOT`): the aggregator and every module
-   read `<release>`, and the CLI's `TOOL_VERSION` constant reads `<release>` too.
+   read `<release>`. The CLI and runtime versions follow automatically, so nothing else is edited;
+   confirm rather than set them, with `java -jar tibyan-cli/target/tibyan-cli-<release>-jar-with-dependencies.jar version`.
 3. Confirm the release artifacts build without keys: `mvn -Prelease verify`. This produces the main,
    `-sources`, and `-javadoc` jars for every published module (and no `-sources`/`-javadoc` jars for the
    two non-published modules, the example app and the integration-test harness) and runs the full test
@@ -99,7 +109,8 @@ on are the human steps in section 4.
 6. Verify the published artifacts resolve from Central in a scratch project (the quickstart in the root
    README is the acceptance check).
 7. Restore the development version: `mvn versions:set -DnewVersion=<next>-SNAPSHOT -DgenerateBackupPoms=false`,
-   bump the CLI `TOOL_VERSION` constant to match, and commit. `<next>` MUST SORT ABOVE `<release>`: after
+   and commit. Nothing else needs editing, since the CLI and MCP server versions derive from the POM.
+   `<next>` MUST SORT ABOVE `<release>`: after
    cutting `0.3.0` the development version is `0.4.0-SNAPSHOT`, or `0.3.1-SNAPSHOT` if a patch is genuinely
    the next thing intended, never `0.3.0-SNAPSHOT`. A snapshot equal to a released version sorts BELOW that
    release in Maven's ordering, so the tree would claim to be older than an artifact already on Central.
@@ -191,10 +202,9 @@ with the key). Only the real key, the accounts, and the external verification re
    is the acceptance check).
 
 6. (PER-RELEASE) Restore the development version. Run
-   `mvn versions:set -DnewVersion=<next>-SNAPSHOT -DgenerateBackupPoms=false`, bump the CLI's hardcoded
-   `TOOL_VERSION` constant (`tibyan-cli/src/main/java/com/tibyaan/cli/TibyanCli.java`) to
-   `<next>-SNAPSHOT` to match, and commit. The constant is hardcoded because the CLI reports it through
-   picocli, so it does not move with the POM automatically; keep the two in step on every bump.
+   `mvn versions:set -DnewVersion=<next>-SNAPSHOT -DgenerateBackupPoms=false` and commit. That is the
+   whole step: the CLI's `TOOL_VERSION` and the runtime's advertised MCP server version both derive
+   from the POM at build time (section 2), so there is no second place to keep in step.
 
    `<next>` MUST SORT ABOVE the version just released. This step is where the 0.2.0 release went wrong: it
    restored `0.2.0-SNAPSHOT` after publishing `0.2.0`, so for 62 commits the development tree carried a
