@@ -11,10 +11,19 @@ release gates are green, but no artifacts were uploaded, `0.2.0` remains the lat
 and no `v0.3.0` tag exists. The tag goes on only after the deploy succeeds, per section 3 step 5.
 Per-release contents are in [CHANGELOG.md](../CHANGELOG.md).
 
-The publishing machinery is proven, not theoretical: the namespace is verified, the GPG key
-(keyid E0AED2AC2B744C03) is reusable, the reactor carries full Central-required POM metadata and a
-`release` profile, and `mvn -Prelease verify` is green locally without any signing keys. Only a fresh
-Central token is needed per release. The steps a machine cannot do are section 4.
+The publishing machinery is proven, not theoretical: the namespace is verified, the reactor carries
+full Central-required POM metadata and a `release` profile, and `mvn -Prelease verify` is green locally
+without any signing keys. Only a fresh Central token is needed per release. The steps a machine cannot
+do are section 4.
+
+The signing key was REGENERATED on 2026-09-03. The key in use is now
+`EE834C67A29E8C1C` (RSA-4096, fingerprint EDB1A4F189BB8305DD1CCC69EE834C67A29E8C1C, uid
+`Ahmed El-Seginy <ahmed0elseginy@gmail.com>`, expires 2028-09-02). It replaces `E0AED2AC2B744C03`,
+which signed 0.1.0 and 0.2.0 and is no longer present on the release machine. This is not a problem for
+consumers: Central validates each release against the public key published to a keyserver at the time,
+so signature continuity across releases is not required, and the 0.1.0 and 0.2.0 signatures remain
+valid under the old key. Signing was verified end to end at 0.3.0: `mvn -Prelease -Dgpg.skip=false
+clean verify` produced a `.asc` for every artifact and `gpg --verify` reported a good signature.
 
 A note on the version literals below: this document writes `<release>` for the version being cut and
 `<next>` for the development version restored after it, rather than naming concrete versions. That is
@@ -132,14 +141,35 @@ with the key). Only the real key, the accounts, and the external verification re
    </server>
    ```
 
-3. (ONE-TIME) Generate and distribute a GPG signing key.
-   a. Generate a key pair: `gpg --full-generate-key` (or `gpg --gen-key`).
-   b. Publish the public key to a keyserver Central checks, for example
-      `gpg --keyserver keys.openpgp.org --send-keys <KEYID>`.
+3. (ONE-TIME, done 2026-09-03) Generate and distribute a GPG signing key. Repeat only if the key is
+   lost or expires (the current one expires 2028-09-02).
+   a. Generate a key pair. The one-liner avoids the interactive questionnaire and prompts only for the
+      passphrase:
+      `gpg --quick-generate-key "Your Name <you@example.com>" rsa4096 sign 2y`
+      RSA-4096 rather than ed25519, as the safer choice for Central's verification path.
+   b. Publish the public key to a keyserver Central checks:
+      `gpg --keyserver keyserver.ubuntu.com --send-keys <KEYID>`.
+      Prefer `keyserver.ubuntu.com` over `keys.openpgp.org`: the latter strips the uid until you
+      confirm the verification email it sends, which can make the key harder for Central to resolve.
    c. Keep the private key and its passphrase secure. Provide the passphrase to `maven-gpg-plugin`
-      through gpg-agent, or a `settings.xml` property, never a committed file. The signing wiring in the
-      `release` profile is already proven to work (the preparation session signed a module with a
-      throwaway key); this real key simply replaces it.
+      through gpg-agent, which prompts through pinentry, never a committed file.
+   d. ON WINDOWS, RUN GPG AND THE DEPLOY FROM GIT BASH, NOT POWERSHELL. Three failure modes cost real
+      time on 2026-09-03 and are recorded so they are not rediscovered:
+      - `gpg` ships inside Git for Windows (`C:\Program Files\Git\usr\bin\gpg.exe`) and is not on the
+        Windows PATH, so PowerShell reports `The term 'gpg' is not recognized`.
+      - Invoking that same binary from PowerShell by full path still fails with
+        `error running '/usr/lib/gnupg/keyboxd': probably not installed`. The daemon IS installed, but
+        gpg resolves it through a POSIX path that only exists inside the MSYS layer. This applies
+        whenever `~/.gnupg/common.conf` contains `use-keyboxd`, which is the default here.
+      - `maven-gpg-plugin` shells out to a bare `gpg`, so the terminal running the deploy must resolve
+        it too. Git Bash satisfies all three at once.
+   e. Verify signing before attempting a deploy, so a signing problem fails locally and cheaply rather
+      than partway through an upload:
+      `mvn -Prelease -Dgpg.skip=false clean verify`
+      then `gpg --verify tibyan-core/target/tibyan-core-<version>.jar.asc tibyan-core/target/tibyan-core-<version>.jar`.
+      Expect a `.asc` beside every artifact and a "Good signature" line. Note that the two
+      non-published modules are signed as well: `maven-gpg-plugin` is not gated on
+      `tibyan.skip.publishing`, so it signs artifacts that are then never uploaded. That is harmless.
 
 4. (PER-RELEASE) Deploy. From a clean checkout at the release version, run:
 
