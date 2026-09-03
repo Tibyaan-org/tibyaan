@@ -21,7 +21,7 @@ This is why scanning module-by-module and scanning the whole application can giv
 Point the CLI at the reactor root, exactly as you would a single module. This reads source and writes nothing:
 
 ```bash
-java -jar tibyan-cli-0.2.0-jar-with-dependencies.jar scan /path/to/your-reactor-root --report survey.md
+java -jar tibyan-cli-0.3.0-jar-with-dependencies.jar scan /path/to/your-reactor-root --report survey.md
 ```
 
 The console survey and the `survey.md` report list every discovered capability across all modules, and every refusal with its located reason, under the totals line ending in `mis-bound 0`. Read it before you change anything: it shows you the exact set of capabilities a whole-application adoption would expose.
@@ -42,7 +42,7 @@ The recipe:
 <plugin>
   <groupId>io.github.tibyaan-org</groupId>
   <artifactId>tibyan-maven-plugin</artifactId>
-  <version>0.2.0</version>
+  <version>0.3.0</version>
   <configuration>
     <sourceRoot>${maven.multiModuleProjectDirectory}</sourceRoot>
   </configuration>

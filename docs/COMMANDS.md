@@ -9,9 +9,9 @@ Everything here is read-only with respect to the application Tibyaan reads: it n
 system it scans, and it never emits a wrong binding. Anything it cannot prove safe is refused with a
 located reason. `mis-bound 0` is the absolute bar.
 
-A note on versions: the latest released artifacts are `0.2.0` (on Maven Central under groupId
-`io.github.tibyaan-org`, with `0.1.0` still available). A local build of this tree reports
-`0.3.0`.
+A note on versions: the latest released artifacts are `0.3.0` (on Maven Central under groupId
+`io.github.tibyaan-org`, with `0.2.0` and `0.1.0` still available). A local build of this tree reports
+`0.4.0-SNAPSHOT`.
 Substitute the version you actually have wherever a version appears below.
 
 ---
@@ -38,14 +38,14 @@ one-off artifacts, and inspection.
 Download the self-contained jar from Maven Central (released line):
 
 ```bash
-curl -O https://repo1.maven.org/maven2/io/github/tibyaan-org/tibyan-cli/0.2.0/tibyan-cli-0.2.0-jar-with-dependencies.jar
+curl -O https://repo1.maven.org/maven2/io/github/tibyaan-org/tibyan-cli/0.3.0/tibyan-cli-0.3.0-jar-with-dependencies.jar
 ```
 
-Or build it from a checkout of this repository (current tree, `0.3.0`):
+Or build it from a checkout of this repository (current tree, `0.4.0-SNAPSHOT`):
 
 ```bash
 mvn -q -pl tibyan-cli -am -DskipTests package
-# produces tibyan-cli/target/tibyan-cli-0.3.0-jar-with-dependencies.jar
+# produces tibyan-cli/target/tibyan-cli-0.4.0-SNAPSHOT-jar-with-dependencies.jar
 ```
 
 Invoke it as `java -jar <jar> <command> [options]`. To keep examples short, define `$TIBYAN` as the
@@ -53,13 +53,13 @@ jar path, and optionally a wrapper so you can type `tibyan ...`:
 
 ```bash
 # bash / zsh
-TIBYAN="/path/to/tibyan-cli-0.2.0-jar-with-dependencies.jar"
+TIBYAN="/path/to/tibyan-cli-0.3.0-jar-with-dependencies.jar"
 tibyan() { java -jar "$TIBYAN" "$@"; }
 ```
 
 ```powershell
 # PowerShell
-$TIBYAN = "C:\path\to\tibyan-cli-0.2.0-jar-with-dependencies.jar"
+$TIBYAN = "C:\path\to\tibyan-cli-0.3.0-jar-with-dependencies.jar"
 function tibyan { java -jar $TIBYAN @args }
 ```
 
@@ -184,7 +184,7 @@ tibyan version
 Prints the tool version and the IR schema version, for example:
 
 ```
-tibyan 0.3.0
+tibyan 0.4.0-SNAPSHOT
 IR schema 0.1
 ```
 
@@ -217,7 +217,7 @@ Add the plugin to your application's `pom.xml`. Its `generate` goal binds to the
 <plugin>
   <groupId>io.github.tibyaan-org</groupId>
   <artifactId>tibyan-maven-plugin</artifactId>
-  <version>0.2.0</version>
+  <version>0.3.0</version>
   <executions>
     <execution>
       <goals><goal>generate</goal></goals>
@@ -235,7 +235,7 @@ mvn package
 Run the goal directly with its fully qualified coordinates:
 
 ```bash
-mvn io.github.tibyaan-org:tibyan-maven-plugin:0.2.0:generate
+mvn io.github.tibyaan-org:tibyan-maven-plugin:0.3.0:generate
 ```
 
 The short prefix form `mvn tibyan:generate` also works if the plugin group is on your Maven plugin
@@ -279,7 +279,7 @@ automatically.
 <dependency>
   <groupId>io.github.tibyaan-org</groupId>
   <artifactId>tibyan-runtime-spring</artifactId>
-  <version>0.2.0</version>
+  <version>0.3.0</version>
 </dependency>
 ```
 
@@ -360,7 +360,7 @@ Reproduce the example app end to end:
 
 ```bash
 mvn -q -DskipTests package
-java -jar examples/legacy-spring-app/target/legacy-spring-app-0.3.0.jar
+java -jar examples/legacy-spring-app/target/legacy-spring-app-0.4.0-SNAPSHOT.jar
 # then, from another shell:
 curl -N http://localhost:8080/sse
 ```
