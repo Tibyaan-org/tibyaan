@@ -66,10 +66,15 @@ plainly:
 The compatibility boundary is the plugin API (`tibyan-plugin-api`, Volume 10 section 6). The IR JSON and
 the runtime manifest formats are additive-where-possible but are not stable before 1.0.0.
 
-One version string is not carried by the POM: the CLI reports its version through a hardcoded
-`TOOL_VERSION` constant (`tibyan-cli/src/main/java/com/tibyaan/cli/TibyanCli.java`), which drives
+One version string is still not carried by the POM, and it is the last one: the CLI reports its
+version through a hardcoded `TOOL_VERSION` constant
+(`tibyan-cli/src/main/java/com/tibyaan/cli/TibyanCli.java`), which drives
 `tibyan version` and `tibyan --version`. Keep it in step with the POM version on every bump, the release
 and the snapshot restore alike (section 3 step 3, and section 4).
+
+The MCP server version the runtime advertises in `serverInfo` used to be a second such string and is
+no longer: it is derived from the runtime module's Maven version at build time (Volume 7 section 4),
+after sitting at `0.1.0` through the 0.2.0 and 0.3.0 releases. Nothing needs bumping there.
 
 Post-release, the reactor returns to a snapshot development version (section 4, step 6).
 

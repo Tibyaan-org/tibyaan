@@ -54,4 +54,29 @@
         </dependency>
     </dependencies>
 
+    <build>
+        <!--
+            Only tibyan/runtime-version.properties is filtered, so ${project.version} becomes the
+            module's real version. Everything else, notably the Spring autoconfiguration metadata
+            under META-INF, is copied verbatim: filtering it would be a silent hazard the day one of
+            those files contains a ${...} token of its own.
+        -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>tibyan/runtime-version.properties</exclude>
+                </excludes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>tibyan/runtime-version.properties</include>
+                </includes>
+            </resource>
+        </resources>
+    </build>
+
 </project>
