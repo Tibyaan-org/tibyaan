@@ -409,8 +409,76 @@ gaining two `enum-parsed-in-body` lines, both writes, correctly named as visible
 STILL GATED ON AN ATTESTER: erp's 10 enum-parameter reads become ATTESTABLE, not attested. This is the
 first phase whose payoff waits on a human authoring entries rather than on a further build.
 
-Sequence after this: nothing pending from the ratified sequence. AT-3 (BOUNDARY) needs its own ratification
-with stronger guards, AT-4 is optional and separable, and the compound category `both` needs a decision.
+Sequence after this: AT-3 (BOUNDARY, both members), the compound category `both`, and AT-4's draft lifecycle
+were all designed, ratified and built on 2026-09-01, and every ratified attestation category is now built.
+The assist that would produce drafts is deferred as a stack decision (Volume 5, section 4.15.5.1). Nothing
+was pending from the ratified sequence when the next entry's evidence arrived.
+
+### The first real attestation run: five candidates, evidence-ranked (as-backend, 2026-09-04 to 2026-09-08, NOT RATIFIED)
+
+The external signal of 2026-07-12 reranked the post-v1 order. This is the second signal of that kind, and it
+comes from the event every attestation phase named as its open verification: a named human authored, read and
+confirmed attestations on a real application, generated the surface, and called the tools. The full record,
+with each claim marked by where it was verified, is docs/experiments/as-backend-trial.md section 9.
+
+WHAT IT VALIDATED, recorded first so the findings are not read as a failure. Thirteen of fifteen confirmed
+entries are the compound category `both`, which is exactly what that ledger's section 7 predicted from the
+deferral profile before any human wrote an entry. The per-entry confirmation gate held under real pressure.
+And five tools that read ONE table, differing only by a hardcoded constant so that nothing structural
+distinguishes them, were told apart correctly by an agent reading only the attested sentences. That is the
+attestation thesis tested where it could actually fail.
+
+FIVE CANDIDATES follow, ranked by the evidence rather than by size or by readiness. NONE is ratified and none
+is a plan; rule 12 requires a design session and frozen text before any of them is built, and rule 5 governs
+the one that touches the IR. They are recorded here so the ranking is a written artifact rather than a memory.
+
+1. PER-CAPABILITY ATTESTED EXPOSURE. Rank 1 because it is the only finding where the current design pushed a
+   real adopter into a strictly LESS safe configuration than the one they wanted. All fifteen attested
+   capabilities compiled to `securityUnverifiable(conflicting-declarations)`, so under the ratified G8 default
+   none of them register; the adopter set `tibyan.attested.exposeSecurityUnverifiable=true` to use the reads
+   they had just personally reviewed, and that flag is capability-wide, so it also opens every other
+   unverifiable capability in the service, now and in future. The refusal itself is correct and must not be
+   softened: the authority is declared on the controller and the tool binds to the service method beneath it.
+   What is wrong is that the only available answer is a global switch. The shape to design is an allowlist,
+   an adopter naming the capabilities they reviewed, so that opening fifteen reads opens fifteen reads. Read
+   with the caveat that controller-declared authority may be a house style rather than a general idiom.
+
+2. THE DRAFT PROVENANCE PAIR. Two defects in one record shape, and they belong to one design session because
+   they are the same question asked twice: who said this, and when did they say it. First, intake checks
+   `assertedBy` for blankness BEFORE it recognises the `ai-draft` origin, so a draft, which by definition has
+   no human asserter, cannot be queued without inventing one; twenty real drafts carried the placeholder
+   string `UNCONFIRMED-DRAFT` in the field whose only job is to name a person. Second, confirmation writes the
+   CONFIRMER into that same `assertedBy`, so once an entry is confirmed the record can no longer say who
+   drafted the words and who signed them. AT-3 guard 1 treats exactly that separation as load bearing for a
+   security decision; this is the documentation case losing it.
+
+3. REFUSE AN UNATTESTABLE TARGET AT STAMP TIME. Ordering only, no rule change. A collection-typed parameter
+   refuses the capability at intake, and four entries were confirmed BY NAME and then deleted: `tibyan attest`
+   stamped them without complaint, a person read and signed four claims, and only the later scan reported the
+   target was never attestable. The structural refusal is knowable when the fingerprint is stamped. Spending a
+   human's review on a target the tool already knows it will refuse is the one cost this design should never
+   impose, because human review is the scarce resource the whole mechanism is built around.
+
+4. DERIVE THE MCP BASE URL FROM THE SERVLET CONTEXT PATH. Runtime, small, and the same shape as the version
+   defect fixed on 2026-09-03, in the same class. The starter supplies only `spring.ai.mcp.server.name` and
+   `.version`, so a host with a context path advertises a message endpoint without it and a client opens the
+   stream then POSTs into a 404. Every adopted service needed the property written by hand. The `addLast`
+   lowest-precedence contract that makes the existing defaults safe makes this one safe too.
+
+5. COLLECTION-TYPED CAPABILITY INPUTS. Real evidence, four lost capabilities, and deliberately ranked LAST
+   because it is the only candidate here that is an IR growth under rule 5 and therefore the only one that has
+   to clear the Volume 4 section 7 bar rather than being a fix. A list-of-primitive input is a plausible
+   growth and the enum-input phase is the precedent for how to argue one, including its refusal of a first
+   class ENUM primitive. It is a phase, not a patch, and it does not start until the four above are settled.
+
+DOCUMENTATION, not phases, from the same run: an adoption-hazard note that an app customising its HTTP message
+converters can break the generated MCP endpoint with an error that points nowhere near the cause; and a note
+in docs/CONNECTING-AN-MCP-CLIENT.md that a client's connection health check is not capability health, since
+the honest liveness probe is calling a known tool.
+
+THE OPEN VERIFICATION THAT REMAINS. The boundary category was never exercised: this application has no
+boundary entry, so AT-3 guard 1, whether the security owner and the asserter are the same person in practice,
+is still unanswered by any real use. It was the sharpest question AT-3 asked of itself and it stays open.
 
 ## 4. Tier 3: direction only (production readiness and beyond)
 

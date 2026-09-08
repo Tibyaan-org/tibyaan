@@ -197,3 +197,168 @@ The assist that would PRODUCE drafts is not built, and that is a stack decision 
 (Volume 5, section 4.15.5.1). What this changes for an adopter here is only this: if someone drafts entries
 for this app by any means, the tool will hold them in a review queue rather than shipping them, and the
 confirmation that releases one is a named human act.
+
+---
+
+## 9. THE FIRST REAL ATTESTATION RUN (2026-09-04 to 2026-09-08)
+
+Every attestation phase from AT-1 onward closed with the same open verification, and STATUS.md carried it
+forward each time in nearly the same words: no real attesting human had run this flow, and for AT-2 it was
+recorded as "the deciding one". THAT VERIFICATION IS NOW DISCHARGED. Between 2026-09-04 and 2026-09-08 the
+maintainer adopted published Tibyaan 0.3.0 on this application, drafted twenty entries, read and confirmed
+them one at a time, generated the MCP surface, and called the resulting tools through a real MCP client.
+
+This section is written under rule 14: a session's report is not evidence, the repository is. Every claim
+below carries where it was checked, in one of three classes:
+
+- **[tibyaan]** read from this repository's source at the cited file and line;
+- **[adopter]** read from the as-backend repository, at the cited commit or file;
+- **[reported]** stated by the trial and NOT re-verified here, recorded as testimony rather than as fact.
+
+### 9.1 The record as committed
+
+**[adopter]** `tibyan/attestations.json` on branch `Ahmed-0000-tibyan-mcp-trial`:
+
+| Field | Value |
+|---|---|
+| Entries | 15 |
+| Categories | `both` 13, `shape` 2, `predicate` 0, `boundary` 0 |
+| Origin | `ai-drafted-human-confirmed`, all 15 |
+| assertedBy | Ahmed El-Seginy, all 15 |
+| Date | 2026-09-04, all 15 |
+| Fingerprint | present, all 15 |
+| securityOwner, assertedAuthorities | absent; no boundary entry exists in this application |
+
+The funnel, verified by reading the file at each commit: twenty entries were committed as drafts
+(a7a0091037, all twenty `origin: ai-draft`), one was struck by hand as a byte-for-byte duplicate of another
+module's tool before confirmation, nineteen were confirmed individually (97fbd23587), and four were removed
+afterwards when intake refused them on collection-typed parameters. Fifteen shipped.
+
+### 9.2 The forecast that held, and it was this ledger's own
+
+Section 7, written after AT-2 and before any human had authored an entry here, predicted that AT-2 alone
+would open this app's by-id aggregates and leave most of its filtered surface refused, because a filtered
+read whose element type does not tie needs the compound category `both`. THIRTEEN OF THE FIFTEEN CONFIRMED
+ENTRIES ARE `both`. The prediction was structural, made from the deferral profile, and it landed exactly.
+Read together with section 8: the two entries that are plain `shape` are the two zero-argument lookups, which
+is the only shape the narrow category was ever going to cover here.
+
+### 9.3 What the run proves about the mechanism
+
+- **The per-entry confirmation gate held under real pressure.** **[reported]** the attester asked to confirm
+  the queue in one act and was refused; **[tibyaan]** there is no `--confirm-all` and no multi-target form to
+  refuse with, by construction (`AttestCommand.java:38-49`). Nineteen confirmations, nineteen named acts.
+- **Fingerprinting survived contact.** All fifteen carry a `sha256:` stamp **[adopter]**.
+- **Read-Identity was re-confirmed in the field.** **[reported]** `getCPESCustomerProduct` disappeared on the
+  0.2.0 to 0.3.0 upgrade and the adopter recognised it as the correct removal rather than a regression. That
+  is section 4 of this ledger, arriving a second time as an adopter's own experience.
+- **The attested tools invoke and return the right rows.** **[reported]** eleven of thirteen tools tested
+  through a real MCP client returned exactly the predicted result; the sharpest case is the five order-reason
+  tools, which read ONE table and differ only by a hardcoded constant, so nothing structural distinguishes
+  them and only the human sentences do. All five matched, and were reproduced a second time from a tracked
+  Liquibase migration rather than a one-off insert.
+
+That last point is the one worth keeping. Five tools that structure cannot tell apart were told apart
+correctly by an agent reading only the attested sentences. That is the entire thesis of the attestation
+design, tested where it could actually fail, on the first try.
+
+### 9.4 Six findings
+
+**F1. The safe default made attestation unusable, and the workaround disables the control globally.**
+ALL FIFTEEN attested capabilities compiled to `securityUnverifiable(conflicting-declarations)`, so under the
+ratified G8 default `tibyan.attested.exposeSecurityUnverifiable=false` NONE of them register and the adopter
+gets the five verified capabilities they already had. **[adopter]** commit a7a17e0c64 sets the flag true, in
+a local-only profile, with a written decision owner and a warning not to copy it anywhere else. The cause is
+structural and not specific to this app: the authority is declared on the controller
+(`CityControllerImpl#_getAllCitiesByFilters` is `@Secured(SC_GET_ALL_CITIES)`), Tibyaan binds its tool to the
+service method beneath that check, and **[tibyaan]** `ControllerSecurity` refuses to compile a contract when
+any associated route is not a strict anchor or when one route is undeclared alongside a declared one
+(`ControllerSecurity.java:158`, `:167`, `:193`). The refusal is correct. The CONSEQUENCE is not: the flag is
+capability-wide, so opening the fifteen reads a person actually reviewed also opens every other unverifiable
+capability in that service, now and in future. A control whose only usable setting is off is not a control.
+
+**F2. The draft lifecycle cannot express a draft.** **[tibyaan]** intake checks `provenance.assertedBy` for
+blankness at `AttestationIntake.java:195` and only recognises the `ai-draft` origin at `:206`, eleven lines
+later. A draft has no human asserter, which is precisely what makes it a draft, so the check that runs first
+refuses the entry the check below it exists to queue. **[adopter]** all twenty drafts at a7a0091037 carry the
+literal string `UNCONFIRMED-DRAFT` in `assertedBy`. AT-4 was built so that a drafted claim could never be
+mistaken for a person's claim, and the ordering forces a fake person into the field whose only job is to name
+a real one.
+
+**F3. Confirmation erases the drafter.** **[tibyaan]** `Provenance` carries a single name field
+(`AttestationRecord.java:41`), and `--confirm --by` writes the CONFIRMER into `assertedBy`
+(`AttestCommand.java:83`, and its own comment says so). After confirmation the record can no longer say who
+drafted the words and who signed them. This is the same separation AT-3 guard 1 treats as load bearing for a
+security decision, that signing is a different act from knowing the code, dropped for the documentation case.
+**[adopter]** all fifteen final entries name the confirmer and no entry names a drafter.
+
+**F4. A collection-typed parameter refuses the capability, and it refuses it AFTER a human has signed.**
+**[tibyaan]** `JavaTypeMapper.map` returns empty for any type containing `<` or `[`
+(`JavaTypeMapper.java:53-56`), so `List<Long> ids` refuses at STRUCTURAL_FRAME. **[adopter]** four entries
+were confirmed by name and then deleted. The ordering is the worst available: `tibyan attest` stamped them
+without complaint, a person read and signed four claims, and only the later scan reported that the target was
+never attestable. The structural refusal is knowable at stamp time.
+
+**F5. The runtime does not derive the MCP base URL from the servlet context path.** **[tibyaan]**
+`TibyanDefaultPropertiesEnvironmentPostProcessor` supplies exactly two defaults, `spring.ai.mcp.server.name`
+and `.version` (lines 73-74). A host app with a context path therefore advertises an SSE message endpoint
+without it, and a client opens the stream and then POSTs into a 404. **[adopter]** every service needed a
+hand-written `spring.ai.mcp.server.base-url` (`/pharmacy-mgt`, `/user-mgt`). This is the same shape as the
+version defect fixed on 2026-09-03, in the same class, and the `addLast` precedence that makes that fix safe
+makes this one safe too.
+
+**F6. Connection health is not capability health.** **[reported]** two service crashes were reported as
+connected by the client's own health check right up until a real tool call failed, and the gap between those
+two facts is where a user-visible failure lived. Not a Tibyaan defect, but the generated surface is what a
+client probes, so the honest liveness check is calling a known tool, and that belongs in
+`docs/CONNECTING-AN-MCP-CLIENT.md`.
+
+### 9.5 Testing status
+
+| What | Status | Class |
+|---|---|---|
+| Human authored, read and confirmed attestations on a real app | DONE, first time in the project | [adopter] |
+| Per-entry confirmation gate, no confirm-all | HELD | [tibyaan] + [reported] |
+| Compound category `both` used in earnest | 13 of 15 entries | [adopter] |
+| `shape` category used in earnest | 2 of 15 entries | [adopter] |
+| `predicate` (AT-1) used | NEVER, on this app | [adopter] |
+| `boundary` (AT-3) used, guard 1 exercised | NEVER; no boundary entry exists here | [adopter] |
+| Attested tools invoked through a real MCP client | 11 of 13 returned the predicted result | [reported] |
+| Five same-table tools distinguished only by attested sentences | ALL FIVE CORRECT | [reported] |
+| Result reproduced from a tracked migration, not a one-off insert | YES | [reported] |
+| Draft lifecycle used end to end (20 drafted, 19 confirmed) | DONE, with the F2 placeholder workaround | [adopter] |
+| `tibyan scan` re-run against the final 15-entry record | NOT RE-RUN IN THIS SESSION | open |
+| attested / mis-bound / attestation-drift / mis-safe / mis-constrained counts | UNMEASURED since 2026-09-04 | open |
+
+The last two rows are the honest gap. The fifteen entries were fingerprinted on 2026-09-04 and the app has
+changed since (four new Liquibase changesets and three master-changelog edits are uncommitted at the time of
+writing), so the drift status of this record is not known and must not be assumed. All of the change is XML
+rather than Java, so the fingerprints are EXPECTED to hold, but expected is not measured. Re-running the scan
+against this branch is the first thing any follow-up session should do.
+
+### 9.6 What is NOT a Tibyaan defect, recorded so it is not miscounted
+
+Three of the trial's four worst incidents belong to the host application and are recorded here only so the
+ledger is not read as a defect list against the tool. **[reported]** a build fix let 107 `@SpringBootTest`
+classes run their `@Sql(clear-schema)` setup against the developer's own database and emptied several tables,
+which is a missing test-schema isolation in that repository; a `converters.clear()` in the app's web config
+dropped `StringHttpMessageConverter` and broke every JSON-RPC body before it reached a handler; and
+`attested_citiesByFilters` fails at invoke on a pre-existing sort against a `title` column that does not
+exist on `ph_city`, reproduced against the plain REST endpoint too.
+
+The converter case is worth one line of documentation even so. It is not Tibyaan's bug, but it is Tibyaan's
+symptom: an app that customises its message converters can break the generated MCP endpoint in a way whose
+error message points nowhere near the cause.
+
+### 9.7 What this app is now, restated
+
+It was the app that produced the project's only mis-bind. It is now also the app that ran the project's first
+real attestation, and the two facts are the same fact seen twice: this is the tree where the tool's claims
+get tested by someone who knows the code well enough to catch it being wrong.
+
+Its idiom caveat is unchanged and matters more here than anywhere, because F1 is an idiom finding. This app
+declares its authorities on controllers and binds its tools to services, and it shares a private foundation
+library with pms-backend and erp-backend. Whether controller-declared authority is general or a house style
+is not settled by one app, and F1's ranking should be read with that in mind. What is NOT idiom-bound is F2,
+F3, F4 and F5: those are defects in the tool's own record shape, refusal ordering, type mapping, and runtime
+defaults, and they would reproduce on any application.
