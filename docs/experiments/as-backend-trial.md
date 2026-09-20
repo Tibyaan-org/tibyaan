@@ -327,10 +327,11 @@ client probes, so the honest liveness check is calling a known tool, and that be
 | Five same-table tools distinguished only by attested sentences | ALL FIVE CORRECT | [reported] |
 | Result reproduced from a tracked migration, not a one-off insert | YES | [reported] |
 | Draft lifecycle used end to end (20 drafted, 19 confirmed) | DONE, with the F2 placeholder workaround | [adopter] |
-| `tibyan scan` re-run against the final 15-entry record | NOT RE-RUN IN THIS SESSION | open |
-| attested / mis-bound / attestation-drift / mis-safe / mis-constrained counts | UNMEASURED since 2026-09-04 | open |
+| `tibyan scan` re-run against the final 15-entry record | RE-RUN 2026-09-20, section 9.8 | [tibyaan] + [adopter] |
+| attested / mis-bound / attestation-drift / mis-constrained counts | MEASURED 2026-09-20: 15 / 0 / 0 / 0, section 9.8 | [tibyaan] + [adopter] |
 
-The last two rows are the honest gap. The fifteen entries were fingerprinted on 2026-09-04 and the app has
+The last two rows WERE the honest gap when this section was written, and section 9.8 closes them; the rest of
+this paragraph is kept as the record of why the re-run was owed. The fifteen entries were fingerprinted on 2026-09-04 and the app has
 changed since (four new Liquibase changesets and three master-changelog edits are uncommitted at the time of
 writing), so the drift status of this record is not known and must not be assumed. All of the change is XML
 rather than Java, so the fingerprints are EXPECTED to hold, but expected is not measured. Re-running the scan
@@ -362,3 +363,99 @@ library with pms-backend and erp-backend. Whether controller-declared authority 
 is not settled by one app, and F1's ranking should be read with that in mind. What is NOT idiom-bound is F2,
 F3, F4 and F5: those are defects in the tool's own record shape, refusal ordering, type mapping, and runtime
 defaults, and they would reproduce on any application.
+
+### 9.8 The owed re-scan (2026-09-20), closing the measurement gap
+
+Section 9.5 left two rows open and named the re-scan as the first thing a follow-up session should do. It ran
+on 2026-09-20. No tool code changed and no adopter code changed.
+
+| What | Value | Class |
+|---|---|---|
+| Tool | CLI 0.4.0-SNAPSHOT, jar rebuilt from the tree at commit 657700e (no Java or POM change since 2e8ab9f) | [tibyaan] |
+| Target | branch Ahmed-0000-tibyan-mcp-trial at commit 23db1101cd, working tree clean | [adopter] |
+| Record | tibyan/attestations.json, 15 entries, both 13 and shape 2, all ai-drafted-human-confirmed | [adopter] |
+| Entities | 159 | [tibyaan] |
+| Discovered | 5 (by-id 5, list 0), the same 5 | [tibyaan] |
+| Attested | 15, every entry carried, none refused, none stale | [tibyaan] |
+| Failed | 154, all NO_BACKING_METHOD | [tibyaan] |
+| Deferred list reads | 219, of which 86 are multi-read assemblies (E6a, section 4.11.7) | [tibyaan] |
+| mis-bound | 0 | [tibyaan] |
+| attestation-drift | 0 | [tibyaan] |
+| mis-constrained | 0 | [tibyaan] |
+| Security verdict on the 15 | all 15 print unverifiable (conflicting-declarations), so F1 is confirmed by the tool's own output rather than by testimony | [tibyaan] |
+
+The Liquibase changesets that were uncommitted on 2026-09-08 are committed now (23db1101cd) and are XML, so
+the fingerprints were expected to hold, and they did: expected is now measured.
+
+ONE HONEST LIMIT. The Totals line prints mis-bound, attestation-drift and mis-constrained. It does NOT print
+mis-safe, so mis-safe is not a number this scan reports. What can be said is narrower and true: read-safety
+runs at intake on every entry, a READ_SAFETY failure refuses the entry, and zero of fifteen were refused.
+That is "no entry failed the check", which is what the invariant rests on, and it is not the same sentence as
+a printed mis-safe 0. Whether the survey should print the fourth invariant beside the other three is a small
+diagnostic question, recorded here and not acted on.
+
+### 9.9 Census of the 86 multi-read deferrals (2026-09-08, re-derived 2026-09-20)
+
+THE QUESTION. After the run, the obvious objection to the whole attestation route was put directly: most of
+the 86 multi-read deferrals are ONE idiom, rows from `selectAllByFilters` plus a total from
+`countAllByFilters` over one repository with one filter, deferred only because section 4.11.7 counts the
+count as a second access. If that idiom were safely provable, a discovery rule would recover most of the 86
+with no human in the loop, and the coverage economics of this app would invert. The census was run to find
+out, on 2026-09-08. It was never committed and lived only in a session, so under rule 14 it did not count. It
+was RE-DERIVED from the 9.8 scan on 2026-09-20 by a script over the 86 target bodies, and the figures below
+are the re-derived ones.
+
+METHOD, stated so the numbers are not over-read. The 86 targets are taken from the scan's own deferral lines.
+Each body is extracted from the file that actually declares the method (class names repeat across modules
+here: `LookupServiceImpl` exists in four, and the first census mis-extracted 8 bodies for exactly that reason
+before correcting it). Classification is LEXICAL: one pattern for a hardcoded predicate, one for an
+ambient-context read, a count of distinct repository receivers. It is a census by pattern, not a proof, and
+the survivors were therefore read by eye.
+
+| Cut of the 86 | Count |
+|---|---|
+| select plus count idiom | 62 |
+| of those, over a single repository receiver | 44 |
+| select only | 15 |
+| neither | 9 |
+| carry a hardcoded predicate (`isDeleted(false)`, `isActive(true)`, a type constant, and so on) | 25 |
+| read ambient request context, so the result depends on who is calling | 15 |
+| zero-argument | 10 |
+| survive every filter: zero-arg, select plus count, one repository, no hardcoded predicate, no ambient read | 6 |
+
+Two figures differ from the 2026-09-08 session by small amounts (select only 15 against 14, ambient 15
+against 13) because the patterns were rewritten rather than recovered; every other figure reproduced exactly,
+including the 62, the 25 and the 6.
+
+THE SIX, all `LookupServiceImpl` reads: `getAllConfigurationDomains`, `getAllDomains`, `getAllEvents`,
+`getAllGovernorates`, `getAllSegments`, `getAllSuppliersLookups`. **[adopter]**
+
+THE FINDING THE RE-DERIVATION ADDED, and it is the most important line in this section. Read by eye, the six
+are not six. Two of them (`getAllSegments`, `getAllGovernorates`) build their filter with
+`PaginationInfo.noPagination()` and genuinely return every row. The other FOUR build an empty filter,
+`XSearchFilter.builder().build()`, and in this application an empty filter is not an unpaged one:
+`SearchFilter` declares its `pagination` field with a builder default of `PaginationInfo.builder().build()`,
+and `PaginationInfo` defaults `pageSize` to 25 (lib/sql-db-adapter, `SearchFilter.java:15-16` and
+`PaginationInfo.java:17`). **[adopter]** So those four return AT MOST THE FIRST 25 ROWS, in unspecified order,
+while their total is an unpaged count. A discovery rule that admitted them as list-all would describe a
+25-row page as "every X". This is the same trap the attester caught by hand on
+`attested_partiallyPackageReasonsLookup` (section 9.1) and that pms showed on `getPaymentsSummary`
+(second-app-trial.md section 15), now found a third time, inside the set a lexical census had called clean.
+THE HONEST SURVIVOR COUNT IS 2 OF 86, and it took reading a default on a foundation-library field, two files
+away from the body, to see it.
+
+THE CROSS-TABULATION. All 15 confirmed attestations target methods inside the 86. 9 of the 15 carry a
+hardcoded predicate that exists in no signature and no type. 16 further predicate-bearing reads among the 86
+are unattested. The survivors and the attested set are disjoint.
+
+THE VERDICT, recorded as a decision input and not as a ratification. A list-plus-count discovery rule is NOT
+a candidate. Its ceiling on this app is 2 reads against 159 entities, and the way the other 84 fail is the
+project's worst failure mode rather than its mildest: the structure is provable and the MEANING is not, so a
+loosened rule would ship confidently wrong descriptions, the mis-bind reproduced at the level of semantics,
+25 times for hardcoded predicates, 15 times for caller-scoped results, and 4 more times for a silent page
+cap. Section 4.11.7's deferral is doing its job. What this app's filtered surface needs is what section 7
+forecast and section 9 measured: a human sentence per read, and the tool's effort is better spent making that
+sentence cheap and safe to give (findings F1 to F4) than on admitting reads without one. The idiom caveat
+applies as everywhere: the select-plus-count shape and the 25-row default both come from this author's
+private foundation library, so the COUNTS are idiom-bound; the lesson, that a provable access pattern does
+not carry its own semantics, is not.

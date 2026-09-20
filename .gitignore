@@ -34,4 +34,5 @@ Thumbs.db
 *.trace.db
 /examples/pms-backend
 /examples/erp-backend
+/examples/as-backend
 /tibyaan-site

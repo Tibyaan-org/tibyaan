@@ -480,6 +480,17 @@ THE OPEN VERIFICATION THAT REMAINS. The boundary category was never exercised: t
 boundary entry, so AT-3 guard 1, whether the security owner and the asserter are the same person in practice,
 is still unanswered by any real use. It was the sharpest question AT-3 asked of itself and it stays open.
 
+A NON-CANDIDATE, recorded so it is not proposed again without new evidence (2026-09-20;
+docs/experiments/as-backend-trial.md section 9.9). 62 of this app's 86 multi-read deferrals are one idiom,
+rows plus a same-filter count over one repository, which invites a list-plus-count discovery rule. A census of
+the 86 bodies says no: 25 carry a hardcoded predicate, 15 read the caller from ambient context, and of the 6
+that survive every lexical filter, 4 silently return at most 25 rows because an empty filter in this app
+carries a default page size. The honest ceiling is 2 reads against 159 entities, and every other body fails
+in the worst way available, provable structure with unprovable meaning. Section 4.11.7 stands, and the five
+candidates above, which make a human sentence cheaper and safer to give, remain the evidence-ranked work.
+The owed re-scan ran the same day (section 9.8): discovered 5, attested 15, mis-bound 0, attestation-drift 0,
+mis-constrained 0.
+
 ## 4. Tier 3: direction only (production readiness and beyond)
 
 This tier is deliberately coarse: one short paragraph per item, no designs, no phase plans, no acceptance criteria. Everything here is conditional on Tier 2 proving the semantic core on real applications, meaning the benchmark discovers a meaningful share of a real app's reads with zero mis-bindings. Writing detailed plans for this tier before that proof would repeat the original roadmap's mistake.
