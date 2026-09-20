@@ -442,6 +442,9 @@ the one that touches the IR. They are recorded here so the ranking is a written 
    What is wrong is that the only available answer is a global switch. The shape to design is an allowlist,
    an adopter naming the capabilities they reviewed, so that opening fifteen reads opens fifteen reads. Read
    with the caveat that controller-declared authority may be a house style rather than a general idiom.
+   DESIGNED 2026-09-20, PENDING RATIFICATION: Volume 7, section 10. Runtime only, one new property
+   `tibyan.attested.exposeReviewed` holding exact capability names, five conditions, fixtures RX-1 to RX-10,
+   a forecast gain of zero today, and five open decisions that are the maintainer's. Not ratified, not built.
 
 2. THE DRAFT PROVENANCE PAIR. Two defects in one record shape, and they belong to one design session because
    they are the same question asked twice: who said this, and when did they say it. First, intake checks

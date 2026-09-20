@@ -205,3 +205,173 @@ to its declared type; two genuine overloads refusing; a bridge method NOT creati
 unknown method naming the arity; the legal-value set read from the enum and never synthesized, with a
 non-enum carrying none; and a CHARACTER-EXACT replica of the real pms `CostCategory` declaration proving all
 eight literals in declaration order, that `renovation` matches, and that `RENOVATION` does not.
+
+## 10. Per-capability attested exposure (phase Reviewed Exposure; designed 2026-09-20, PENDING RATIFICATION)
+
+STATUS: DESIGNED, NOT RATIFIED, NOT BUILT. Under rule 12 nothing in this section may be implemented until
+the maintainer ratifies it, and the open decisions in section 10.9 are the maintainer's to settle first.
+The build is a separate later session.
+
+### 10.1 The evidence
+
+Candidate 1 of the first real attestation run (Volume 13, section 3; docs/experiments/as-backend-trial.md
+section 9.4, finding F1), ranked first because it is the only finding where the design pushed a real adopter
+into a strictly LESS safe configuration than the one they wanted.
+
+Measured on 2026-09-20 (ledger section 9.8): all 15 attested capabilities on as-backend print
+`unverifiable (conflicting-declarations)`. Under the ratified G8 default (Volume 5, section 4.15.7) none of
+them registers. The adopter had read and confirmed each of the fifteen by name, wanted those fifteen and
+nothing else, and the only control available was `tibyan.attested.exposeSecurityUnverifiable=true`, which is
+capability-wide: it opens every security-unverifiable attested capability in the service, including ones
+attested next month by someone else and never reviewed for exposure. Verified in the adopter repository: the
+flag is set true in `application-local.properties` of both hosting services, and only there. Two facts
+follow from that one observation, and the design rests on both: the adopter's review was per capability while
+the control was per service, and the adopter treated exposure as a per-ENVIRONMENT decision.
+
+On this application today the two answers coincide, since every attested capability is unverifiable and all
+fifteen were reviewed. The defect is what happens at the sixteenth.
+
+### 10.2 What is NOT reopened
+
+- The refusal. The authority is declared on the controller and the tool binds to the service method beneath
+  it, so the adapter bypasses the declared gate (section 8, gap 9). `securityUnverifiable` is the true
+  verdict and it stays on the capability, in the manifest and on both surfaces, whether or not the
+  capability is exposed. Exposure by review never clears it, never rewrites a description, and never turns
+  an unverifiable contract into a verified one.
+- The G8 default. With no configuration, a security-unverifiable attested capability does not register.
+- The wholesale control `tibyan.attested.expose` and the boundary control `tibyan.attested.exposeBoundary`.
+- The provider, the IR, the core, and both backends. This phase is RUNTIME ONLY.
+
+### 10.3 The rule
+
+One new runtime property, `tibyan.attested.exposeReviewed`, a list of capability names.
+
+An attested, security-unverifiable capability registers if and only if the wholesale control is on, the
+boundary control admits it where it is a boundary capability, AND EITHER the global
+`exposeSecurityUnverifiable` is true OR the capability's exact name is in `exposeReviewed`.
+
+Conditions, all of which must hold for a list entry to be honoured:
+
+- X1, EXACT NAMES ONLY. An entry is the full minted capability name (`attested_citiesByFilters`), matched
+  case-sensitively and whole. No wildcard, no prefix, no pattern, no "all". A pattern that matches a
+  capability attested tomorrow is the global switch again under another spelling, which is the defect this
+  phase exists to remove. Opening fifteen reads means writing fifteen names.
+- X2, EVERY ENTRY MUST RESOLVE. Each listed name must be a capability present in the loaded manifest. An
+  unknown name fails startup with a located error naming the entry. This is what keeps the list honest over
+  time, and it closes a loop by construction: when the attested code changes, the fingerprint no longer
+  matches, the scan refuses the entry as STALE_ATTESTATION, the capability leaves the manifest, and the
+  exposure entry that named it now fails loud instead of silently waiting to re-open whatever takes that
+  name later.
+- X3, EVERY ENTRY MUST BE NEEDED. Each listed name must be attested AND security-unverifiable. A name that is
+  verified, or attested with a compiled or absent contract, registers without the list, so an entry for it
+  records a review stake that does not exist; it fails startup the same way. A list that may contain inert
+  entries is a list nobody can audit.
+- X4, THE LIST NEVER WIDENS ANOTHER CONTROL. With `tibyan.attested.expose=false` nothing attested registers,
+  listed or not. A boundary capability still requires `exposeBoundary=true`; the list is not a substitute
+  for it and there is no per-capability boundary list, because no real use of the boundary category exists
+  yet to design one from (Volume 13, the open verification).
+- X5, NO DUPLICATES, NO BLANKS. A blank or repeated entry fails startup. It costs nothing and it keeps the
+  list a set of deliberate acts.
+
+### 10.4 Why a runtime property, and not the attestation record
+
+The alternative is a field on the entry in `tibyan/attestations.json`, carried through the IR into the
+manifest. It is refused, for three reasons.
+
+1. Exposure is a DEPLOYMENT decision and the record is a BUILD artifact. The one real adopter opened these
+   reads in a local profile and nowhere else. One manifest ships to every environment; only configuration
+   can say "here, but not in production".
+2. It would be IR growth under rule 5 with no claim on the IR's purpose. The IR says what a capability is.
+   Whether one host chooses to serve it is not a fact about the capability.
+3. It would mix two acts that section 4.15.2.3 guard 1 already teaches the project to keep apart: attesting
+   what a read means, and signing for a security stake. A per-entry flag invites confirming both in one
+   keystroke.
+
+The cost, stated rather than hidden: a property carries no provenance. It does not say who reviewed the
+capability or when. The host's own version control is the only record of that. Decision D3 asks whether that
+is acceptable.
+
+### 10.5 What "reviewed" does and does not mean
+
+Naming a capability in the list is the adopter asserting one thing: that they have looked at what the
+declared gate on the fronting controller protects, and accept this read being served with that gate
+bypassed, in this environment. The tool verifies none of that and says so. The list is not a verification,
+it is a narrower opt-in. Its whole value is its width: the blast radius of the opt-in equals the set of
+names a person wrote down.
+
+THE HONEST RESIDUE. The fingerprinted slice covers the target body, imports, the repository field and
+interface, and the return type declaration. It does not cover the fronting controller. If the controller's
+declared authority changes, the capability name stays listed and stays open, provided the verdict is still
+unverifiable. Decision D2 asks whether to pin the reviewed verdict as well as the name.
+
+### 10.6 Startup honesty, and one incidental defect
+
+On startup the runtime logs, once: the names registered; and the names excluded, each with its reason
+(`attested-closed`, `boundary-closed`, `security-unverifiable-not-reviewed`). When the global
+`exposeSecurityUnverifiable` is true the runtime logs a WARN naming every capability it opened that is NOT in
+`exposeReviewed`, since those are exactly the ones nobody named.
+
+INCIDENTAL DEFECT FOUND WHILE DESIGNING, recorded and not fixed here: `TibyanAutoConfiguration` logs
+"registered N MCP tool(s)" with the correct count from the callbacks but takes the NAME list from
+`manifest.tools()`, so the line names every capability in the manifest, excluded ones included. An operator
+reading that line today is told a closed capability is registered. The count is right and the names are
+wrong. It changes no registration outcome, so it is a rule-13 diagnostic amendment, and it belongs to this
+phase's build because this phase is what makes the exclusion set worth reading.
+
+### 10.7 Pre-registered fixtures (RX-1 to RX-10)
+
+- RX-1, the positive: two unverifiable attested capabilities, one listed, global false: exactly the listed
+  one registers, and verified tools are untouched.
+- RX-2, the default holds: no list, global false: neither registers (the existing G8 test, unchanged).
+- RX-3, the global flag still works and is unchanged: global true, no list: both register, with the WARN
+  naming both.
+- RX-4, the primary safety guard: a listed name does not open a SECOND, unlisted unverifiable capability.
+- RX-5, no patterns: `attested_*`, a bare prefix, and a wrong-case name each fail startup as unknown names;
+  none of them opens anything.
+- RX-6, X2: an unknown name fails startup with the entry named.
+- RX-7, X3: a listed verified capability fails startup; a listed attested capability whose contract is not
+  unverifiable fails startup.
+- RX-8, X4: `expose=false` with a populated list registers nothing attested; a listed boundary capability
+  with `exposeBoundary=false` does not register.
+- RX-9, X5: a blank and a duplicate entry each fail startup.
+- RX-10, binding forms: the comma-separated property form and the YAML list form bind to the same set. This
+  is a fixture because `@Value` does not read a YAML list, so the build must bind through the Spring
+  `Binder` rather than the way the three existing booleans are read.
+
+### 10.8 Forecast
+
+Runtime only, so the serialized IR, the generated MCP output and the generated OpenAPI document are
+BYTE-IDENTICAL on every benchmark BY CONSTRUCTION, and discovered, attested, mis-bound, attestation-drift and
+mis-constrained cannot move. Any movement is a regression finding.
+
+as-backend: with the fifteen names listed per hosting service and the global flag removed, the registered
+set is the same set as today. THE MEASURED GAIN TODAY IS ZERO, and it should be reported as zero. What
+changes is the sixteenth capability: today it opens on the day it is attested, after this phase it does not
+until someone names it. pms and erp carry no record file and are inert.
+
+THE IDIOM CAVEAT, carried from the ledger: every attested capability here is unverifiable because this
+author's applications declare authority on controllers and bind tools to services, and all three available
+applications share that foundation. Whether that is general is not settled by one app. The phase is still
+justified on the narrower ground that a security opt-in whose only granularity is "everything" is wrong for
+any adopter who has even one unverifiable capability they did not review.
+
+### 10.9 Open decisions for the maintainer, each with a recommendation
+
+- D1, FAIL STARTUP OR WARN on an X2, X3 or X5 violation. Recommendation: FAIL STARTUP. It is the project's
+  own discipline, the fix is a one-line edit, and a warning in a startup log is where a rotting security
+  list goes to be ignored. The cost is real and is stated: a regenerated manifest can stop a host from
+  starting until its list is corrected. That is the intended behaviour, and it is also the strongest
+  argument against it.
+- D2, PIN THE VERDICT AS WELL AS THE NAME (`name` against `name:conflicting-declarations`). Recommendation:
+  NAME ONLY for this phase, with the residue of section 10.5 recorded. The closed reason set is coarse, so
+  pinning it would catch few real authority changes while making every entry longer and more fragile; the
+  honest fix for that residue is fingerprinting the fronting declaration, which is a provider phase with its
+  own evidence bar.
+- D3, PROVENANCE. Recommendation: ACCEPT A BARE LIST, and say in docs/SECURITY.md that the host's version
+  control is the record of who opened what. A structured form (name plus reviewer plus date) is more
+  ceremony than one adopter's evidence supports.
+- D4, THE GLOBAL FLAG. Recommendation: KEEP IT, unchanged in meaning and default, with the WARN of section
+  10.6. Removing or deprecating it is a breaking change to a published 0.3.0 property on the evidence of one
+  application.
+- D5, THE PROPERTY NAME. Recommendation: `tibyan.attested.exposeReviewed`, beside the three controls it
+  joins. `Reviewed` names the act the adopter is performing, which `allow` or `names` would not.
