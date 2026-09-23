@@ -248,7 +248,8 @@ fifteen were reviewed. The defect is what happens at the sixteenth.
 
 ### 10.3 The rule
 
-One new runtime property, `tibyan.attested.exposeReviewed`, a list of capability names.
+One new runtime property, `tibyan.attested.exposeReviewed`, a list of capability names. (Property name AMENDED
+2026-09-23 to `tibyan.security.exposeUnverifiable`, covering any tier, by DL-1 decision D1; see section 10.10.)
 
 An attested, security-unverifiable capability registers if and only if the wholesale control is on, the
 boundary control admits it where it is a boundary capability, AND EITHER the global
@@ -403,7 +404,7 @@ written, none separately chosen:
   control is the record of who opened what, and when.
 - D4: the global flag `tibyan.attested.exposeSecurityUnverifiable` is KEPT, unchanged in meaning and default,
   and gains the WARN of section 10.6.
-- D5: the property is `tibyan.attested.exposeReviewed`.
+- D5: the property is `tibyan.attested.exposeReviewed`. AMENDED 2026-09-23 by DL-1 decision D1 (Volume 5 section 4.17.12), before this build: the list is `tibyan.security.exposeUnverifiable`, exact names of security-unverifiable capabilities of ANY tier (attested or reviewed), under conditions X1 to X5 unchanged; one list, one meaning, shared by both builds.
 
 THE OPENING OF THE BUILD SESSION. The maintainer has things to discuss before the build starts; what they are
 is not recorded here. The build session therefore begins with that discussion, then with sections 10.9 and
@@ -418,7 +419,7 @@ output and generated OpenAPI document against a worktree at the pre-build commit
 section 10.8 unmoved; and on as-backend, with the fifteen names listed per hosting service and the global flag removed from the local
 profile, the same fifteen registered, which is the forecast gain of zero reported as zero.
 
-## 11. The write gate and the reviewed tier at the runtime (phase DL-1; designed 2026-09-23, PENDING RATIFICATION)
+## 11. The write gate and the reviewed tier at the runtime (phase DL-1; designed and RATIFIED 2026-09-23, build pending)
 
 Designed in Volume 5, section 4.17.6. A reviewed READ registers when `tibyan.reviewed.expose` is true (default
 true, decision D2). A WRITE or ACTION registers only when its exact name is in `tibyan.writes.allow`, a list under

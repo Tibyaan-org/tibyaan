@@ -1886,13 +1886,13 @@ DECISION 4: `mis-constrained 0` IS REPORTED ONLY WHERE A CONSTRAINT EXISTS. The 
 MEASURED (2026-09-01), and the forecast of section 4.16.9 held: pms 5 discovered, erp 35, as-backend 5, with the serialized IR, the generated MCP output and the generated OpenAPI document all BYTE-IDENTICAL to a worktree built at the pre-build commit. DISCOVERED IS BYTE-IDENTICAL BY CONSTRUCTION, not merely by measurement, for the reason section 4.16.9 gives. The one measured change on any benchmark is pms's survey gaining two `enum-parsed-in-body` lines, both of them WRITES (`LeaseServiceImpl#updateStatus`, `LeaseSigningServiceImpl#applyWebhookUpdate`), correctly named as visible-and-unconstrained rather than refused. erp and as-backend produce no such lines.
 
 WHAT IS STILL GATED ON AN ATTESTER, restated so the payoff is not misread as delivered. erp's 10 enum-parameter reads (section 4.16.9) become ATTESTABLE by this build, not attested: erp has no record file, so attested stays 0. This is the first phase whose payoff is gated on a human authoring entries rather than on a further build, and the tool does not and will not author them.
-### 4.17 DL-1: reviewed drafts, the third tier and the write gate (v2 direction; designed 2026-09-23, PENDING RATIFICATION)
+### 4.17 DL-1: reviewed drafts, the third tier and the write gate (v2 direction; designed 2026-09-23, RATIFIED 2026-09-23 as written, build pending)
 
-STATUS: DESIGNED, NOT RATIFIED, NOT BUILT. Under rule 12 nothing here is implemented until the maintainer ratifies
-it, and the open decisions of section 4.17.11 are the maintainer's to settle first. This is the phase the v2
-direction (Volume 13 section 3) names as the one after spike DL-0, and it is the phase that AMENDS THE
-CONSTITUTION: section 4.17.9 lists every rule it changes, so the ratification is of those changes as much as of
-the mechanism.
+STATUS: RATIFIED 2026-09-23 AS WRITTEN, NOT BUILT. The maintainer ratified this section without amendment, so the six
+decisions of section 4.17.11 stand at their recommendations (recorded one by one in section 4.17.12) and the six
+constitution changes of section 4.17.9 are ratified with it. Under rule 12 this frozen text is committed before any
+code; the build is its own later session. This is the phase the v2 direction (Volume 13 section 3) names as the one
+after spike DL-0.
 
 #### 4.17.1 The evidence
 
@@ -2095,6 +2095,35 @@ sample's error rate and the count of approved entries that pass intake. Every on
   partiality rule attested SHAPE already uses; a reviewer approving a read accepted its shape.
 - D6, COLLECTION INPUTS. Recommendation: DEFER TO DL-2 by name with the trigger recorded: 66 READ entries on
   as-backend carry List<Long> or List<Integer>, so DL-2 has its evidence the day DL-1 ships.
+
+#### 4.17.12 Ratification record (2026-09-23)
+
+Ratified by the maintainer on 2026-09-23, as written, in the session that built spike DL-0 and designed this
+section; the build is the next session (one phase per session). The six decisions, each standing at its
+recommendation because the section was ratified as written, none separately chosen:
+
+- D1: ONE exact-name list for security-unverifiable capabilities of any tier, `tibyan.security.exposeUnverifiable`,
+  under Volume 7 section 10's five conditions. Volume 7 section 10 D5 is AMENDED accordingly before its build
+  (recorded in Volume 7 section 10.10); the two builds share one list.
+- D2: reviewed READ capabilities register by default (`tibyan.reviewed.expose` default true).
+- D3: the prefix is `reviewed_`, reserved both ways (Volume 4 rule 13).
+- D4: an approved UNKNOWN draft is admitted as kind ACTION behind the write gate.
+- D5: an unresolvable output renders the permissive object of Volume 6 section 4.1.
+- D6: collection inputs refuse with `INPUT_UNMAPPED` and are deferred to DL-2 by name, trigger recorded.
+
+WHAT THE RATIFICATION ALSO DECIDES: the six constitution changes of section 4.17.9. CLAUDE.md rule 5, the refusal
+bias and the fail-loud discipline are reworded in the same commit as this record, with the reviewed tier marked
+as effective on the DL-1 build; docs/SECURITY.md's read-only boundary becomes the write gate IN THE BUILD, where
+the gate exists to describe. Volume 4 gains rules 12 and 13 in its section 5 now, as ratified rule text awaiting
+the build.
+
+THE OPENING OF THE BUILD SESSION: re-read sections 4.17.3, 4.17.6 and this record; verify against the repository
+that spike DL-0 is at commit fdd5ec3; run the reactor; then build in this order: core (Review, kinds, rules 12 and
+13), provider intake (RV-A to RV-H, the merge and the stamp), backends (manifest and OpenAPI, golden files
+re-baselined), runtime (the gate, the composition, the hints check), CLI (the survey counts), the example app's
+write method and the end-to-end write behind the gate (RV-2), then the benchmark byte-identity check against a
+worktree at the pre-build commit. The maintainer's reading sample of the drafts file is the first real measurement
+and is recorded in as-backend-trial.md section 10 whenever it is done, before or after the build.
 
 ## 5. Future providers
 

@@ -172,7 +172,7 @@ What this growth will never become: a general validation-constraint system (no r
 required-ness), a container type, a per-input annotation bag, or a carrier for anything the tool did not
 read from a resolved declaration. It carries one closed value set per input and nothing more.
 
-### 3.10 The Review component: the reviewed third tier, and the kinds WRITE and ACTION (phase DL-1; designed 2026-09-23, PENDING RATIFICATION)
+### 3.10 The Review component: the reviewed third tier, and the kinds WRITE and ACTION (phase DL-1; designed 2026-09-23, RATIFIED 2026-09-23 as written, build pending)
 
 Designed in Volume 5, section 4.17.4, and recorded here as the IR-facing half. One optional component on
 Capability, `Review(label, reviewedBy, reviewedOn, descriptionOrigin, fingerprint)`, where `label` is the tool's
@@ -182,7 +182,8 @@ this phase on, only with a `Review` attached. Validation gains rule 12 (a `Revie
 ACTION capability must carry one) and rule 13 (the `reviewed_` prefix, reserved both ways, as rule 9 reserves
 `attested_`). Rule 5 is unchanged: `readOnly` is never true on WRITE or ACTION. The growth is argued against the
 section 4 bar in Volume 5, section 4.17.4; an IR without approved drafts serializes byte-identically to today's.
-Not ratified, not built; the rules are written into section 5 below only when the maintainer ratifies them.
+Ratified 2026-09-23 as written (Volume 5, section 4.17.12); rules 12 and 13 are written into section 5 below as
+ratified text and take effect on the DL-1 build.
 
 ## 4. The primitive type system
 
@@ -234,6 +235,10 @@ Structural rules, checked in `tibyan-core`:
 10. INPUT VALUE CONSTRAINTS ARE COMPLETE AND WELL FORMED (phase Enum Inputs, section 3.9). Every key of `inputValues` names an existing input of the capability; every input so keyed is STRING-typed; every value list is non-empty and its values are distinct. A constraint naming an input that does not exist, attached to a non-STRING input, or carrying an empty or duplicated set is refused. This is what makes the phase's invariant (a rendered closed set is an enforced closed set) core-enforced rather than conventional.
 
 11. BOUNDARY ATTESTATION COMPLETENESS (phase Attestation AT-3, Volume 5 section 4.15.2.3). A `boundary` attestation must carry a non-empty `securityOwner`, and must carry at least one of its two assertions: `readOnlyAffirmed` true (the delegation member) or a non-empty `assertedAuthorities` (the security-contract member). An entry that names a security owner and asserts nothing is refused. In the other direction, and this is the half that keeps the categories from blurring: a `predicate`, `shape`, or `both` attestation must carry NO `securityOwner`, must leave `readOnlyAffirmed` false, and must carry an empty `assertedAuthorities`. A data attestation wearing security fields fails loud, so a reader can never mistake one for the other, and neither can a consumer. Every value of `assertedAuthorities` is non-empty and the values are distinct. AND THE CONTRADICTION GUARD (added when C1 was built, 2026-09-01): a capability must never carry BOTH a compiled `requiredAuthorities` annotation and a non-empty `assertedAuthorities`. The declared-security composition runs after attestation intake, so this is the only place the two axes can be compared; if the tool proved a contract for that read, a human assertion over it is redundant at best and contradictory at worst, and the model fails loud rather than shipping two answers to one question.
+
+12. REVIEW COMPLETENESS AND NECESSITY (phase DL-1, section 3.10; ratified 2026-09-23, effective on the DL-1 build). A capability carrying a `Review` must carry every field non-empty (`label` from the closed set READ, WRITE, UNKNOWN; `reviewedBy`; `reviewedOn`; `descriptionOrigin` from `human` or `ai-draft`; `fingerprint`). A capability of kind WRITE or ACTION MUST carry a `Review`: no discovery rule proves a write, so a write without a named reviewer is refused. Rule 5 still holds: `readOnly` is never true on WRITE or ACTION.
+
+13. THE REVIEWED PREFIX IS RESERVED IN BOTH DIRECTIONS (phase DL-1, section 3.10; same status). A capability carrying a `Review` is named `reviewed_<name>`, and a capability without one must not be. As with rule 9, the epistemic class is readable from the name alone on every surface, and a truncated description cannot hide it.
 
 A validation failure stops the pipeline before any generation, with a located, human-readable message.
 

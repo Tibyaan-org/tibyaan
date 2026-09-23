@@ -263,7 +263,7 @@ added rather than substituted, so nothing about the attested carriage is weakene
 
 A document or manifest with no boundary capability is byte-identical, as always.
 
-## 3.9 MCP: reviewed capabilities and the kinds WRITE and ACTION (phase DL-1; designed 2026-09-23, PENDING RATIFICATION)
+## 3.9 MCP: reviewed capabilities and the kinds WRITE and ACTION (phase DL-1; designed and RATIFIED 2026-09-23, build pending)
 
 Designed in Volume 5, section 4.17.5. Additive manifest fields per tool: `kind`, `tier` (`verified`, `attested`,
 `reviewed`) and, for a reviewed tool, `review{label, reviewedBy, reviewedOn, descriptionOrigin}`. The description's
@@ -271,7 +271,7 @@ first sentence is the class, before the reviewer's words: `Reviewed by <reviewed
 tool-verified; the tool labeled it <label>.` The `reviewed_` prefix is applied by the tool (Volume 4, rule 13).
 Golden files change deliberately in the build. Not ratified, not built.
 
-## 4.6 OpenAPI: reviewed operations, and POST for WRITE and ACTION (phase DL-1; designed 2026-09-23, PENDING RATIFICATION)
+## 4.6 OpenAPI: reviewed operations, and POST for WRITE and ACTION (phase DL-1; designed and RATIFIED 2026-09-23, build pending)
 
 Designed in Volume 5, section 4.17.5. A reviewed READ renders as today's GET with the reviewed first sentence; a
 WRITE or ACTION renders as a POST operation whose request body carries the inputs, tagged `reviewed`. An
