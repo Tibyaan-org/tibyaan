@@ -33,6 +33,10 @@ not stable before 1.0.0.
   MapStruct mapper, a Feign or RestTemplate GET, or a JDK type; a message publisher behind a bean is WRITE,
   reflection or an unresolved type is UNKNOWN. On the adopter benchmark this moved 130 READ labels, 3 of which
   the reading sample had shown to hide a write.
+- **The closure now sees through configuration classes, providers, fluent HTTP clients and
+  profile-selected implementations (DL-1.2).** `@Configuration` classes count as beans, `ObjectProvider` and
+  `Provider` lookups are transparent, `Gson` and `PasswordEncoder` are pure, `RestClient` and `WebClient` go by
+  their verb, and a field with several in-tree implementations takes the most severe label across them.
 
 ### Fixed
 

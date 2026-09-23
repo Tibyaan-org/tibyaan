@@ -2331,7 +2331,7 @@ IR, MCP and OpenAPI against a worktree at fd64243. The adopter's uncommitted `ti
 through the merge: 243 entries carry `previousLabel`, all 990 stay pending, the 11 prepared descriptions survive.
 
 
-#### 4.17.16 DL-1.2: the closed-set amendment of the bean-call closure (designed 2026-09-23, RATIFIED 2026-09-24 as written, build pending)
+#### 4.17.16 DL-1.2: the closed-set amendment of the bean-call closure (designed 2026-09-23, RATIFIED and BUILT 2026-09-24; build record at 4.17.17)
 
 STATUS: RATIFIED 2026-09-24 AS WRITTEN by the maintainer, committed before code (rule 12). It amends section 4.17.14's closed sets and one of its decisions; the mechanism is unchanged.
 
@@ -2385,6 +2385,40 @@ that is UNKNOWN gives UNKNOWN; LA-6 two same-arity overloads stay UNKNOWN. Plus 
 the forecast above.
 
 No open decisions: each clause is a closed-set change with one honest reading of its evidence.
+
+
+#### 4.17.17 DL-1.2 build record (BUILT 2026-09-24)
+
+Built the day after ratification (record 71e03f4 before code). Labeler only; IR, MCP and OpenAPI byte-identical on
+pms, erp and as-backend against a worktree at 71e03f4. Fixtures LA-1 to LA-6 as `ClosureAmendmentTest`; provider
+248 tests; `mvn clean verify` green across 12 modules.
+
+MEASURED ON as-backend (990 candidates, same tree):
+
+| Label | DL-1.1 | DL-1.2 | Forecast |
+|---|---|---|---|
+| READ | 271 | 346 | up |
+| WRITE | 337 | 343 | up |
+| UNKNOWN | 362 | 281 | down |
+| of which C6 | 123 | 3 | about 3 |
+| of which C2 | 96 | 67 | about 19 |
+
+WHAT HELD: every one of the 27 audit-confirmed pure reads is READ again (the five DL-1.1 had dropped return under
+A1, A4 and A5); 20 of 20 audited WRITEs hold; the three false READs of section 10.2 stay caught. C6 is exactly the
+forecast three: two `ThreadContext` statics and one `Files.delete`, which are read-safety's own UNKNOWN.
+
+WHAT THE FORECAST MISSED, an unforecast movement and therefore a finding under the process rule: C2 fell to 67,
+not 19, and 55 of those are "no single method of that name and arity" on the bean. Before DL-1.2 the closure never
+reached those beans (they sat behind a config, a provider or an ambiguous interface), so their overloads were
+invisible; A1, A2 and A5 opened the door and the overloads are what was behind it. Same-arity overload
+disambiguation by argument type is a rule of its own, not a closed-set change, and is recorded as the next
+candidate with its count. The other 11 C2 are A5 pairs whose implementations disagree, as designed; 1 is a self
+overload. The void UNKNOWN count rose from 135 to 206 for the same reason: void methods whose only field call was
+C6 now resolve, find nothing, and fall through to the void rule, which is the honest label for them.
+
+BUILD DECISIONS: none beyond the ratified text. One note for the reasons: a provider-chained write
+(`provider.getIfAvailable().save(x)`) is caught by read-safety's own L1 clause before the closure runs, so its
+reason is read-safety's, not A2's; the label is the same.
 
 ## 5. Future providers
 

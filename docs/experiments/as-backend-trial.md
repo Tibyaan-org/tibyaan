@@ -593,3 +593,12 @@ WRITE with the chain named; `getEligibleTransitions` is UNKNOWN (reflection). Th
 calls, one `RestClient`). 214 WRITEs come from a message publisher behind a bean, mostly void event handlers DL-1
 had called UNKNOWN. IR, MCP and OpenAPI output unchanged **[tibyaan]**; the drafts file re-drafted through the merge,
 243 entries carry `previousLabel`, all pending, the 11 prepared descriptions intact.
+
+### 10.4 DL-1.2 built (2026-09-24): every audited pure read is READ again
+
+The closed-set amendment (Volume 5 section 4.17.16, build record 4.17.17) re-labeled the 990 candidates: READ 271
+to 346, WRITE 337 to 343, UNKNOWN 362 to 281. All 27 audit-confirmed pure reads are READ, 20 of 20 audited
+WRITEs hold, the three false READs stay caught. C6 fell from 123 to the forecast 3. C2 fell to 67, not the
+forecast 19: 55 are same-arity overloads on beans the closure could not reach before, the next candidate by
+count. IR, MCP and OpenAPI unchanged **[tibyaan]**. The drafts file was re-drafted through the merge; all entries
+pending, the 11 prepared descriptions intact.
