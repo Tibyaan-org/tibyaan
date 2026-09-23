@@ -1,0 +1,30 @@
+{
+  "version" : 1,
+  "counts" : {
+    "VERIFIED" : 1,
+    "ATTESTED" : 0,
+    "READ" : 0,
+    "WRITE" : 0,
+    "UNKNOWN" : 0
+  },
+  "drafts" : [
+    {
+      "name" : "ProductService_findById",
+      "target" : "com.tibyaan.examples.legacy.ProductService#findById(Long)",
+      "binding" : "ProductService#findById",
+      "label" : "VERIFIED",
+      "reason" : "the binding of the discovered capability 'getProduct' (discovery rules, sections 4.1 to 4.11)",
+      "capability" : "getProduct",
+      "returnType" : "Product",
+      "inputs" : [
+        {
+          "name" : "id",
+          "javaType" : "Long",
+          "type" : "LONG"
+        }
+      ],
+      "description" : "",
+      "review" : "pending"
+    }
+  ]
+}

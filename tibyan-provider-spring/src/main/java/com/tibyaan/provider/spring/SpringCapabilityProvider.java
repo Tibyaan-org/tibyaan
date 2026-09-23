@@ -30,6 +30,10 @@ import com.tibyaan.provider.spring.attest.AttestationIntake;
 import com.tibyaan.provider.spring.attest.AttestationRecord;
 import com.tibyaan.provider.spring.attest.DraftProposal;
 import com.tibyaan.provider.spring.attest.IntakeRefusal;
+import com.tibyaan.provider.spring.attest.ReadSafety;
+import com.tibyaan.provider.spring.draft.DraftEntry;
+import com.tibyaan.provider.spring.draft.DraftLabeler;
+import com.tibyaan.provider.spring.draft.DraftReport;
 import com.tibyaan.provider.spring.extractors.ControllerSecurity;
 import com.tibyaan.provider.spring.extractors.DisplayNames;
 import com.tibyaan.provider.spring.extractors.EntityExtractor;
@@ -904,6 +908,23 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
 
     // The result of list discovery: the per-entity list outcomes and the named deferrals.
     private record ListReads(List<ListOutcome> outcomes, List<DeferredListRead> deferrals) {
+    }
+
+    /**
+     * Spike DL-0 (Volume 13 section 3, "v2 direction"): drafts a candidate tool for every public method of every
+     * concrete service class, reads and writes alike, and labels each by what the tool could establish: VERIFIED
+     * or ATTESTED when the scan already carries it, otherwise READ, WRITE or UNKNOWN by the read-safety check. It
+     * adds no proof and touches no IR: the drafts are a separate reviewable file, and nothing serves them yet.
+     */
+    public DraftReport draft(ProviderInput input) {
+        ScanReport report = scan(input);
+        ParseResults parsed = parseJavaSources(input.sourceRoot());
+        TypeReferenceResolver resolver = TypeReferenceResolver.from(parsed.units());
+        RepositoryCatalog repositories = RepositoryCatalog.from(parsed.units(), resolver);
+        List<ServiceMethodSource> sources = serviceExtractor.sources(parsed.units());
+        DraftLabeler labeler = new DraftLabeler(new ReadSafety(repositories), typeMapper);
+        List<DraftEntry> drafts = labeler.label(sources, report.model().capabilities());
+        return new DraftReport(drafts, DraftReport.count(drafts), report);
     }
 
     // Collect-and-continue (phase E1): parse every walked file at the source's language level; a
