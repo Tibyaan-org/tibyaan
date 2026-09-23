@@ -3,11 +3,13 @@ package com.tibyaan.backend.openapi;
 import com.tibyaan.core.ir.Annotation;
 import com.tibyaan.core.ir.Attestation;
 import com.tibyaan.core.ir.Capability;
+import com.tibyaan.core.ir.CapabilityKind;
 import com.tibyaan.core.ir.CapabilityModel;
 import com.tibyaan.core.ir.Entity;
 import com.tibyaan.core.ir.EntityRef;
 import com.tibyaan.core.ir.Field;
 import com.tibyaan.core.ir.Primitive;
+import com.tibyaan.core.ir.Review;
 import com.tibyaan.core.ir.Type;
 
 import java.util.ArrayDeque;
@@ -37,6 +39,15 @@ final class OpenApiDocument {
     private static final String SECURITY_UNVERIFIABLE_ANNOTATION = "securityUnverifiable";
     private static final String SCHEMAS_REF = "#/components/schemas/";
     private static final String ATTESTED_PREFIX = "attested_";
+
+    // Phase DL-1 (Volume 6 section 4.6): the reserved prefix of a reviewed capability (Volume 4 rule 13),
+    // the tag every reviewed operation carries, and the three annotations the provider's draft intake
+    // attaches: the reviewer's sentence verbatim, the bare void flag, and the opaque return type as written.
+    private static final String REVIEWED_PREFIX = "reviewed_";
+    private static final String REVIEWED_TAG = "reviewed";
+    private static final String DESCRIPTION_ANNOTATION = "description";
+    private static final String VOID_ANNOTATION = "void";
+    private static final String OPAQUE_OUTPUT_ANNOTATION = "opaqueOutput";
 
     private final CapabilityModel ir;
     private final Map<String, Entity> entitiesByName;
@@ -101,6 +112,14 @@ final class OpenApiDocument {
             String base = "/attested/" + capability.name().substring(ATTESTED_PREFIX.length());
             return idInputName(capability).map(id -> base + "/{" + id + "}").orElse(base);
         }
+        // A reviewed capability's path follows the attested convention (Volume 6 section 4.4 condition 0),
+        // derived from its minted name and never from an entity: its output may be a primitive, an opaque
+        // type, or nothing, so no entity path exists to derive, and name uniqueness (Volume 4 rule 2)
+        // makes the path unique. No path parameter: nothing proves any reviewed input is an identifier
+        // (the Read-Identity lesson, Volume 5 section 4.1.1), so no input becomes a path segment.
+        if (capability.hasReview()) {
+            return "/reviewed/" + capability.name().substring(REVIEWED_PREFIX.length());
+        }
         if (capability.outputMultiple()) {
             return "/" + lowerFirst(entityName(capability));
         }
@@ -110,6 +129,9 @@ final class OpenApiDocument {
     private Map<String, Object> pathItem(Capability capability) {
         if (capability.hasAttestation()) {
             return attestedPathItem(capability);
+        }
+        if (capability.hasReview()) {
+            return reviewedPathItem(capability);
         }
         Map<String, Object> operation = new LinkedHashMap<>();
         operation.put("operationId", capability.name());
@@ -263,6 +285,186 @@ final class OpenApiDocument {
         return coverage;
     }
 
+    // A reviewed operation (Volume 6 section 4.6; Volume 5 section 4.17.5). A reviewed READ is a GET whose
+    // inputs are query parameters; a WRITE or ACTION is a POST whose request body carries the inputs as
+    // an object. Both are tagged `reviewed`, lead their summary with the class sentence, and carry the
+    // review object as a vendor extension (the machine half, the two-audiences discipline of section 4.1
+    // condition 6). The response claims only what the IR carries: a primitive maps, an entity is its
+    // component, a void method is 204 with no body, and an opaque output is the permissive object of
+    // section 4.1, exactly the posture a view already has. A document with no reviewed capability is
+    // byte-identical (fixture RV-12).
+    private Map<String, Object> reviewedPathItem(Capability capability) {
+        Review review = capability.review();
+        boolean mutating = capability.kind() != CapabilityKind.READ;
+        Map<String, Object> operation = new LinkedHashMap<>();
+        operation.put("operationId", capability.name());
+        operation.put("tags", List.of(REVIEWED_TAG));
+        operation.put("summary", reviewedSummary(capability) + securityClause(capability));
+        if (mutating) {
+            // A write's inputs travel in the body, never in the URL. A write with no inputs has no body.
+            if (!capability.inputs().isEmpty()) {
+                operation.put("requestBody", reviewedRequestBody(capability));
+            }
+        } else {
+            List<Object> parameters = reviewedParameters(capability);
+            if (!parameters.isEmpty()) {
+                operation.put("parameters", parameters);
+            }
+        }
+        operation.put("responses", reviewedResponses(capability));
+        // The declared security contract, composed for reviewed capabilities exactly as for the others
+        // (Volume 5 section 4.17.6): a reviewed write fronted by a secured controller is the first-order
+        // risk, so its contract is on the surface in both halves, the extension here and the clause above.
+        requiredAuthoritiesOf(capability).ifPresent(authorities ->
+                operation.put("x-tibyan-required-authorities", new ArrayList<>(authorities)));
+        if (securityUnverifiableReason(capability).isPresent()) {
+            operation.put("x-tibyan-security-unverifiable", Boolean.TRUE);
+        }
+        operation.put("x-tibyan-reviewed", Boolean.TRUE);
+        operation.put("x-tibyan-review", reviewObject(review));
+
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put(mutating ? "post" : "get", operation);
+        return item;
+    }
+
+    // The class sentence first, so truncation never strips it, then the reviewer's words verbatim. When
+    // the provider attached no description the class sentence stands alone: the tool never authors one.
+    private static String reviewedSummary(Capability capability) {
+        Review review = capability.review();
+        String lead = "Reviewed by " + review.reviewedBy() + " (" + review.descriptionOrigin()
+                + "), not tool-verified; the tool labeled it " + review.label().name() + ".";
+        return firstValue(capability.annotations(), DESCRIPTION_ANNOTATION)
+                .filter(words -> !words.isBlank())
+                .map(words -> lead + " " + words)
+                .orElse(lead);
+    }
+
+    // Every input is a required query parameter: a method parameter is bound on every invocation, and no
+    // review asserts optionality. A value constraint renders as the parameter's schema.enum exactly as it
+    // does today (section 4.5), under the same honesty gate.
+    private List<Object> reviewedParameters(Capability capability) {
+        List<Object> parameters = new ArrayList<>();
+        for (Map.Entry<String, Type> input : capability.inputs().entrySet()) {
+            Map<String, Object> parameter = new LinkedHashMap<>();
+            parameter.put("name", input.getKey());
+            parameter.put("in", "query");
+            parameter.put("required", Boolean.TRUE);
+            parameter.put("schema", inputSchema(capability, input.getKey(), input.getValue()));
+            parameters.add(parameter);
+        }
+        return parameters;
+    }
+
+    // The inputs as one JSON object: every input a property, every input required, each typed per the
+    // mapping table with its value constraint where one exists. The object is not marked closed and not
+    // marked open: the IR carries the inputs and claims nothing about anything else.
+    private Map<String, Object> reviewedRequestBody(Capability capability) {
+        Map<String, Object> properties = new LinkedHashMap<>();
+        List<Object> required = new ArrayList<>();
+        for (Map.Entry<String, Type> input : capability.inputs().entrySet()) {
+            properties.put(input.getKey(), inputSchema(capability, input.getKey(), input.getValue()));
+            required.add(input.getKey());
+        }
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "object");
+        schema.put("properties", properties);
+        schema.put("required", required);
+
+        Map<String, Object> mediaType = new LinkedHashMap<>();
+        mediaType.put("schema", schema);
+        Map<String, Object> content = new LinkedHashMap<>();
+        content.put("application/json", mediaType);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("required", Boolean.TRUE);
+        body.put("content", content);
+        return body;
+    }
+
+    private Map<String, Object> inputSchema(Capability capability, String name, Type type) {
+        Map<String, Object> schema = typeSchema(type);
+        List<String> values = capability.inputValues().get(name);
+        if (values != null && !values.isEmpty()) {
+            schema.put("enum", List.copyOf(values));
+        }
+        return schema;
+    }
+
+    // A void method responds 204 with no body; anything else responds 200 with the honest schema.
+    private Map<String, Object> reviewedResponses(Capability capability) {
+        Map<String, Object> responses = new LinkedHashMap<>();
+        String kindWord = reviewedKindWord(capability);
+        if (hasAnnotation(capability, VOID_ANNOTATION)) {
+            Map<String, Object> noContent = new LinkedHashMap<>();
+            noContent.put("description", "Performed; the reviewed " + kindWord + " returns nothing.");
+            responses.put("204", noContent);
+            return responses;
+        }
+        Map<String, Object> mediaType = new LinkedHashMap<>();
+        mediaType.put("schema", reviewedResponseSchema(capability));
+        Map<String, Object> content = new LinkedHashMap<>();
+        content.put("application/json", mediaType);
+
+        Map<String, Object> ok = new LinkedHashMap<>();
+        ok.put("description", "The result of the reviewed " + kindWord + ", as the reviewer described it.");
+        ok.put("content", content);
+        responses.put("200", ok);
+        return responses;
+    }
+
+    // RV-F, in schema form: an opaque output is the permissive object (condition 3's posture, with the
+    // written type named where a view names its type); an entity is its component; a primitive maps. A
+    // collection output wraps the element in an array, as a list read does (section 4.2).
+    private Map<String, Object> reviewedResponseSchema(Capability capability) {
+        Optional<String> opaque = firstValue(capability.annotations(), OPAQUE_OUTPUT_ANNOTATION);
+        Map<String, Object> element;
+        if (opaque.isPresent()) {
+            element = opaqueSchema(opaque.get());
+        } else if (capability.output() instanceof EntityRef ref) {
+            element = ref(ref.entityName());
+        } else {
+            element = typeSchema(capability.output());
+        }
+        if (!capability.outputMultiple()) {
+            return element;
+        }
+        Map<String, Object> array = new LinkedHashMap<>();
+        array.put("type", "array");
+        array.put("items", element);
+        return array;
+    }
+
+    private static Map<String, Object> opaqueSchema(String type) {
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "object");
+        schema.put("description", "Returns " + type + "; the concrete field shape of " + type
+                + " is not modeled, so this schema does not enumerate its fields.");
+        schema.put("additionalProperties", Boolean.TRUE);
+        schema.put("x-tibyan-opaque-output", type);
+        return schema;
+    }
+
+    private static String reviewedKindWord(Capability capability) {
+        return switch (capability.kind()) {
+            case READ -> "read";
+            case WRITE -> "write";
+            case ACTION -> "action";
+        };
+    }
+
+    // The review object, character-exact from the component (Volume 6 section 3.9's object, mirrored):
+    // the tool's label beside the human's name, date and the origin of the words. The fingerprint is the
+    // intake's pin and stays off the surface, as the design lists the object without it.
+    private static Map<String, Object> reviewObject(Review review) {
+        Map<String, Object> object = new LinkedHashMap<>();
+        object.put("label", review.label().name());
+        object.put("reviewedBy", review.reviewedBy());
+        object.put("reviewedOn", review.reviewedOn());
+        object.put("descriptionOrigin", review.descriptionOrigin());
+        return object;
+    }
+
     // The input covered by the reserved id mark (a structurally-proven identifier), if any.
     private static Optional<String> idInputName(Capability capability) {
         if (!capability.hasAttestation()) {
@@ -360,8 +562,13 @@ final class OpenApiDocument {
         TreeSet<String> referenced = new TreeSet<>();
         Deque<String> queue = new ArrayDeque<>();
         for (Capability capability : ir.capabilities()) {
-            if (viewOf(capability).isEmpty()) {
-                queue.add(entityName(capability));
+            // Only an entity output seeds the closure. A reviewed capability's output may be a primitive
+            // or a placeholder behind a void or opaqueOutput annotation, none of which names a component;
+            // every verified and attested output is an entity reference, so their closure is unchanged.
+            if (viewOf(capability).isEmpty() && capability.output() instanceof EntityRef ref
+                    && !hasAnnotation(capability, VOID_ANNOTATION)
+                    && !hasAnnotation(capability, OPAQUE_OUTPUT_ANNOTATION)) {
+                queue.add(ref.entityName());
             }
         }
         while (!queue.isEmpty()) {

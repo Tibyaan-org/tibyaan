@@ -1,0 +1,123 @@
+{
+  "module": "shop",
+  "version": "0.1",
+  "tools": [
+    {
+      "name": "getProduct",
+      "description": "Read Product by id.",
+      "binding": "ProductService#findById",
+      "output": "ENTITY_REF(Product)",
+      "inputs": [
+        {
+          "name": "id",
+          "type": "LONG"
+        }
+      ]
+    },
+    {
+      "name": "attested_searchTenants",
+      "description": "Human-attested, not tool-verified. Returns the tenants matching the given filters. Asserted by a.elseginy (human-authored), 2026-07-24.",
+      "binding": "TenantServiceImpl#getAllByFilter",
+      "output": "ENTITY_REF(Tenant)",
+      "outputMultiple": true,
+      "attested": true,
+      "attestation": {
+        "category": "predicate",
+        "resultSemantic": "Returns the tenants matching the given filters.",
+        "assertedBy": "a.elseginy",
+        "origin": "human-authored",
+        "date": "2026-07-24",
+        "fingerprint": "sha256:abc123"
+      },
+      "inputs": [
+        {
+          "name": "fullName",
+          "type": "STRING",
+          "description": "Matches tenants whose full name contains this text, case-insensitive."
+        },
+        {
+          "name": "pageNum",
+          "type": "INTEGER",
+          "description": "Paging or ordering parameter."
+        }
+      ]
+    },
+    {
+      "name": "reviewed_findProductsByStatus",
+      "description": "Reviewed by a.elseginy (human), not tool-verified; the tool labeled it READ. Lists the products in the given status.",
+      "binding": "ProductService#findByStatus",
+      "tier": "reviewed",
+      "review": {
+        "label": "READ",
+        "reviewedBy": "a.elseginy",
+        "reviewedOn": "2026-09-23",
+        "descriptionOrigin": "human"
+      },
+      "output": "ENTITY_REF(Product)",
+      "outputMultiple": true,
+      "inputs": [
+        {
+          "name": "status",
+          "type": "STRING",
+          "enum": ["ACTIVE", "DISCONTINUED"]
+        }
+      ]
+    },
+    {
+      "name": "reviewed_createProduct",
+      "description": "Reviewed by a.elseginy (human), not tool-verified; the tool labeled it WRITE. Creates a product with the given name and returns its id.",
+      "binding": "ProductService#create",
+      "kind": "WRITE",
+      "tier": "reviewed",
+      "review": {
+        "label": "WRITE",
+        "reviewedBy": "a.elseginy",
+        "reviewedOn": "2026-09-23",
+        "descriptionOrigin": "human"
+      },
+      "output": "LONG",
+      "inputs": [
+        {
+          "name": "name",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "name": "reviewed_reindexProducts",
+      "description": "Reviewed by a.elseginy (ai-draft), not tool-verified; the tool labeled it UNKNOWN. Rebuilds the product search index. (returns nothing)",
+      "binding": "ProductService#reindex",
+      "kind": "ACTION",
+      "tier": "reviewed",
+      "review": {
+        "label": "UNKNOWN",
+        "reviewedBy": "a.elseginy",
+        "reviewedOn": "2026-09-23",
+        "descriptionOrigin": "ai-draft"
+      },
+      "output": "STRING",
+      "void": true,
+      "inputs": []
+    },
+    {
+      "name": "reviewed_getProductStats",
+      "description": "Reviewed by b.reviewer (human), not tool-verified; the tool labeled it READ. Returns sales statistics for the product. Returns ProductStatsDto; its field shape is not modeled.",
+      "binding": "ProductService#statsFor",
+      "tier": "reviewed",
+      "review": {
+        "label": "READ",
+        "reviewedBy": "b.reviewer",
+        "reviewedOn": "2026-09-22",
+        "descriptionOrigin": "human"
+      },
+      "output": "STRING",
+      "opaqueOutput": "ProductStatsDto",
+      "inputs": [
+        {
+          "name": "id",
+          "type": "LONG"
+        }
+      ]
+    }
+  ]
+}

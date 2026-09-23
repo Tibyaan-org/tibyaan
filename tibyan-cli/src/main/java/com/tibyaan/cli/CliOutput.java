@@ -9,6 +9,9 @@ import com.tibyaan.provider.spring.DeferredListRead;
 import com.tibyaan.provider.spring.attest.AttestationFile;
 import com.tibyaan.provider.spring.attest.DraftProposal;
 import com.tibyaan.provider.spring.attest.IntakeRefusal;
+import com.tibyaan.provider.spring.draft.DraftRefusal;
+import com.tibyaan.provider.spring.draft.DraftsFile;
+import com.tibyaan.core.ir.Review;
 import com.tibyaan.provider.spring.EntityOutcome;
 import com.tibyaan.provider.spring.EntityOutcome.Cause;
 import com.tibyaan.provider.spring.ListOutcome;
@@ -123,6 +126,12 @@ final class CliOutput {
         // emitted only when attestations are present, so a scan with no record file is byte-identical.
         printAttested(report);
 
+        // The reviewed tier (phase DL-1, Volume 5 section 4.17.7): reviewed capabilities are their own outcome
+        // class, counted apart from discovered and attested and never summed, with the draft worklist (pending
+        // count, refusals with cause and target). Emitted only when a drafts file produced anything, so a scan
+        // without one is byte-identical.
+        printReviewed(report);
+
         // The enum-parsed-in-body ledger (Volume 5 section 4.16.4): reads whose closed set is outside the
         // signature because a String parameter is parsed into an enum in the body. They carry NO
         // constraint and are NOT refused on that account, so naming them keeps the case visible rather
@@ -137,6 +146,8 @@ final class CliOutput {
 
         long attested = report.attestedCount();
         boolean anyAttestation = attested > 0 || !report.attestationRefusals().isEmpty();
+        int reviewed = report.reviewedCount();
+        boolean anyReview = reviewed > 0 || report.draftsPending() > 0 || !report.draftRefusals().isEmpty();
         // mis-constrained (Volume 5 section 4.16.7) is this phase's mis-analog and is 0 by construction:
         // a value set is carried only when the provider READ it from a resolved in-tree enum declaration,
         // and a surface renders it only because the runtime enforces it. Reported only where a constraint
@@ -145,6 +156,7 @@ final class CliOutput {
         System.out.println("Totals: discovered " + report.totalDiscoveredCount()
                 + " (by-id " + report.discoveredCount() + ", list " + report.listDiscoveredCount() + ")"
                 + (anyAttestation ? ", attested " + attested : "")
+                + (anyReview ? ", reviewed " + reviewed : "")
                 + ", failed " + report.failedCount() + byCause(report.failuresByCause())
                 + ", list-refused " + report.listRefusedCount()
                 + ", skipped-by-parse " + report.skippedByParseCount()
@@ -152,6 +164,7 @@ final class CliOutput {
                 + " (" + report.skippedFieldCount() + " fields skipped)"
                 + ", mis-bound 0"
                 + (anyAttestation ? ", attestation-drift 0" : "")
+                + (reviewed > 0 ? ", review-drift 0" : "")
                 + (anyConstraint ? ", mis-constrained 0" : ""));
     }
 
@@ -192,6 +205,41 @@ final class CliOutput {
                         + draft.name() + "'; review it in " + AttestationFile.RELATIVE_PATH
                         + ", then: tibyan attest <path> --confirm <target> --by <you>");
             }
+        }
+    }
+
+
+    // The reviewed survey (phase DL-1, Volume 5 section 4.17.7). A reviewed capability is a named human's
+    // decision carried faithfully: the line names the tool's own label beside the reviewer, the origin of the
+    // words and the date, so neither is mistaken for the other. Refusals are the worklist; pending drafts are a
+    // count only, because their words are not the tool's to print.
+    private static void printReviewed(ScanReport report) {
+        List<Capability> reviewed = report.model().capabilities().stream()
+                .filter(Capability::hasReview)
+                .collect(Collectors.toList());
+        if (!reviewed.isEmpty()) {
+            System.out.println("Reviewed, human-approved not tool-verified (" + reviewed.size() + "):");
+            for (Capability capability : reviewed) {
+                Review r = capability.review();
+                String sentence = capability.annotations().stream()
+                        .filter(a -> a.key().equals("description") && !a.values().isEmpty())
+                        .map(a -> a.values().get(0))
+                        .findFirst()
+                        .orElse("");
+                System.out.println("  # " + capability.name() + " -> " + capability.binding().value()
+                        + " [" + capability.kind() + ", labeled " + r.label() + "]: " + sentence
+                        + " (reviewed by " + r.reviewedBy() + ", " + r.descriptionOrigin() + ", " + r.reviewedOn() + ")");
+            }
+        }
+        if (!report.draftRefusals().isEmpty()) {
+            System.out.println("Draft refusals (" + report.draftRefusals().size() + "):");
+            for (DraftRefusal refusal : report.draftRefusals()) {
+                System.out.println("  ! " + refusal.target() + " [" + refusal.cause() + "]: " + refusal.detail());
+            }
+        }
+        if (report.draftsPending() > 0) {
+            System.out.println("Drafts pending review (" + report.draftsPending() + "), none of which ships until"
+                    + " approved in " + DraftsFile.RELATIVE_PATH);
         }
     }
 

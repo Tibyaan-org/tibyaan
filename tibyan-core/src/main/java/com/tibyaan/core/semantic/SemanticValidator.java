@@ -10,6 +10,8 @@ import com.tibyaan.core.ir.EntityRef;
 import com.tibyaan.core.ir.Field;
 import com.tibyaan.core.ir.Primitive;
 import com.tibyaan.core.ir.Relation;
+import com.tibyaan.core.ir.Review;
+import com.tibyaan.core.ir.ReviewLabel;
 import com.tibyaan.core.ir.Type;
 
 import java.util.ArrayList;
@@ -53,6 +55,8 @@ public final class SemanticValidator {
         checkAttestedPrefix(model, errors);
         checkInputValueConstraints(model, errors);
         checkBoundaryAttestations(model, errors);
+        checkReviewCompleteness(model, errors);
+        checkReviewedPrefix(model, errors);
 
         return new ValidationResult(errors);
     }
@@ -260,6 +264,52 @@ public final class SemanticValidator {
                 errors.add("verified capability '" + capability.name() + "' carries the reserved '"
                         + ATTESTED_PREFIX + "' name prefix but has no attestation (rule 9, the prefix is"
                         + " reserved to attested capabilities in both directions)");
+            }
+        }
+    }
+
+    /** The reserved reviewed name prefix (Volume 4 section 3.10; phase DL-1), enforced both ways by rule 13. */
+    public static final String REVIEWED_PREFIX = "reviewed_";
+
+    // Rule 12 (Volume 4 section 5, rule 12; phase DL-1): a Review, when present, is complete, and a WRITE or
+    // ACTION capability must carry one, because no discovery rule proves a write and a write without a named
+    // reviewer is a write nobody signed for. A reviewed capability never also carries an attestation.
+    private static void checkReviewCompleteness(CapabilityModel model, List<String> errors) {
+        for (Capability capability : model.capabilities()) {
+            String where = "capability '" + capability.name() + "'";
+            if (capability.hasReview()) {
+                Review review = capability.review();
+                if (!review.complete()) {
+                    errors.add(where + " carries an incomplete review: reviewedBy, reviewedOn, fingerprint must be"
+                            + " non-empty and descriptionOrigin must be one of " + Review.ORIGINS + " (rule 12)");
+                }
+                if (capability.hasAttestation()) {
+                    errors.add(where + " carries both a review and an attestation; a capability is in exactly one"
+                            + " tier (rule 12)");
+                }
+                if (review.label().kind() != capability.kind()) {
+                    errors.add(where + " has kind " + capability.kind() + " but its review label " + review.label()
+                            + " maps to " + review.label().kind() + " (rule 12, RV-H)");
+                }
+            } else if (capability.kind() != CapabilityKind.READ) {
+                errors.add(where + " has kind " + capability.kind() + " and no review; a write or action ships"
+                        + " only as a reviewed capability with a named reviewer (rule 12)");
+            }
+        }
+    }
+
+    // Rule 13 (Volume 4 section 5, rule 13; phase DL-1): the reviewed_ prefix is reserved in both directions,
+    // exactly as rule 9 reserves attested_, so the tier is readable from the name on every surface.
+    private static void checkReviewedPrefix(CapabilityModel model, List<String> errors) {
+        for (Capability capability : model.capabilities()) {
+            boolean prefixed = capability.name().startsWith(REVIEWED_PREFIX);
+            if (capability.hasReview() && !prefixed) {
+                errors.add("capability '" + capability.name() + "' carries a review but lacks the '"
+                        + REVIEWED_PREFIX + "' name prefix (rule 13)");
+            }
+            if (!capability.hasReview() && prefixed) {
+                errors.add("capability '" + capability.name() + "' carries the '" + REVIEWED_PREFIX
+                        + "' name prefix but has no review (rule 13, the prefix is reserved)");
             }
         }
     }

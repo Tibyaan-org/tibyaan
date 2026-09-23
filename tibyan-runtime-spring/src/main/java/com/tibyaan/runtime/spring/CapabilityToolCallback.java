@@ -34,6 +34,28 @@ final class CapabilityToolCallback implements ToolCallback {
         this.inputSchema = buildInputSchema(descriptor);
     }
 
+    /**
+     * The tool's definition: name, description and input schema, and NOTHING that says whether the tool
+     * mutates. That is a recorded gap, not an omission (Volume 7 section 11; Volume 5 section 4.17.6).
+     *
+     * <p>THE HINTS FINDING, verified against the pinned jars on 2026-09-23. The MCP schema CAN carry the
+     * hints: mcp-core 0.18.3 (resolved through spring-ai-mcp 1.0.9) has
+     * {@code io.modelcontextprotocol.spec.McpSchema$ToolAnnotations} with {@code readOnlyHint},
+     * {@code destructiveHint}, {@code idempotentHint} and {@code openWorldHint}, and
+     * {@code McpSchema$Tool$Builder.annotations(ToolAnnotations)}. The Spring AI callback path this runtime
+     * uses CANNOT: Spring AI 1.0.9's {@code ToolDefinition} has only {@code name()}, {@code description()}
+     * and {@code inputSchema()}, its {@code ToolMetadata} only {@code returnDirect()}, and
+     * {@code McpToolUtils.toSyncToolSpecification(ToolCallback, MimeType)} builds the MCP tool with
+     * {@code name}, {@code description} and {@code inputSchema} and never calls {@code annotations}. So
+     * whatever this callback said about read-only-ness, the bridge would drop it before the client saw it.
+     *
+     * <p>Until the Volume 16 stack bump brings a callback surface that carries annotations, the channel a
+     * client sees is the one E6b already chose: the reserved name prefix ({@code attested_},
+     * {@code reviewed_}) and the description's first sentence ({@code Reviewed by <name> (<origin>), not
+     * tool-verified; the tool labeled it WRITE.}), both carried here verbatim and never rewritten. The
+     * runtime does not route around the bridge by registering raw {@code SyncToolSpecification} beans:
+     * that is a second registration path, and this project does not fork a path to smuggle a field.
+     */
     @Override
     public ToolDefinition getToolDefinition() {
         return ToolDefinition.builder()

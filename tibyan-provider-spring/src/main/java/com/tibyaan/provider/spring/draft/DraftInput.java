@@ -1,5 +1,7 @@
 package com.tibyaan.provider.spring.draft;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 /**
  * One parameter of a draft candidate, in declaration order.
  *
@@ -9,5 +11,6 @@ package com.tibyaan.provider.spring.draft;
  *                 it (a collection, a DTO, an unmapped JDK type); a null here is what the reviewer and the
  *                 runtime binder will have to resolve before the draft can be served
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record DraftInput(String name, String javaType, String type) {
 }

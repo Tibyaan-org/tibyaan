@@ -87,7 +87,7 @@ class AttestationValidationTest {
                 Map.of("id", Primitive.LONG), Type.entityRef("Tenant"), false, true,
                 new BindingRef("TenantServiceImpl#getRemote"),
                 List.of(new com.tibyaan.core.ir.Annotation("requiredAuthorities", List.of("TENANT_READ"))),
-                boundary, Map.of());
+                boundary, Map.of(), null);
 
         assertThat(validator.validate(modelWith(cap)).errors())
                 .anyMatch(e -> e.contains("contradiction guard") && e.contains("rule 11"));

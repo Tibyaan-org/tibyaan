@@ -320,7 +320,8 @@ public final class ControllerSecurity {
         // never drop an input value constraint, which would leave a rendered closed set unbacked.
         return new Capability(capability.name(), capability.kind(), capability.inputs(),
                 capability.output(), capability.outputMultiple(), capability.readOnly(),
-                capability.binding(), annotations, capability.attestation(), capability.inputValues());
+                capability.binding(), annotations, capability.attestation(), capability.inputValues(),
+                capability.review());
     }
 
     private static boolean hasParamAnnotation(Parameter parameter, String simpleName) {

@@ -1,0 +1,285 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "shop API",
+    "version": "0.1"
+  },
+  "paths": {
+    "/attested/searchTenants": {
+      "get": {
+        "operationId": "attested_searchTenants",
+        "summary": "Human-attested, not tool-verified. Returns the tenants matching the given filters. Asserted by a.elseginy (human-authored), 2026-07-24.",
+        "parameters": [
+          {
+            "name": "fullName",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Matches tenants whose full name contains this text, case-insensitive."
+          },
+          {
+            "name": "pageNum",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "Paging or ordering parameter."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An attested list of Tenant.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Tenant"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-tibyan-attested": true,
+        "x-tibyan-attestation": {
+          "category": "predicate",
+          "resultSemantic": "Returns the tenants matching the given filters.",
+          "assertedBy": "a.elseginy",
+          "origin": "human-authored",
+          "date": "2026-07-24",
+          "fingerprint": "sha256:abc123"
+        }
+      }
+    },
+    "/product/{id}": {
+      "get": {
+        "operationId": "getProduct",
+        "summary": "Read Product by id.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The Product read by id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reviewed/createProduct": {
+      "post": {
+        "operationId": "reviewed_createProduct",
+        "tags": [
+          "reviewed"
+        ],
+        "summary": "Reviewed by a.elseginy (human), not tool-verified; the tool labeled it WRITE. Creates a product with the given name and returns its id.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The result of the reviewed write, as the reviewer described it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            }
+          }
+        },
+        "x-tibyan-reviewed": true,
+        "x-tibyan-review": {
+          "label": "WRITE",
+          "reviewedBy": "a.elseginy",
+          "reviewedOn": "2026-09-23",
+          "descriptionOrigin": "human"
+        }
+      }
+    },
+    "/reviewed/findProductsByStatus": {
+      "get": {
+        "operationId": "reviewed_findProductsByStatus",
+        "tags": [
+          "reviewed"
+        ],
+        "summary": "Reviewed by a.elseginy (human), not tool-verified; the tool labeled it READ. Lists the products in the given status.",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "DISCONTINUED"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The result of the reviewed read, as the reviewer described it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Product"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-tibyan-reviewed": true,
+        "x-tibyan-review": {
+          "label": "READ",
+          "reviewedBy": "a.elseginy",
+          "reviewedOn": "2026-09-23",
+          "descriptionOrigin": "human"
+        }
+      }
+    },
+    "/reviewed/getProductStats": {
+      "get": {
+        "operationId": "reviewed_getProductStats",
+        "tags": [
+          "reviewed"
+        ],
+        "summary": "Reviewed by b.reviewer (human), not tool-verified; the tool labeled it READ. Returns sales statistics for the product.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The result of the reviewed read, as the reviewer described it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Returns ProductStatsDto; the concrete field shape of ProductStatsDto is not modeled, so this schema does not enumerate its fields.",
+                  "additionalProperties": true,
+                  "x-tibyan-opaque-output": "ProductStatsDto"
+                }
+              }
+            }
+          }
+        },
+        "x-tibyan-reviewed": true,
+        "x-tibyan-review": {
+          "label": "READ",
+          "reviewedBy": "b.reviewer",
+          "reviewedOn": "2026-09-22",
+          "descriptionOrigin": "human"
+        }
+      }
+    },
+    "/reviewed/reindexProducts": {
+      "post": {
+        "operationId": "reviewed_reindexProducts",
+        "tags": [
+          "reviewed"
+        ],
+        "summary": "Reviewed by a.elseginy (ai-draft), not tool-verified; the tool labeled it UNKNOWN. Rebuilds the product search index.",
+        "responses": {
+          "204": {
+            "description": "Performed; the reviewed action returns nothing."
+          }
+        },
+        "x-tibyan-reviewed": true,
+        "x-tibyan-review": {
+          "label": "UNKNOWN",
+          "reviewedBy": "a.elseginy",
+          "reviewedOn": "2026-09-23",
+          "descriptionOrigin": "ai-draft"
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Product": {
+        "type": "object",
+        "description": "Entity Product as modeled by Tibyaan.",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number",
+            "format": "decimal"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "price"
+        ],
+        "additionalProperties": true
+      },
+      "Tenant": {
+        "type": "object",
+        "description": "Entity Tenant as modeled by Tibyaan.",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": true
+      }
+    }
+  }
+}

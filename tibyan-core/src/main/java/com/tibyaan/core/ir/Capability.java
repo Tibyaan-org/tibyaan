@@ -45,7 +45,8 @@ public record Capability(
         BindingRef binding,
         List<Annotation> annotations,
         Attestation attestation,
-        Map<String, List<String>> inputValues) {
+        Map<String, List<String>> inputValues,
+        Review review) {
 
     /**
      * A capability with no input value constraints, which is every capability the structural rules emit.
@@ -56,7 +57,7 @@ public record Capability(
             boolean outputMultiple, boolean readOnly, BindingRef binding, List<Annotation> annotations,
             Attestation attestation) {
         return new Capability(name, kind, inputs, output, outputMultiple, readOnly, binding, annotations,
-                attestation, Map.of());
+                attestation, Map.of(), null);
     }
 
     public Capability {
@@ -99,6 +100,24 @@ public record Capability(
     /** Whether this capability carries a human attestation (Volume 5 section 4.15). */
     public boolean hasAttestation() {
         return attestation != null;
+    }
+
+    // Named hasReview for the same reason as hasAttestation: an is-prefixed method would be serialized.
+    /** Whether this capability is a reviewed draft (Volume 4 section 3.10; phase DL-1). */
+    public boolean hasReview() {
+        return review != null;
+    }
+
+    /**
+     * A reviewed capability (Volume 5 section 4.17.3): kind from the label (RV-H), readOnly only for READ,
+     * no attestation. The name must already carry the reserved {@code reviewed_} prefix (core rule 13).
+     */
+    public static Capability reviewed(String name, Map<String, Type> inputs, Type output,
+            boolean outputMultiple, BindingRef binding, List<Annotation> annotations,
+            Map<String, List<String>> inputValues, Review review) {
+        CapabilityKind kind = review.label().kind();
+        return new Capability(name, kind, inputs, output, outputMultiple, kind == CapabilityKind.READ, binding,
+                annotations, null, inputValues, review);
     }
 
     /** A read only capability of kind READ, with no annotations, the MVP singular shape. */

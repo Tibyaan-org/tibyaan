@@ -1,6 +1,9 @@
 package com.tibyaan.backend.mcp;
 
 import com.tibyaan.core.ir.Annotation;
+import com.tibyaan.core.ir.Attestation;
+import com.tibyaan.core.ir.AttestationCategory;
+import com.tibyaan.core.ir.AttestationOrigin;
 import com.tibyaan.core.ir.BindingRef;
 import com.tibyaan.core.ir.Capability;
 import com.tibyaan.core.ir.CapabilityKind;
@@ -9,7 +12,10 @@ import com.tibyaan.core.ir.Entity;
 import com.tibyaan.core.ir.Field;
 import com.tibyaan.core.ir.Metadata;
 import com.tibyaan.core.ir.Primitive;
+import com.tibyaan.core.ir.Review;
+import com.tibyaan.core.ir.ReviewLabel;
 import com.tibyaan.core.ir.Type;
+import com.tibyaan.core.semantic.SemanticValidator;
 import com.tibyaan.plugin.GenerationContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -31,6 +37,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * files, byte for byte, so any change to generated output is a visible diff.
  */
 class McpBackendGoldenTest {
+
+    // Set to true once to (re)write the reviewed golden, then back to false (the OpenAPI golden test's
+    // pattern). When true the test writes the generated manifest to the golden path and fails, so a golden
+    // is never silently trusted; when false it asserts byte equality. The three older goldens are never
+    // rewritten by this flag: they are the byte-identity guard (fixture RV-12) and must stay untouched.
+    private static final boolean WRITE_GOLDENS = false;
 
     @Test
     void generatesTheGetProductToolAndManifest(@TempDir Path outputRoot) throws IOException {
@@ -79,6 +91,30 @@ class McpBackendGoldenTest {
         // (Volume 6 section 3.3).
         String actual = normalize(Files.readString(outputRoot.resolve("tibyan/capabilities.json")));
         String expected = normalize(readGolden("/golden/mcp-list/tibyan/capabilities.json"));
+        assertThat(actual).isEqualTo(expected);
+    }
+
+    @Test
+    void surfacesTheReviewedTierAndTheWriteKinds(@TempDir Path outputRoot) throws IOException {
+        CapabilityModel ir = reviewedIr();
+        // The fixture is a legal IR under core rules 12 and 13, so the golden renders what a provider can
+        // actually emit and not a shape the core would refuse.
+        assertThat(new SemanticValidator().validate(ir).errors()).as("fixture is a valid IR").isEmpty();
+
+        new McpBackend().generate(ir, new GenerationContext(outputRoot));
+
+        // Phase DL-1 (Volume 6 section 3.9): a fourth golden case carrying one capability of every tier and
+        // every kind. The verified and attested tools in it render exactly as the goldens above render
+        // them, and those goldens are unchanged on disk, which is the byte-identity guard (fixture RV-12).
+        String actual = normalize(Files.readString(outputRoot.resolve("tibyan/capabilities.json")));
+        if (WRITE_GOLDENS) {
+            Path goldenFile = Path.of("src", "test", "resources", "golden", "mcp-reviewed", "tibyan",
+                    "capabilities.json");
+            Files.createDirectories(goldenFile.getParent());
+            Files.writeString(goldenFile, actual, StandardCharsets.UTF_8);
+            throw new AssertionError("golden written: " + goldenFile + " (set WRITE_GOLDENS=false and re-run)");
+        }
+        String expected = normalize(readGolden("/golden/mcp-reviewed/tibyan/capabilities.json"));
         assertThat(actual).isEqualTo(expected);
     }
 
@@ -203,6 +239,81 @@ class McpBackendGoldenTest {
         return new CapabilityModel(
                 "erp-backend", "0.1",
                 List.of(contact), List.of(listContact), List.of(), Metadata.empty());
+    }
+
+    // One capability of every tier and every kind (phase DL-1, Volume 5 section 4.17): the verified
+    // example-app read, the ATT-4 attested predicate read, and four reviewed capabilities: a READ with an
+    // enum-constrained input, a WRITE with a String input, a void ACTION with no inputs (an approved
+    // UNKNOWN draft, decision D4) whose words are an ai-draft a named human approved, and a READ whose
+    // output is an opaque DTO (RV-F, decision D5). The reviewed capabilities carry the annotations the
+    // provider's draft intake attaches: `description` (the reviewer's sentence), `void`, `opaqueOutput`.
+    // The output of a void or opaque capability is the IR's placeholder, which the annotations override.
+    static CapabilityModel reviewedIr() {
+        Entity product = new Entity("Product", "Product", List.of(
+                Field.of("id", Primitive.LONG, false),
+                Field.of("name", Primitive.STRING, false),
+                Field.of("price", Primitive.DECIMAL, false)),
+                List.of(), Metadata.empty());
+        Entity tenant = new Entity("Tenant", "Tenant",
+                List.of(Field.of("id", Primitive.LONG, false)), List.of(), Metadata.empty());
+
+        Capability getProduct = Capability.read("getProduct", inputs("id", Primitive.LONG),
+                Type.entityRef("Product"), new BindingRef("ProductService#findById"));
+
+        Map<String, Type> searchInputs = new LinkedHashMap<>();
+        searchInputs.put("fullName", Primitive.STRING);
+        searchInputs.put("pageNum", Primitive.INTEGER);
+        Map<String, String> meanings = new LinkedHashMap<>();
+        meanings.put("fullName", "Matches tenants whose full name contains this text, case-insensitive.");
+        meanings.put("pageNum", Attestation.PAGING_MARK);
+        Attestation attestation = Attestation.data(AttestationCategory.PREDICATE,
+                "Returns the tenants matching the given filters.", meanings, null, "a.elseginy",
+                AttestationOrigin.HUMAN_AUTHORED, "2026-07-24", "sha256:abc123");
+        Capability searchTenants = Capability.attested("attested_searchTenants", searchInputs,
+                Type.entityRef("Tenant"), true, new BindingRef("TenantServiceImpl#getAllByFilter"),
+                List.of(), attestation);
+
+        Capability findByStatus = Capability.reviewed("reviewed_findProductsByStatus",
+                inputs("status", Primitive.STRING), Type.entityRef("Product"), true,
+                new BindingRef("ProductService#findByStatus"),
+                List.of(new Annotation("description", List.of("Lists the products in the given status."))),
+                Map.of("status", List.of("ACTIVE", "DISCONTINUED")),
+                new Review(ReviewLabel.READ, "a.elseginy", "2026-09-23", Review.ORIGIN_HUMAN, "sha256:r1"));
+
+        Capability createProduct = Capability.reviewed("reviewed_createProduct",
+                inputs("name", Primitive.STRING), Primitive.LONG, false,
+                new BindingRef("ProductService#create"),
+                List.of(new Annotation("description",
+                        List.of("Creates a product with the given name and returns its id."))),
+                Map.of(),
+                new Review(ReviewLabel.WRITE, "a.elseginy", "2026-09-23", Review.ORIGIN_HUMAN, "sha256:r2"));
+
+        Capability reindexProducts = Capability.reviewed("reviewed_reindexProducts",
+                new LinkedHashMap<>(), Primitive.STRING, false,
+                new BindingRef("ProductService#reindex"),
+                List.of(Annotation.flag("void"),
+                        new Annotation("description", List.of("Rebuilds the product search index."))),
+                Map.of(),
+                new Review(ReviewLabel.UNKNOWN, "a.elseginy", "2026-09-23", Review.ORIGIN_AI_DRAFT,
+                        "sha256:r3"));
+
+        Capability productStats = Capability.reviewed("reviewed_getProductStats",
+                inputs("id", Primitive.LONG), Primitive.STRING, false,
+                new BindingRef("ProductService#statsFor"),
+                List.of(new Annotation("description", List.of("Returns sales statistics for the product.")),
+                        new Annotation("opaqueOutput", List.of("ProductStatsDto"))),
+                Map.of(),
+                new Review(ReviewLabel.READ, "b.reviewer", "2026-09-22", Review.ORIGIN_HUMAN, "sha256:r4"));
+
+        return new CapabilityModel("shop", "0.1", List.of(product, tenant),
+                List.of(getProduct, searchTenants, findByStatus, createProduct, reindexProducts, productStats),
+                List.of(), Metadata.empty());
+    }
+
+    private static Map<String, Type> inputs(String name, Type type) {
+        Map<String, Type> inputs = new LinkedHashMap<>();
+        inputs.put(name, type);
+        return inputs;
     }
 
     // Two reads carrying declared-security annotations (Volume 6 section 3.5): one COMPILED with a

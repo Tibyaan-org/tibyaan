@@ -32,8 +32,12 @@ import com.tibyaan.provider.spring.attest.DraftProposal;
 import com.tibyaan.provider.spring.attest.IntakeRefusal;
 import com.tibyaan.provider.spring.attest.ReadSafety;
 import com.tibyaan.provider.spring.draft.DraftEntry;
+import com.tibyaan.provider.spring.draft.DraftIntake;
 import com.tibyaan.provider.spring.draft.DraftLabeler;
+import com.tibyaan.provider.spring.draft.DraftMerge;
+import com.tibyaan.provider.spring.draft.DraftRefusal;
 import com.tibyaan.provider.spring.draft.DraftReport;
+import com.tibyaan.provider.spring.draft.DraftsFile;
 import com.tibyaan.provider.spring.extractors.ControllerSecurity;
 import com.tibyaan.provider.spring.extractors.DisplayNames;
 import com.tibyaan.provider.spring.extractors.EntityExtractor;
@@ -220,6 +224,16 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
         capabilities.addAll(intake.attested());
         List<IntakeRefusal> attestationRefusals = intake.refusals();
 
+        // Draft intake (phase DL-1, section 4.17.3): read the adopter's committed tibyan/drafts.json and, for
+        // each APPROVED entry, either add a reviewed capability or record a located refusal; pending entries
+        // are counted, rejected ones produce nothing. Run after the attestation intake, so RV-D sees every
+        // proven capability, and BEFORE controller-authority decoration, so a reviewed capability's declared
+        // security contract composes exactly as an attested one's does (section 4.17.6). Additive: with no
+        // drafts file, or one with no approved entry, the model is byte-identical (fixture RV-12).
+        DraftIntake.Result reviewedIntake = runDraftIntake(sourceRoot, parsed.units(), resolver, repositories,
+                serviceSources, capabilities, displayByKey);
+        capabilities.addAll(reviewedIntake.reviewed());
+
         // Controller-authority (phase Controller-Authority, section 4.14): a decorator pass over the
         // discovered pool. It never mints or removes a capability; it attaches the declared security
         // contract each read's controller surface carries (a compiled any-of authority sequence, an
@@ -239,7 +253,8 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
                 dedupeAndSort(finalized.relations()), Metadata.empty());
         return new ScanReport(model, finalized.outcomes(), parsed.skips(), finalized.skippedFields(),
                 listReads.outcomes(), listReads.deferrals(), attestationRefusals,
-                enumParsedInBody(serviceSources, resolver), intake.drafts());
+                enumParsedInBody(serviceSources, resolver), intake.drafts(), reviewedIntake.refusals(),
+                reviewedIntake.pending());
     }
 
     private static String lastSegment(String name) {
@@ -466,6 +481,28 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
         AttestationIntake attestationIntake = new AttestationIntake(units, resolver, repositories,
                 typeMapper, displayByKey);
         return attestationIntake.run(records, existingNames);
+    }
+
+    // Runs the draft intake (phase DL-1, section 4.17.3). An absent drafts file is nothing, never an error; a
+    // malformed one is a single located refusal, never a silent skip. The intake never guesses: it admits an
+    // approved entry whose every condition holds, or refuses it by name.
+    private DraftIntake.Result runDraftIntake(Path sourceRoot, List<CompilationUnit> units,
+                                              TypeReferenceResolver resolver, RepositoryCatalog repositories,
+                                              List<ServiceMethodSource> serviceSources,
+                                              List<Capability> proven, Map<String, String> displayByKey) {
+        List<DraftEntry> entries;
+        try {
+            entries = DraftsFile.read(DraftsFile.defaultLocation(sourceRoot));
+        } catch (DraftsFile.DraftsFileException e) {
+            return new DraftIntake.Result(List.of(), List.of(new DraftRefusal(
+                    "(" + DraftsFile.RELATIVE_PATH + ")", null, DraftRefusal.Cause.FILE_ERROR, e.getMessage())),
+                    0);
+        }
+        if (entries.isEmpty()) {
+            return DraftIntake.Result.empty();
+        }
+        return new DraftIntake(units, resolver, repositories, typeMapper, displayByKey, serviceSources)
+                .run(entries, proven);
     }
 
     // A per-entity plan from pass 1: the entity key and simple name, and either a terminal failure
@@ -917,13 +954,34 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
      * adds no proof and touches no IR: the drafts are a separate reviewable file, and nothing serves them yet.
      */
     public DraftReport draft(ProviderInput input) {
+        return draft(input, List.of());
+    }
+
+    /**
+     * Phase DL-1 (Volume 5 section 4.17.2): drafts as {@link #draft(ProviderInput)} does, stamps every entry
+     * with the structural fingerprint of its slice, and MERGES the result into the existing entries, never
+     * overwriting a reviewer's field: an existing entry keeps its name, description, origin, review, reviewer
+     * and date; a label change resets its review to pending and records the label it replaced; a target no
+     * longer among the candidates is kept in place, marked stale, with its old fingerprint; a new method is
+     * appended pending. The CLI passes the entries of the existing {@code tibyan/drafts.json} when there is one.
+     *
+     * <p>The labels are computed against the discovered and attested capabilities only: a reviewed capability
+     * is a human's decision, not a proof, so it never labels a method VERIFIED.
+     */
+    public DraftReport draft(ProviderInput input, List<DraftEntry> existing) {
         ScanReport report = scan(input);
         ParseResults parsed = parseJavaSources(input.sourceRoot());
         TypeReferenceResolver resolver = TypeReferenceResolver.from(parsed.units());
         RepositoryCatalog repositories = RepositoryCatalog.from(parsed.units(), resolver);
         List<ServiceMethodSource> sources = serviceExtractor.sources(parsed.units());
-        DraftLabeler labeler = new DraftLabeler(new ReadSafety(repositories), typeMapper);
-        List<DraftEntry> drafts = labeler.label(sources, report.model().capabilities());
+        AttestationIntake fingerprints = new AttestationIntake(parsed.units(), resolver, repositories, typeMapper,
+                Map.of());
+        DraftLabeler labeler = new DraftLabeler(new ReadSafety(repositories), typeMapper, fingerprints);
+        List<Capability> proven = report.model().capabilities().stream()
+                .filter(capability -> !capability.hasReview())
+                .toList();
+        List<DraftEntry> fresh = labeler.label(sources, proven);
+        List<DraftEntry> drafts = DraftMerge.merge(fresh, existing == null ? List.of() : existing);
         return new DraftReport(drafts, DraftReport.count(drafts), report);
     }
 

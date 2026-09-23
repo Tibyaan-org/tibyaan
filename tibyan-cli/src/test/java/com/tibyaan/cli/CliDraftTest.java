@@ -36,7 +36,7 @@ class CliDraftTest {
 
         assertThat(code).isEqualTo(0);
         String stdout = captured.toString(StandardCharsets.UTF_8);
-        assertThat(stdout).contains("Drafts: 1 (VERIFIED 1, ATTESTED 0, READ 0, WRITE 0, UNKNOWN 0)");
+        assertThat(stdout).contains("Drafts: 2 (VERIFIED 1, ATTESTED 0, READ 0, WRITE 1, UNKNOWN 0)");
         assertThat(stdout).contains("Wrote drafts to " + out);
 
         String actual = Files.readString(out);

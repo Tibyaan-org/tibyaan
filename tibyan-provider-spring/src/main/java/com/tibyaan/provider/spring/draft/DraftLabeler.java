@@ -6,6 +6,7 @@ import com.github.javaparser.ast.body.Parameter;
 import com.github.javaparser.ast.expr.MethodCallExpr;
 import com.tibyaan.core.ir.Capability;
 import com.tibyaan.provider.spring.JavaTypeMapper;
+import com.tibyaan.provider.spring.attest.AttestationIntake;
 import com.tibyaan.provider.spring.attest.ReadSafety;
 import com.tibyaan.provider.spring.extractors.ServiceMethodSource;
 
@@ -19,7 +20,8 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Labels every public method of every concrete service class (spike DL-0, Volume 13 section 3, "v2 direction").
+ * Labels every public method of every concrete service class (spike DL-0, Volume 13 section 3, "v2 direction";
+ * the stamp of phase DL-1, Volume 5 section 4.17.2).
  *
  * <p>The labeler adds no new proof. VERIFIED and ATTESTED are read off the scan: a method whose binding is a
  * discovered capability's binding is VERIFIED, one whose binding is a confirmed attestation's binding is
@@ -32,6 +34,11 @@ import java.util.Set;
  * local is labeled WRITE, because a false WRITE costs a reviewer one look and a false READ ships a mutation as a
  * read. Two known blind spots are carried from the check itself and recorded in the spike: the check returns the
  * FIRST reason only, and it follows one hop of private helpers and no calls into other beans.
+ *
+ * <p>DL-1 adds the stamp: every entry carries the structural fingerprint of its slice (section 4.15.4), computed
+ * by the same function the attestation intake uses, so an approval is pinned to the code the reviewer read and
+ * {@code SpringCapabilityProvider.attestationFingerprint(input, target)} returns the same value for the same
+ * target.
  */
 public final class DraftLabeler {
 
@@ -43,20 +50,50 @@ public final class DraftLabeler {
 
     private final ReadSafety readSafety;
     private final JavaTypeMapper typeMapper;
+    private final AttestationIntake fingerprints;
 
-    public DraftLabeler(ReadSafety readSafety, JavaTypeMapper typeMapper) {
+    /**
+     * @param readSafety   the read-safety check the READ, WRITE and UNKNOWN labels come from
+     * @param typeMapper   the Java-to-primitive mapper for the input types
+     * @param fingerprints the intake whose slice fingerprint stamps every entry; null leaves entries unstamped
+     */
+    public DraftLabeler(ReadSafety readSafety, JavaTypeMapper typeMapper, AttestationIntake fingerprints) {
         this.readSafety = readSafety;
         this.typeMapper = typeMapper;
+        this.fingerprints = fingerprints;
+    }
+
+    /** The label of one method with its located reason and, for the two proven labels, the capability. */
+    public record Verdict(DraftLabel label, String reason, String capability) {
     }
 
     /**
      * Labels the given service methods against the given discovered and attested capabilities.
      *
      * @param sources      every public instance method of every {@code @Service} class, in extractor order
-     * @param capabilities the scan's capabilities, discovered and attested
+     * @param capabilities the scan's capabilities, discovered and attested (never reviewed ones: a reviewed
+     *                     capability is not a proof, so it labels nothing)
      * @return one entry per method of a concrete service class, in the same order, with unique minted names
      */
     public List<DraftEntry> label(List<ServiceMethodSource> sources, List<Capability> capabilities) {
+        Labeling labeling = labeling(sources, capabilities);
+        List<DraftEntry> entries = new ArrayList<>();
+        Map<String, Integer> nameUses = new HashMap<>();
+        for (ServiceMethodSource source : sources) {
+            if (source.service().isAbstract()) {
+                continue;
+            }
+            entries.add(entryFor(source, labeling.of(source), nameUses));
+        }
+        return entries;
+    }
+
+    /**
+     * The labeling context over a whole catalog, for callers that need the verdict of individual methods
+     * without minting names or stamping (the draft intake's RV-C, section 4.17.3). The verdict of a method is
+     * the same one {@link #label} would write for it.
+     */
+    public Labeling labeling(List<ServiceMethodSource> sources, List<Capability> capabilities) {
         Map<String, List<Capability>> byBinding = new HashMap<>();
         for (Capability capability : capabilities) {
             byBinding.computeIfAbsent(capability.binding().value(), k -> new ArrayList<>()).add(capability);
@@ -65,74 +102,77 @@ public final class DraftLabeler {
         for (ServiceMethodSource source : sources) {
             methodsPerBinding.merge(source.method().toBinding(), 1, Integer::sum);
         }
-
-        List<DraftEntry> entries = new ArrayList<>();
-        Map<String, Integer> nameUses = new HashMap<>();
-        for (ServiceMethodSource source : sources) {
-            if (source.service().isAbstract()) {
-                continue;
-            }
-            entries.add(labelOne(source, byBinding, methodsPerBinding, nameUses));
-        }
-        return entries;
+        return new Labeling(byBinding, methodsPerBinding);
     }
 
-    private DraftEntry labelOne(ServiceMethodSource source, Map<String, List<Capability>> byBinding,
-                                Map<String, Integer> methodsPerBinding, Map<String, Integer> nameUses) {
+    /** A prepared labeling: the per-method verdict against one capability set. */
+    public final class Labeling {
+
+        private final Map<String, List<Capability>> byBinding;
+        private final Map<String, Integer> methodsPerBinding;
+
+        private Labeling(Map<String, List<Capability>> byBinding, Map<String, Integer> methodsPerBinding) {
+            this.byBinding = byBinding;
+            this.methodsPerBinding = methodsPerBinding;
+        }
+
+        /** The verdict of one method: its label, the located reason, and the capability for a proven label. */
+        public Verdict of(ServiceMethodSource source) {
+            return verdict(source, byBinding, methodsPerBinding);
+        }
+    }
+
+    private Verdict verdict(ServiceMethodSource source, Map<String, List<Capability>> byBinding,
+                            Map<String, Integer> methodsPerBinding) {
         MethodDeclaration declaration = source.declaration();
         ClassOrInterfaceDeclaration service = source.service();
         String binding = source.method().toBinding();
 
         Optional<Capability> matched = matchCapability(source, byBinding.getOrDefault(binding, List.of()),
                 methodsPerBinding.getOrDefault(binding, 0));
-
-        DraftLabel label;
-        String reason;
-        String capabilityName = null;
         if (matched.isPresent()) {
             Capability capability = matched.get();
-            capabilityName = capability.name();
             if (capability.hasAttestation()) {
-                label = DraftLabel.ATTESTED;
-                reason = "the target of the confirmed attestation carried by '" + capability.name()
-                        + "' (attestation intake, section 4.15.3)";
-            } else {
-                label = DraftLabel.VERIFIED;
-                reason = "the binding of the discovered capability '" + capability.name()
-                        + "' (discovery rules, sections 4.1 to 4.11)";
+                return new Verdict(DraftLabel.ATTESTED, "the target of the confirmed attestation carried by '"
+                        + capability.name() + "' (attestation intake, section 4.15.3)", capability.name());
             }
-        } else {
-            Optional<String> refusal = readSafety.check(service, declaration, directPrivateHelpers(service, declaration));
-            if (refusal.isEmpty() && declaration.getType().isVoidType()) {
-                // A void method cannot be a read tool, and read-safety only sees persistence: a side effect
-                // outside it (a message, a remote call, a file) is invisible, so the honest label is UNKNOWN.
-                label = DraftLabel.UNKNOWN;
-                reason = "returns void, so it is not a read; no persistence mutation is visible in the slice, and "
-                        + "side effects outside persistence are not analyzed (read-safety, section 4.15.2)";
-            } else if (refusal.isEmpty()) {
-                label = DraftLabel.READ;
-                reason = "no mutation visible in the slice: the body, its one-hop private helpers, and the "
-                        + "repository declarations it calls (read-safety, section 4.15.2); binding and shape not proven";
-            } else if (isWrite(refusal.get())) {
-                label = DraftLabel.WRITE;
-                reason = refusal.get();
-            } else {
-                label = DraftLabel.UNKNOWN;
-                reason = refusal.get();
-            }
+            return new Verdict(DraftLabel.VERIFIED, "the binding of the discovered capability '"
+                    + capability.name() + "' (discovery rules, sections 4.1 to 4.11)", capability.name());
         }
 
-        return new DraftEntry(
+        Optional<String> refusal = readSafety.check(service, declaration, directPrivateHelpers(service, declaration));
+        if (refusal.isEmpty() && declaration.getType().isVoidType()) {
+            // A void method cannot be a read tool, and read-safety only sees persistence: a side effect
+            // outside it (a message, a remote call, a file) is invisible, so the honest label is UNKNOWN.
+            return new Verdict(DraftLabel.UNKNOWN, "returns void, so it is not a read; no persistence mutation "
+                    + "is visible in the slice, and side effects outside persistence are not analyzed "
+                    + "(read-safety, section 4.15.2)", null);
+        }
+        if (refusal.isEmpty()) {
+            return new Verdict(DraftLabel.READ, "no mutation visible in the slice: the body, its one-hop private "
+                    + "helpers, and the repository declarations it calls (read-safety, section 4.15.2); binding "
+                    + "and shape not proven", null);
+        }
+        if (isWrite(refusal.get())) {
+            return new Verdict(DraftLabel.WRITE, refusal.get(), null);
+        }
+        return new Verdict(DraftLabel.UNKNOWN, refusal.get(), null);
+    }
+
+    private DraftEntry entryFor(ServiceMethodSource source, Verdict verdict, Map<String, Integer> nameUses) {
+        MethodDeclaration declaration = source.declaration();
+        ClassOrInterfaceDeclaration service = source.service();
+        String fingerprint = fingerprints == null ? null : fingerprints.fingerprintOf(service, declaration);
+        return DraftEntry.fresh(
                 mintName(source, nameUses),
                 target(service, declaration),
-                binding,
-                label,
-                reason,
-                capabilityName,
+                source.method().toBinding(),
+                verdict.label(),
+                verdict.reason(),
+                verdict.capability(),
                 declaration.getType().asString(),
                 inputs(declaration),
-                "",
-                DraftEntry.PENDING);
+                fingerprint);
     }
 
     // A capability's binding has no signature, so overloads share one binding. When the binding names exactly

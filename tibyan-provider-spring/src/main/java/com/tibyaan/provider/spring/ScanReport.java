@@ -1,10 +1,12 @@
 package com.tibyaan.provider.spring;
 
+import com.tibyaan.core.ir.Capability;
 import com.tibyaan.core.ir.CapabilityModel;
 import com.tibyaan.provider.spring.EntityOutcome.Cause;
 import com.tibyaan.provider.spring.EntityOutcome.Status;
 import com.tibyaan.provider.spring.attest.DraftProposal;
 import com.tibyaan.provider.spring.attest.IntakeRefusal;
+import com.tibyaan.provider.spring.draft.DraftRefusal;
 import com.tibyaan.provider.spring.extractors.SkippedField;
 
 import java.util.List;
@@ -28,6 +30,11 @@ import java.util.TreeMap;
  * non-framework terminal). Both are additive and orthogonal to {@link #entityOutcomes}, which keeps its
  * historical by-id meaning so the entity partition stays comparable across phases (Volume 11 section 3.3).
  *
+ * <p>Phase DL-1 adds the reviewed tier (Volume 5 section 4.17): {@link #draftRefusals} names every approved
+ * draft entry the intake refused with its cause, {@link #draftsPending} counts the entries awaiting review,
+ * and {@link #reviewedCount()} counts the reviewed capabilities in the model, reported beside discovered and
+ * attested and never summed with either.
+ *
  * @param model            the IR holding the discovered entities and capabilities (by-id and list)
  * @param entityOutcomes   one by-id verdict per entity the scan parsed, never null
  * @param parseSkips       one entry per file the scan could not parse, never null
@@ -41,6 +48,8 @@ import java.util.TreeMap;
  *                         that account: the declared contract genuinely is a string, so an unconstrained
  *                         STRING is the truthful rendering. The ledger names them anyway, so the case is
  *                         visible rather than silently unconstrained
+ * @param draftRefusals    one entry per approved draft the intake refused (phase DL-1), never null
+ * @param draftsPending    the number of draft entries still pending review (phase DL-1)
  */
 public record ScanReport(
         CapabilityModel model,
@@ -51,7 +60,18 @@ public record ScanReport(
         List<DeferredListRead> deferredListReads,
         List<IntakeRefusal> attestationRefusals,
         List<String> enumParsedInBody,
-        List<DraftProposal> attestationDrafts) {
+        List<DraftProposal> attestationDrafts,
+        List<DraftRefusal> draftRefusals,
+        int draftsPending) {
+
+    /** The pre-DL-1 shape, for callers with no drafts file to report on. */
+    public ScanReport(CapabilityModel model, List<EntityOutcome> entityOutcomes, List<ParseSkip> parseSkips,
+            List<SkippedField> skippedFields, List<ListOutcome> listOutcomes,
+            List<DeferredListRead> deferredListReads, List<IntakeRefusal> attestationRefusals,
+            List<String> enumParsedInBody, List<DraftProposal> attestationDrafts) {
+        this(model, entityOutcomes, parseSkips, skippedFields, listOutcomes, deferredListReads,
+                attestationRefusals, enumParsedInBody, attestationDrafts, List.of(), 0);
+    }
 
     /** The pre-AT-4 shape, for callers with no drafts to report. */
     public ScanReport(CapabilityModel model, List<EntityOutcome> entityOutcomes, List<ParseSkip> parseSkips,
@@ -82,6 +102,7 @@ public record ScanReport(
         attestationRefusals = attestationRefusals == null ? List.of() : List.copyOf(attestationRefusals);
         attestationDrafts = attestationDrafts == null ? List.of() : List.copyOf(attestationDrafts);
         enumParsedInBody = enumParsedInBody == null ? List.of() : List.copyOf(enumParsedInBody);
+        draftRefusals = draftRefusals == null ? List.of() : List.copyOf(draftRefusals);
     }
 
     /**
@@ -89,7 +110,20 @@ public record ScanReport(
      * SEPARATELY from discovered and never summed into it: the verified count stays pure forever.
      */
     public long attestedCount() {
-        return model.capabilities().stream().filter(com.tibyaan.core.ir.Capability::hasAttestation).count();
+        return model.capabilities().stream().filter(Capability::hasAttestation).count();
+    }
+
+    /**
+     * The reviewed capabilities in the model (phase DL-1, Volume 5 section 4.17): a named human's decisions
+     * the tool carried. Counted SEPARATELY from discovered and attested, never summed into either.
+     */
+    public int reviewedCount() {
+        return (int) model.capabilities().stream().filter(Capability::hasReview).count();
+    }
+
+    /** The number of approved draft entries the intake refused (phase DL-1). */
+    public int draftsRefusedCount() {
+        return draftRefusals.size();
     }
 
     /** The number of entities for which a by-id capability was discovered. */

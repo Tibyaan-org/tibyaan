@@ -5,24 +5,66 @@ import com.tibyaan.plugin.ExecutionAdapter;
 import org.springframework.ai.tool.ToolCallback;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Registers the generated tools with the running MCP server (Volume 7, tool registration). It
  * turns each capability in the manifest into a {@link ToolCallback} that routes through the
  * {@link ExecutionAdapter}. This replaces the spike's single hard-coded tool with tools derived
  * from the IR.
+ *
+ * <p>Which tools register is the {@link ExposurePolicy}'s decision, applied here per tool with one reason
+ * token per exclusion (Volume 7 sections 10.6 and 11), so the startup log can name every tool it did not
+ * serve and say why.
  */
 public final class ToolRegistrar {
 
+    /** Attested tool, and {@code tibyan.attested.expose} is false. */
+    public static final String ATTESTED_CLOSED = "attested-closed";
+    /** Boundary tool, and {@code tibyan.attested.exposeBoundary} is false. */
+    public static final String BOUNDARY_CLOSED = "boundary-closed";
+    /**
+     * Security-unverifiable tool, attested or reviewed, and neither the global
+     * {@code tibyan.attested.exposeSecurityUnverifiable} is true nor its name is in
+     * {@code tibyan.security.exposeUnverifiable}.
+     */
+    public static final String SECURITY_UNVERIFIABLE_NOT_REVIEWED = "security-unverifiable-not-reviewed";
+    /** Reviewed tool, and {@code tibyan.reviewed.expose} is false. */
+    public static final String REVIEWED_CLOSED = "reviewed-closed";
+    /** WRITE or ACTION tool whose name is not in {@code tibyan.writes.allow}: the write gate. */
+    public static final String WRITE_NOT_ALLOWED = "write-not-allowed";
+
+    /**
+     * What one registration decided: the callbacks to serve, every excluded tool with its reason token in
+     * manifest order, and the security-unverifiable tools that registered ONLY because the global switch
+     * is on, which the startup log warns about because nobody named them.
+     */
+    public record Registration(
+            List<ToolCallback> callbacks,
+            Map<String, String> excluded,
+            List<String> openedByGlobalSwitchOnly) {
+
+        public Registration {
+            callbacks = List.copyOf(callbacks);
+            excluded = Collections.unmodifiableMap(new LinkedHashMap<>(excluded));
+            openedByGlobalSwitchOnly = List.copyOf(openedByGlobalSwitchOnly);
+        }
+
+        /** The names of the tools actually registered, in manifest order. */
+        public List<String> registeredNames() {
+            return callbacks.stream().map(callback -> callback.getToolDefinition().name()).toList();
+        }
+    }
+
     private final ObjectMapper objectMapper;
-    private final boolean exposeAttested;
-    private final boolean exposeSecurityUnverifiable;
-    private final boolean exposeBoundary;
+    private final ExposurePolicy policy;
 
     /** The default policy (Volume 5 section 4.15.7): attested tools expose, security-unverifiable do not. */
     public ToolRegistrar(ObjectMapper objectMapper) {
-        this(objectMapper, true, false, false);
+        this(objectMapper, ExposurePolicy.defaults());
     }
 
     /**
@@ -47,38 +89,109 @@ public final class ToolRegistrar {
      */
     public ToolRegistrar(ObjectMapper objectMapper, boolean exposeAttested,
             boolean exposeSecurityUnverifiable, boolean exposeBoundary) {
-        this.objectMapper = objectMapper;
-        this.exposeAttested = exposeAttested;
-        this.exposeSecurityUnverifiable = exposeSecurityUnverifiable;
-        this.exposeBoundary = exposeBoundary;
+        this(objectMapper, new ExposurePolicy(exposeAttested, exposeSecurityUnverifiable, exposeBoundary,
+                true, List.of(), List.of()));
     }
 
+    /** The full policy, the six controls of Volume 7 sections 10 and 11. */
+    public ToolRegistrar(ObjectMapper objectMapper, ExposurePolicy policy) {
+        this.objectMapper = objectMapper;
+        this.policy = policy;
+    }
+
+    /** The callbacks to serve; see {@link #registration} for the exclusions and their reasons. */
     public List<ToolCallback> register(CapabilitiesManifest manifest, ExecutionAdapter executionAdapter) {
+        return registration(manifest, executionAdapter).callbacks();
+    }
+
+    /**
+     * Validates the manifest and both lists, then decides every tool. Validation runs first and FAILS
+     * LOUDLY (Volume 7 section 10.9, D1): a list that names a stale, inert or unknown capability stops
+     * the host rather than waiting silently to open whatever takes that name later.
+     */
+    public Registration registration(CapabilitiesManifest manifest, ExecutionAdapter executionAdapter) {
+        checkManifest(manifest);
+        policy.validate(manifest);
+
         List<ToolCallback> callbacks = new ArrayList<>();
+        Map<String, String> excluded = new LinkedHashMap<>();
+        List<String> openedByGlobalOnly = new ArrayList<>();
         for (CapabilityDescriptor descriptor : manifest.tools()) {
-            if (excluded(descriptor)) {
+            String reason = exclusionReason(descriptor);
+            if (reason != null) {
+                excluded.put(descriptor.name(), reason);
                 continue;
             }
             callbacks.add(new CapabilityToolCallback(descriptor, executionAdapter, objectMapper));
+            if (descriptor.securityUnverifiable() && !descriptor.verified()
+                    && !policy.listsUnverifiable(descriptor.name())) {
+                // It registered, it is unverifiable, and it is not on the list: the global switch alone opened it.
+                openedByGlobalOnly.add(descriptor.name());
+            }
         }
-        return callbacks;
+        return new Registration(callbacks, excluded, openedByGlobalOnly);
     }
 
-    // The two attested-exposure controls (Volume 5 section 4.15.7); a verified tool always registers, its
-    // invocation and registration unchanged. An attested tool registers unless the wholesale control is
-    // off, and an attested-and-security-unverifiable tool defaults CLOSED: its only declared gate is both
-    // unverifiable and bypassed by the direct bean invocation (Volume 7 gap 9), so it does not register
-    // without an explicit opt-in.
-    private boolean excluded(CapabilityDescriptor descriptor) {
-        if (!descriptor.attested()) {
-            return false;
+    /**
+     * The gate (Volume 7 section 11, composing section 10's rule and Volume 5 section 4.15.7). A verified
+     * tool always registers. An attested tool registers unless the wholesale control is off, it is a
+     * boundary tool without the boundary control, or it is security-unverifiable and neither the global
+     * switch nor the review list opens it. A reviewed tool registers unless the reviewed control is off,
+     * it is a WRITE or ACTION not named by the write gate, or it is security-unverifiable under the same
+     * rule as attested.
+     *
+     * <p>X4 holds by construction: each tier's wholesale control is checked before either list, so a list
+     * never widens it, and the boundary check precedes the review list, so a listed boundary tool still
+     * needs {@code exposeBoundary}. The lists only ever narrow what a switch would open.
+     *
+     * @return the reason token, or null when the tool registers
+     */
+    String exclusionReason(CapabilityDescriptor descriptor) {
+        if (descriptor.attested()) {
+            if (!policy.exposeAttested()) {
+                return ATTESTED_CLOSED;
+            }
+            if (descriptor.attestedBoundary() && !policy.exposeBoundary()) {
+                return BOUNDARY_CLOSED;
+            }
+            if (descriptor.securityUnverifiable() && !policy.opensUnverifiable(descriptor.name())) {
+                return SECURITY_UNVERIFIABLE_NOT_REVIEWED;
+            }
+            return null;
         }
-        if (!exposeAttested) {
-            return true;
+        if (descriptor.reviewed()) {
+            if (!policy.exposeReviewed()) {
+                return REVIEWED_CLOSED;
+            }
+            if (descriptor.mutating() && !policy.allowsWrite(descriptor.name())) {
+                return WRITE_NOT_ALLOWED;
+            }
+            // Build decision (Volume 5 section 4.17.13): the attested-named global switch never opens a reviewed
+            // tool; a reviewed security-unverifiable capability opens by exact name in the list only.
+            if (descriptor.securityUnverifiable() && !policy.listsUnverifiable(descriptor.name())) {
+                return SECURITY_UNVERIFIABLE_NOT_REVIEWED;
+            }
+            return null;
         }
-        if (descriptor.attestedBoundary() && !exposeBoundary) {
-            return true;
+        return null;
+    }
+
+    // Fail loud, never guess: the runtime serves only what the manifest contract can mean. A WRITE or
+    // ACTION without the reviewed tier is a write nobody signed for (core rule 12, Volume 5 section
+    // 4.17.4), which no backend emits; an unknown kind is neither a read nor a write, and treating it as
+    // either would be a guess.
+    private static void checkManifest(CapabilitiesManifest manifest) {
+        for (CapabilityDescriptor descriptor : manifest.tools()) {
+            if (!descriptor.hasKnownKind()) {
+                throw new IllegalStateException("manifest tool '" + descriptor.name() + "' has kind '"
+                        + descriptor.kind() + "', which is not READ, WRITE or ACTION; the runtime never guesses "
+                        + "whether a tool mutates");
+            }
+            if (descriptor.mutating() && !descriptor.reviewed()) {
+                throw new IllegalStateException("manifest tool '" + descriptor.name() + "' is kind "
+                        + descriptor.kind() + " but carries no reviewed tier; a write without a named reviewer "
+                        + "is a write nobody signed for, and the runtime never serves one");
+            }
         }
-        return descriptor.securityUnverifiable() && !exposeSecurityUnverifiable;
     }
 }

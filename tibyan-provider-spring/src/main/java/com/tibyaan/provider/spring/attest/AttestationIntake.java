@@ -111,7 +111,23 @@ public final class AttestationIntake {
      * and compares it on every scan. Empty when the target does not resolve.
      */
     public Optional<String> fingerprintFor(String target) {
-        return resolveTarget(target).map(resolved -> SliceFingerprint.compute(sliceMembers(resolved)));
+        return resolveTarget(target).map(this::fingerprintOf);
+    }
+
+    /**
+     * The fingerprint of an already-resolved target's slice: the same function {@link #fingerprintFor}
+     * applies after resolving, so a value stamped from a declaration the extractor holds equals the value a
+     * later resolution of its target string computes. The draft stamp (phase DL-1, section 4.17.2) uses this
+     * for every candidate, and the draft intake recomputes it for RV-B.
+     */
+    public String fingerprintOf(ResolvedTarget resolved) {
+        return SliceFingerprint.compute(sliceMembers(resolved));
+    }
+
+    /** {@link #fingerprintOf(ResolvedTarget)} for a declaring class and method the caller already holds. */
+    public String fingerprintOf(ClassOrInterfaceDeclaration declaringType, MethodDeclaration method) {
+        return fingerprintOf(new ResolvedTarget(declaringType, method,
+                declaringType.getNameAsString() + "#" + method.getNameAsString()));
     }
 
     /**
@@ -392,7 +408,7 @@ public final class AttestationIntake {
         // ATTESTS meaning, and an attestation can neither supply, extend, nor override a set
         // (Volume 5 section 4.16.5).
         attested.add(new Capability(minted, CapabilityKind.READ, inputs, output, multiple, true,
-                new BindingRef(resolvedTarget.binding()), List.of(), attestation, inputValues));
+                new BindingRef(resolvedTarget.binding()), List.of(), attestation, inputValues, null));
     }
 
     /**
@@ -855,7 +871,13 @@ public final class AttestationIntake {
                 .orElse(false);
     }
 
-    private Optional<ResolvedTarget> resolveTarget(String target) {
+    /**
+     * Resolves a target string, {@code <FQCN>#<method>(<param types>)}, to exactly one in-tree method
+     * declaration (section 4.15.4, condition 1). Parameter types match by simple name, and the list is
+     * tolerant of a space after each comma. Empty when zero or many declarations match. Shared with the draft
+     * intake (phase DL-1, section 4.17.3, RV-A), which resolves a draft's target with this same rule.
+     */
+    public Optional<ResolvedTarget> resolveTarget(String target) {
         int hash = target.indexOf('#');
         int open = target.indexOf('(', hash);
         int close = target.lastIndexOf(')');
@@ -961,8 +983,12 @@ public final class AttestationIntake {
         return new IntakeRefusal(target, name, cause, detail);
     }
 
-    private record ResolvedTarget(ClassOrInterfaceDeclaration declaringType, MethodDeclaration method,
-                                  String binding) {
+    /**
+     * A resolved target: the declaring class, the method declaration, and the runtime binding string
+     * {@code <SimpleName>#<method>}.
+     */
+    public record ResolvedTarget(ClassOrInterfaceDeclaration declaringType, MethodDeclaration method,
+                                 String binding) {
     }
 
     private record EntityTie(String entityKey, boolean multiple) {

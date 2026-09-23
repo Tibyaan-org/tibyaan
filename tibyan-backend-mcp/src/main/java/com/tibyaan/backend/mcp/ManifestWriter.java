@@ -3,8 +3,10 @@ package com.tibyaan.backend.mcp;
 import com.tibyaan.core.ir.Annotation;
 import com.tibyaan.core.ir.Attestation;
 import com.tibyaan.core.ir.Capability;
+import com.tibyaan.core.ir.CapabilityKind;
 import com.tibyaan.core.ir.CapabilityModel;
 import com.tibyaan.core.ir.EntityRef;
+import com.tibyaan.core.ir.Review;
 import com.tibyaan.core.ir.Type;
 
 import java.util.List;
@@ -34,6 +36,21 @@ final class ManifestWriter {
     private static final String REQUIRED_AUTHORITIES_ANNOTATION = "requiredAuthorities";
     private static final String SECURITY_UNVERIFIABLE_ANNOTATION = "securityUnverifiable";
 
+    // The three annotations a REVIEWED capability may carry (Volume 5 section 4.17.5; Volume 6 section
+    // 3.9), attached by the provider's draft intake and understood one-off here, as every annotation
+    // above is. `description` carries the reviewer's sentence verbatim (the words the tool never
+    // authors); `void` is a bare flag saying the method returns nothing; `opaqueOutput` names the Java
+    // return type as written when the output is not describable (RV-F: the permissive object, never a
+    // refusal, because a reviewer who approved the read accepted that shape).
+    private static final String DESCRIPTION_ANNOTATION = "description";
+    private static final String VOID_ANNOTATION = "void";
+    private static final String OPAQUE_OUTPUT_ANNOTATION = "opaqueOutput";
+
+    // The tier token of a reviewed tool. Verified and attested tools carry NO tier field: the reviewed
+    // tier is the only one that is not tool-proven, and emitting a token on the proven tiers would change
+    // every existing manifest byte (the byte-identity guard, fixture RV-12).
+    private static final String REVIEWED_TIER = "reviewed";
+
     private ManifestWriter() {
     }
 
@@ -62,6 +79,19 @@ final class ManifestWriter {
         out.append("      \"name\": ").append(quote(capability.name())).append(",\n");
         out.append("      \"description\": ").append(quote(description(capability))).append(",\n");
         out.append("      \"binding\": ").append(quote(capability.binding().value())).append(",\n");
+        // Phase DL-1 (Volume 6 section 3.9): the kind, the tier and the review object, right after the
+        // binding. Each is emitted ONLY when it is not the default: `kind` only for WRITE and ACTION (a
+        // READ is what every tool was until this phase, so the absence of the field means READ), `tier`
+        // and `review` only on a reviewed tool. A verified or attested tool gains none of the three, so
+        // every existing manifest byte is unchanged (the byte-identity guard, fixture RV-12). A WRITE or
+        // ACTION can only exist with a review (core rule 12), so `kind` never appears without `tier`.
+        if (capability.kind() != CapabilityKind.READ) {
+            out.append("      \"kind\": ").append(quote(capability.kind().name())).append(",\n");
+        }
+        if (capability.hasReview()) {
+            out.append("      \"tier\": ").append(quote(REVIEWED_TIER)).append(",\n");
+            appendReview(out, capability.review());
+        }
         out.append("      \"output\": ").append(quote(capability.output().canonical())).append(",\n");
         // A list read refines the output: outputMultiple says the tool returns a collection of the
         // element type, and paged discloses a page-envelope wire (Volume 6 section 3.3). Both are
@@ -72,6 +102,18 @@ final class ManifestWriter {
                 out.append("      \"paged\": true,\n");
             }
         }
+        // A reviewed tool's two output refinements (Volume 5 section 4.17.3, RV-F), the machine half of a
+        // disclosure the description also carries in prose, the two-audiences discipline of Volume 6
+        // section 4.1 condition 6. `void` says the tool returns nothing, so the `output` token above is
+        // the IR's placeholder and not a result shape. `opaqueOutput` names the Java return type whose
+        // shape the IR does not model, exactly as `view` names a concrete return shape the IR does not
+        // enumerate (section 3.1): the partiality rule, reused rather than re-decided. Both are present
+        // only on a reviewed tool that carries the annotation, so every other tool is byte-identical.
+        if (hasAnnotation(capability, VOID_ANNOTATION)) {
+            out.append("      \"void\": true,\n");
+        }
+        opaqueOutputOf(capability).ifPresent(type ->
+                out.append("      \"opaqueOutput\": ").append(quote(type)).append(",\n"));
         // The view refines the output: present only when the read returns a named view of the
         // entity (Volume 6 section 3.1). Absent otherwise, so unviewed capabilities are unchanged.
         viewOf(capability).ifPresent(view ->
@@ -178,6 +220,19 @@ final class ManifestWriter {
         out.append("      },\n");
     }
 
+    // The review object (Volume 6 section 3.9), character-exact from the component's own fields: the
+    // tool's label beside the human's name, date and the origin of the words, so neither is mistaken for
+    // the other. The fingerprint is the intake's pin (RV-B) and stays off the surface, as the design lists
+    // the object without it. The label token is the closed-set constant name (READ, WRITE, UNKNOWN).
+    private static void appendReview(StringBuilder out, Review review) {
+        out.append("      \"review\": {\n");
+        out.append("        \"label\": ").append(quote(review.label().name())).append(",\n");
+        out.append("        \"reviewedBy\": ").append(quote(review.reviewedBy())).append(",\n");
+        out.append("        \"reviewedOn\": ").append(quote(review.reviewedOn())).append(",\n");
+        out.append("        \"descriptionOrigin\": ").append(quote(review.descriptionOrigin())).append("\n");
+        out.append("      },\n");
+    }
+
     // The per-input description of an attested tool (Volume 6 section 3.6 condition 3).
     private static String inputDescription(Capability capability, String input) {
         String coverage = capability.attestation().parameterMeanings().get(input);
@@ -197,6 +252,20 @@ final class ManifestWriter {
     // When the read returns a named view, the description says so, since the description is the
     // surface most MCP clients show an agent directly (Volume 6 section 3.1).
     private static String description(Capability capability) {
+        // A reviewed tool's description leads with its class too (Volume 6 section 3.9): the first sentence
+        // names the reviewer, the origin of the words and the tool's own label, so truncation can never
+        // strip the fact that this tool is a named human's decision and not a proof. Then the reviewer's
+        // sentence verbatim, then the output remark where the output is not a result shape, then the
+        // declared security clause (section 4.17.6: composition runs for reviewed capabilities too).
+        if (capability.hasReview()) {
+            Review review = capability.review();
+            String lead = "Reviewed by " + review.reviewedBy() + " (" + review.descriptionOrigin()
+                    + "), not tool-verified; the tool labeled it " + review.label().name() + ".";
+            String sentence = reviewerDescription(capability)
+                    .map(words -> lead + " " + words)
+                    .orElse(lead);
+            return sentence + outputRemark(capability) + securityClause(capability);
+        }
         // An attested tool's description LEADS WITH THE CLASS (Volume 6 section 3.6 condition 4): the label
         // is the first sentence because truncation must never strip the epistemic class, then the human's
         // result sentence verbatim, then the provenance. Built only from the attestation's own fields.
@@ -249,6 +318,40 @@ final class ManifestWriter {
                 .map(reason -> " Carries a declared security contract that could not be structurally "
                         + "verified (" + reason + "); resolve it before exposing this tool.")
                 .orElse("");
+    }
+
+    // The prose half of a reviewed tool's output disclosure: a void tool says it returns nothing, an
+    // opaque-output tool names the type whose shape is not modeled. Empty for a describable output.
+    private static String outputRemark(Capability capability) {
+        if (hasAnnotation(capability, VOID_ANNOTATION)) {
+            return " (returns nothing)";
+        }
+        return opaqueOutputOf(capability)
+                .map(type -> " Returns " + type + "; its field shape is not modeled.")
+                .orElse("");
+    }
+
+    // The reviewer's sentence, verbatim, from the description annotation the provider attaches. Absent
+    // when the provider attached none, in which case the class sentence stands alone rather than the
+    // backend inventing words: the tool never authors a description (Volume 5 section 4.17.8).
+    private static Optional<String> reviewerDescription(Capability capability) {
+        for (Annotation annotation : capability.annotations()) {
+            if (annotation.key().equals(DESCRIPTION_ANNOTATION) && !annotation.values().isEmpty()
+                    && !annotation.values().get(0).isBlank()) {
+                return Optional.of(annotation.values().get(0));
+            }
+        }
+        return Optional.empty();
+    }
+
+    // The Java return type as written, when the reviewed output is not describable.
+    private static Optional<String> opaqueOutputOf(Capability capability) {
+        for (Annotation annotation : capability.annotations()) {
+            if (annotation.key().equals(OPAQUE_OUTPUT_ANNOTATION) && !annotation.values().isEmpty()) {
+                return Optional.of(annotation.values().get(0));
+            }
+        }
+        return Optional.empty();
     }
 
     // The compiled any-of authority sequence, when the read carries a fully-parsed contract.

@@ -3,6 +3,7 @@ package com.tibyaan.cli;
 import com.tibyaan.plugin.ProviderInput;
 import com.tibyaan.provider.spring.ProviderException;
 import com.tibyaan.provider.spring.SpringCapabilityProvider;
+import com.tibyaan.provider.spring.draft.DraftEntry;
 import com.tibyaan.provider.spring.draft.DraftReport;
 import com.tibyaan.provider.spring.draft.DraftsFile;
 import picocli.CommandLine.Command;
@@ -10,6 +11,7 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 
@@ -36,15 +38,23 @@ final class DraftCommand implements Callable<Integer> {
     @Override
     public Integer call() {
         System.out.println("Drafting " + path);
+        Path target = out != null ? out : DraftsFile.defaultLocation(path);
         DraftReport report;
         try {
-            report = new SpringCapabilityProvider().draft(new ProviderInput(path));
+            // Phase DL-1 (Volume 5 section 4.17.2): a re-run MERGES into the existing file and never overwrites a
+            // reviewer's fields; an approved entry keeps the fingerprint the reviewer approved.
+            List<DraftEntry> existing = DraftsFile.read(target);
+            report = new SpringCapabilityProvider().draft(new ProviderInput(path), existing);
+            if (!existing.isEmpty()) {
+                System.out.println("Merged into " + existing.size() + " existing entr" + (existing.size() == 1 ? "y" : "ies")
+                        + " (reviewer fields kept, " + report.drafts().stream().filter(DraftEntry::stale).count()
+                        + " stale)");
+            }
         } catch (ProviderException e) {
             System.err.println("Provider error: " + e.getMessage());
             return 3;
         }
 
-        Path target = out != null ? out : DraftsFile.defaultLocation(path);
         DraftsFile.write(target, report);
 
         Map<String, Integer> counts = report.counts();

@@ -4,7 +4,7 @@
     "VERIFIED" : 1,
     "ATTESTED" : 0,
     "READ" : 0,
-    "WRITE" : 0,
+    "WRITE" : 1,
     "UNKNOWN" : 0
   },
   "drafts" : [
@@ -24,7 +24,33 @@
         }
       ],
       "description" : "",
-      "review" : "pending"
+      "review" : "pending",
+      "descriptionOrigin" : "human",
+      "fingerprint" : "sha256:16f1236f6f0aefbb256a6c061579007c4299ab6b3a99a4061b06803570aa1ab6"
+    },
+    {
+      "name" : "ProductService_rename",
+      "target" : "com.tibyaan.examples.legacy.ProductService#rename(Long, String)",
+      "binding" : "ProductService#rename",
+      "label" : "WRITE",
+      "reason" : "a setter 'setName' on a loaded entity is visible in 'rename'; JPA dirty checking would persist it, so the body is not read-only (read-safety, section 4.15.2)",
+      "returnType" : "Product",
+      "inputs" : [
+        {
+          "name" : "id",
+          "javaType" : "Long",
+          "type" : "LONG"
+        },
+        {
+          "name" : "name",
+          "javaType" : "String",
+          "type" : "STRING"
+        }
+      ],
+      "description" : "",
+      "review" : "pending",
+      "descriptionOrigin" : "human",
+      "fingerprint" : "sha256:92c3134dc80778d2d8cb70c092858be537f8e7f46926d17a9c523785033674a4"
     }
   ]
 }
