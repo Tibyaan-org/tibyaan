@@ -531,3 +531,55 @@ approving on this app: the 138 READ drafts with an unmapped input include every 
 parameter, which intake refuses as INPUT_UNMAPPED until DL-2; and a reviewed capability behind a secured
 controller is security-unverifiable, as all fifteen attested ones are, so it opens only by exact name in
 `tibyan.security.exposeUnverifiable`.
+
+### 10.2 The reading sample (2026-09-23): 3 of 30 READ labels hide a write
+
+The owed reading sample of section 10, done as an AGENT READING, not the maintainer's: an evenly spaced sample
+of 60 entries (30 READ, 20 WRITE, 7 void UNKNOWN, the 3 non-void UNKNOWN) was read against the adopter source
+by independent readers that followed calls at least two hops, two readers per READ entry and one per other entry.
+The two READ readers agreed on every entry's verdict, so no tie-break was needed. **[adopter]** for every file
+reference below. The maintainer's spot check of the three failures is still owed and is the human half.
+
+| Label | Sampled | Correct | Wrong | Tool-worthy |
+|---|---|---|---|---|
+| READ | 30 | 27 | 3, all SAFETY | 11 |
+| WRITE | 20 | 20 | 0 | 16 |
+| UNKNOWN | 10 | 9 | 1, coverage (a void validation that only reads) | 0 |
+
+THE THREE FALSE READS, each a write or an external effect the label missed:
+
+1. `FileServiceImpl#downloadFile(String)` publishes a JMS message on every call: `mqClientService.sendMessage`
+   reaches `MQClientServiceImpl` and `jms.convertAndSend` to the file topic. No DB write, but an external effect.
+2. `ProductAttributeIdServiceImpl#generateGlobalKeyAttributeId()` allocates the next value of a shared counter:
+   `CounterService` to `CounterInternalServiceImpl`, which inserts or updates a `CounterInstance` through a
+   repository `save`, three bean hops from the method.
+3. `TransitionConditionsServiceImpl#getEligibleTransitions(WFTransition, WorkflowContext)` runs workflow conditions
+   by reflection (`getBean` plus `Method.invoke`, chosen by database rows), and one wired condition sets fields on
+   a managed `Order` inside the caller's transaction.
+
+ONE CAUSE: every failure is a call into ANOTHER BEAN. Read-safety reads the method body, one hop of private
+helpers and the repository declarations it calls; a publisher, a counter service or a reflective dispatcher
+behind an injected field is invisible to it. This is the blind spot DL-0 recorded in section 10, now measured:
+on this sample the READ label is wrong 10 percent of the time, and every wrong case is a safety error, not a
+coverage miss. It is the finding that ranks next, ahead of every coverage item: Volume 5 section 4.17.14 designs
+the fix.
+
+WHAT THE SAMPLE ALSO SHOWS, recorded for ranking and not acted on:
+
+- CANDIDATE HYGIENE. 19 of 30 READ, 4 of 20 WRITE and 10 of 10 UNKNOWN entries are not tool-worthy: MQ
+  subscription hooks (`onEvents()` returning a constant), `@Service`-annotated repository implementations,
+  workflow conditions and activities taking a `WorkflowContext`, lifecycle `init()` methods, ID generators, and
+  cross-service proxies that duplicate a real service in another module. A reviewer can reject them, but 990
+  entries is a long file; a noise filter is a coverage-of-attention item for later, ranked below the safety fix.
+- PROXIES THAT BORROW A SERVICE CREDENTIAL. The Feign and REST-client proxy reads call another service with this
+  service's own internal Basic credential, not the caller's token. Approving one exposes the remote read with the
+  service's privileges; a reviewer should treat it as a security decision, the way a security-unverifiable
+  capability is treated.
+- HIDDEN SEMANTICS, again. The readers' descriptions name what no signature shows: `getAllSuppliersLookups` and
+  `getProductCurrentStocks` return at most 25 rows with an unpaged total (the same trap as section 9.9),
+  `getApprovedPharmacies` narrows by the caller's role, and `getAllScopes` ignores its `noPagination` flag.
+
+PREPARED, NOT APPROVED: the 11 entries the readers confirmed as pure reads with a servable signature now carry the
+readers' sentence as `description` with `descriptionOrigin: ai-draft` in the adopter's uncommitted
+`tibyan/drafts.json`, every one still `pending`. Nothing ships until the maintainer approves an entry by name;
+the survey still reads reviewed 0.

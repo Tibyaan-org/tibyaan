@@ -2214,6 +2214,68 @@ the READ label, still owed); the as-backend runtime check of section 10.10's exi
 registered), which needs the adopter's services running; dry run and in-runtime confirmation (not in scope by
 name); collection inputs (DL-2).
 
+
+#### 4.17.14 DL-1.1: the bean-call closure of the READ label (designed 2026-09-23, PENDING RATIFICATION)
+
+STATUS: DESIGNED, NOT RATIFIED, NOT BUILT. It changes labels, which are matching outcomes, so under rule 12 it
+takes its own ratification before any code, exactly as the read-safety receiver-awareness refinement did
+(section 4.15.2.1).
+
+THE EVIDENCE. The reading sample of docs/experiments/as-backend-trial.md section 10.2: 3 of 30 sampled READ labels
+hide a write or an external effect, and all three are calls into another bean (a JMS publisher, a counter service
+three hops away, a reflective condition dispatcher). A READ label drives `readOnly` true and default exposure of a
+reviewed read, so a false READ is the reviewed tier's mis-safe. The reviewer is the gate, but a label that is wrong
+one time in ten trains the reviewer to trust it wrongly.
+
+THE RULE. The draft labeler's READ verdict becomes CLOSED over bean calls. For a candidate method M, read-safety
+runs as today over M, its one-hop private helpers and the repository declarations they call; then every call in
+that slice whose receiver is a FIELD of the declaring class is classified, and the most severe classification
+wins (WRITE over UNKNOWN over READ):
+
+- C1, REPOSITORY FIELD: as today (write-set names, `@Modifying`, a mutating `@Query`).
+- C2, IN-TREE BEAN: the field's declared type resolves in the tree to exactly one concrete class carrying a Spring
+  stereotype (`@Service`, `@Component`, `@Repository`) or is that class. The called method is resolved by name and
+  arity on it and LABELED RECURSIVELY by these same rules. Its label propagates: WRITE gives WRITE, UNKNOWN gives
+  UNKNOWN. Recursion is bounded at four bean hops and cycle-safe (a method already on the path contributes READ);
+  a chain that exceeds the bound gives UNKNOWN, named.
+- C3, EXTERNAL EFFECT: the field's type is a known messaging, mail or event type (`JmsTemplate`,
+  `JmsMessagingTemplate`, `KafkaTemplate`, `RabbitTemplate`, `AmqpTemplate`, `StreamBridge`,
+  `ApplicationEventPublisher`, `JavaMailSender`, `SimpMessagingTemplate`): WRITE, reason "external effect". The set
+  is closed; extending it is a design change.
+- C4, REMOTE CLIENT: an in-tree interface annotated `@FeignClient` gives READ for a method mapped with
+  `@GetMapping` or `@RequestMapping(method = GET)` and WRITE for any other verb; a `RestTemplate` or `WebClient` call
+  gives READ for `getFor*` and `get()`, and UNKNOWN otherwise.
+- C5, REFLECTION: any call to `getBean`, `Method.invoke` or `BeanFactory` resolution in the slice gives UNKNOWN,
+  reason "the executed code is chosen at run time".
+- C6, EVERYTHING ELSE: a field whose type does not resolve in the tree and is not in C3, C4 or the closed PURE set
+  gives UNKNOWN. The PURE set is closed: interfaces annotated MapStruct `@Mapper` (their generated implementations
+  are not in the tree), `ObjectMapper`, `Clock`, the JDK and the logging facade.
+
+THE LABELER ONLY. Read-safety for ATTESTATION intake is unchanged: this refines what a DRAFT's READ label claims,
+not what an attestation's read-safety check proves. The two may converge later; that is its own decision.
+
+WHAT IT FIXES, forecast for the build: `downloadFile` relabels WRITE through C2 then C3 (`MQClientServiceImpl`
+holds a `JmsTemplate`); `generateGlobalKeyAttributeId` relabels WRITE through C2 (the counter chain ends in a
+repository `save`); `getEligibleTransitions` relabels UNKNOWN through C2 then C5. THE COST, forecast honestly:
+some of the 27 audit-confirmed pure reads will drop from READ to UNKNOWN where they call a bean the rule cannot
+resolve; the build measures that number and it is a coverage cost, not a failure. Approved entries whose label
+moves are caught by RV-C (LABEL_DRIFT) at the next scan.
+
+FIXTURES (LC-1 to LC-7): LC-1 a read calling an in-tree read-only service stays READ; LC-2 a read calling an
+in-tree service whose method saves is WRITE with the chain in the reason; LC-3 a read calling a `JmsTemplate`
+through a service is WRITE; LC-4 a `@FeignClient` GET is READ and a POST is WRITE; LC-5 `getBean` plus `invoke` is
+UNKNOWN; LC-6 a five-hop chain is UNKNOWN at the bound; LC-7 a MapStruct mapper call stays READ. Plus the three
+as-backend methods of section 10.2 relabeled in the census, and every benchmark byte-identical across IR, MCP and
+OpenAPI (the labeler never reaches the IR except through an approved draft, and none exists).
+
+OPEN DECISIONS for the maintainer, each with a recommendation:
+
+- D1, THE HOP BOUND. Recommendation: four. The counter chain needed three.
+- D2, WHERE A C2 RESOLUTION IS AMBIGUOUS (two concrete implementations of the field's interface). Recommendation:
+  UNKNOWN, named; the runtime picks one bean and the tool cannot say which.
+- D3, WHETHER C4 GET IS READ. Recommendation: READ, with the reason naming the remote call, because a GET that
+  mutates is the remote service's defect; the reason tells the reviewer a network call happens.
+
 ## 5. Future providers
 
 | Provider | Source | Why it matters |
