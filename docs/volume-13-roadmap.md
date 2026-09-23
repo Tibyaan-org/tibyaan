@@ -499,6 +499,62 @@ candidates above, which make a human sentence cheaper and safer to give, remain 
 The owed re-scan ran the same day (section 9.8): discovered 5, attested 15, mis-bound 0, attestation-drift 0,
 mis-constrained 0.
 
+### v2 direction: draft first, prove what can be proved, label the rest, gate writes (maintainer decision 2026-09-23; SPIKE DL-0 opened)
+
+THE DECISION, and whose it is. After the first real adoption (section above, and docs/experiments/as-backend-trial.md
+section 9), the maintainer judged the refusal-first, read-only v1 too narrow and too hard to use: 5 verified and 15
+attested tools on a 159-entity application, reached through 32 manual actions, 24 of them per entry, by the tool's
+own author. The maintainer considered abandoning the source-reading approach for a generic web-level tool. That
+option was assessed on 2026-09-23 against a market scan (recorded in docs/competitive-landscape.md once that file
+is refreshed; its Rindler section is stale) and refused on evidence: the generic web quadrant is the most crowded,
+most capital-heavy and least reliable one, every vendor gates writes behind a human, and the one thing found
+nowhere else in the market is what this project already has, a proof of read-only-ness from source at generation
+time. The maintainer then chose the direction below. It is a change of product philosophy, not of engine.
+
+THE SHAPE OF v2, in five clauses:
+
+1. DRAFT FIRST. Every public method of every service class becomes a candidate tool, reads and writes alike.
+   Nothing is refused for being unprovable; the structural drafting is deterministic and offline, and a
+   description sentence is left for a person or an agent to fill through the same file contract AT-4 opened.
+2. PROVE WHAT CAN BE PROVED. The discovery rules and the attestation intake are unchanged in what they prove.
+   A candidate that is a discovered capability is VERIFIED; one carried by a confirmed attestation is ATTESTED.
+   The four zero invariants (mis-bound, mis-safe, attestation-drift, mis-constrained) scope to those two tiers
+   and stay absolute there.
+3. LABEL THE REST. Read-safety (Volume 5, section 4.15.2 and 4.15.2.1) becomes the classifier of every other
+   candidate: READ when it passes, WRITE when a mutation is visible, UNKNOWN when it cannot decide. A label is
+   never a proof of meaning; it is an honest statement of what the tool could establish. The surfaces carry the
+   label, and readOnlyHint is true only on VERIFIED, ATTESTED and READ.
+4. GATE WRITES. A WRITE candidate is never served by default. It registers only behind an explicit per-name
+   allowlist; the exact-name list ratified in Volume 7, section 10 is the first member of that gate and its build
+   stands. Dry-run and confirmation are design questions for the phase that follows the spike, not for the spike.
+5. BATCH REVIEW. Review happens in a file, in one reviewable act per file, with each entry's approval explicit.
+   The per-entry-only confirmation rule of AT-4 is retired for drafts; the provenance record stays.
+
+WHAT DOES NOT CHANGE: the five abstractions, the zero-dependency core, one plugin per module, determinism of
+generation, golden tests, the fingerprint drift check, and the source-reading position itself.
+
+WHAT THIS RETIRES, named so nothing is silent: "fail loud, never guess" as a rule about EMISSION (it remains the
+rule about PROOF: a label is never upgraded to a proof by guessing); the read-only discovery boundary; the standing
+gate against any write reaching a surface; and the sentence "zero wrong bindings", which is thereafter a claim
+about the VERIFIED tier only. The constitution (CLAUDE.md rule 5's read-only clause and the refusal bias) is
+amended AFTER the spike, from its evidence, not before it; during the spike, drafts live outside the IR and no hard
+rule is touched.
+
+SPIKE DL-0, DRAFT AND LABEL (opened 2026-09-23, per the spike precedent: an unknown this big is spiked before
+anything is built on it). Scope: a `tibyan draft <source-root>` command that writes `tibyan/drafts.json`, one entry
+per public non-static method of every concrete service class, each carrying the target in the attestation target
+format, a minted name, the label (VERIFIED, ATTESTED, READ, WRITE, UNKNOWN) with its located reason, the inputs
+with their mapped types where the mapper can map them, the return type, an empty description for the reviewer, and
+review state `pending`. No IR change, no core change, no model call, deterministic, golden-tested on the example
+app. Questions: Q1, the label census on as-backend (how many candidates, how many of each label); Q2, label
+correctness, checked two ways, automatically (every discovered binding labels VERIFIED, every confirmed attestation
+target labels ATTESTED and would label READ without the record, none of the fifteen labels WRITE) and by the
+maintainer reading a sample of WRITE and READ entries; Q3, whether an approved draft, read or write, serves and
+invokes end to end through the runtime behind the gate, on the example app first. Exit: the drafts file generated on
+as-backend with the census recorded as docs/experiments/as-backend-trial.md section 10, the automatic checks of Q2
+green, and Q3 answered on the example app or explicitly deferred to DL-1 with the reason. A wrong label on any
+attested or discovered target is a spike FAILURE and stops the direction until explained.
+
 ## 4. Tier 3: direction only (production readiness and beyond)
 
 This tier is deliberately coarse: one short paragraph per item, no designs, no phase plans, no acceptance criteria. Everything here is conditional on Tier 2 proving the semantic core on real applications, meaning the benchmark discovers a meaningful share of a real app's reads with zero mis-bindings. Writing detailed plans for this tier before that proof would repeat the original roadmap's mistake.
