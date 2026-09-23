@@ -258,7 +258,7 @@ because category B is the aggregate category and in-application aggregation is w
 `remove` on local collections. So the order is: this refinement, then the E3 enum-input decision, then AT-2
 (SHAPE). The three are independent of each other in mechanism; only this one is a correctness fix.
 
-### Enum-typed capability inputs: the E3 reopening, second of the three measured blockers (DESIGNED 2026-08-04, RATIFIED; step EI-R BUILT 2026-08-05, step EI-1 pending)
+### Enum-typed capability inputs: the E3 reopening, second of the three measured blockers (DESIGNED 2026-08-04, RATIFIED; step EI-R BUILT 2026-08-05, step EI-1 BUILT 2026-09-01)
 
 E3's ratified reopening condition ("revisit only if enums become capability inputs") has FIRED, from a
 direction E3 could not see: attested PREDICATE filters take parameters, and real filters take domain enums.
@@ -414,7 +414,7 @@ were all designed, ratified and built on 2026-09-01, and every ratified attestat
 The assist that would produce drafts is deferred as a stack decision (Volume 5, section 4.15.5.1). Nothing
 was pending from the ratified sequence when the next entry's evidence arrived.
 
-### The first real attestation run: five candidates, evidence-ranked (as-backend, 2026-09-04 to 2026-09-08, NOT RATIFIED)
+### The first real attestation run: five candidates, evidence-ranked (as-backend, 2026-09-04 to 2026-09-08; candidate 1 RATIFIED 2026-09-23, the other four NOT RATIFIED)
 
 The external signal of 2026-07-12 reranked the post-v1 order. This is the second signal of that kind, and it
 comes from the event every attestation phase named as its open verification: a named human authored, read and
@@ -428,9 +428,11 @@ And five tools that read ONE table, differing only by a hardcoded constant so th
 distinguishes them, were told apart correctly by an agent reading only the attested sentences. That is the
 attestation thesis tested where it could actually fail.
 
-FIVE CANDIDATES follow, ranked by the evidence rather than by size or by readiness. NONE is ratified and none
-is a plan; rule 12 requires a design session and frozen text before any of them is built, and rule 5 governs
-the one that touches the IR. They are recorded here so the ranking is a written artifact rather than a memory.
+FIVE CANDIDATES follow, ranked by the evidence rather than by size or by readiness. Candidate 1 was designed on
+2026-09-20 and RATIFIED on 2026-09-23 (Volume 7, section 10, record at 10.10); its build is the next phase and
+its own session. The other four are not ratified and none is a plan; rule 12 requires a design session and
+frozen text before any of them is built, and rule 5 governs the one that touches the IR. They are recorded here
+so the ranking is a written artifact rather than a memory.
 
 1. PER-CAPABILITY ATTESTED EXPOSURE. Rank 1 because it is the only finding where the current design pushed a
    real adopter into a strictly LESS safe configuration than the one they wanted. All fifteen attested
@@ -442,9 +444,12 @@ the one that touches the IR. They are recorded here so the ranking is a written 
    What is wrong is that the only available answer is a global switch. The shape to design is an allowlist,
    an adopter naming the capabilities they reviewed, so that opening fifteen reads opens fifteen reads. Read
    with the caveat that controller-declared authority may be a house style rather than a general idiom.
-   DESIGNED 2026-09-20, PENDING RATIFICATION: Volume 7, section 10. Runtime only, one new property
-   `tibyan.attested.exposeReviewed` holding exact capability names, five conditions, fixtures RX-1 to RX-10,
-   a forecast gain of zero today, and five open decisions that are the maintainer's. Not ratified, not built.
+   DESIGNED 2026-09-20, RATIFIED 2026-09-23 AS WRITTEN: Volume 7, section 10, record at 10.10. Runtime only,
+   one new property `tibyan.attested.exposeReviewed` holding exact capability names, five conditions, fixtures
+   RX-1 to RX-10, a forecast gain of zero today, and the five decisions of 10.9 standing at their recommendations
+   by ratification as written (fail startup, name only, a bare list plus one SECURITY.md sentence, the global
+   flag kept with a WARN, the property name). NOT BUILT: the build is the next phase and its own session, and it
+   opens with the maintainer's discussion, then a re-read of 10.9 and 10.10, before code.
 
 2. THE DRAFT PROVENANCE PAIR. Two defects in one record shape, and they belong to one design session because
    they are the same question asked twice: who said this, and when did they say it. First, intake checks

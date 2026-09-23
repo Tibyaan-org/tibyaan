@@ -206,11 +206,15 @@ unknown method naming the arity; the legal-value set read from the enum and neve
 non-enum carrying none; and a CHARACTER-EXACT replica of the real pms `CostCategory` declaration proving all
 eight literals in declaration order, that `renovation` matches, and that `RENOVATION` does not.
 
-## 10. Per-capability attested exposure (phase Reviewed Exposure; designed 2026-09-20, PENDING RATIFICATION)
+## 10. Per-capability attested exposure (phase Reviewed Exposure; designed 2026-09-20, RATIFIED 2026-09-23, build pending)
 
-STATUS: DESIGNED, NOT RATIFIED, NOT BUILT. Under rule 12 nothing in this section may be implemented until
-the maintainer ratifies it, and the open decisions in section 10.9 are the maintainer's to settle first.
-The build is a separate later session.
+STATUS: RATIFIED 2026-09-23 AS WRITTEN, NOT BUILT. The maintainer ratified this section on 2026-09-23 without
+amendment, so the five decisions of section 10.9 stand at their recommended values, recorded one by one in
+section 10.10. Under rule 12 this frozen text is committed before any code, in a session that built nothing.
+The build is a separate later session (one phase per session). It OPENS with the maintainer's discussion, whose
+subject the maintainer has not yet stated, then re-reads sections 10.9 and 10.10; any amendment to this section
+that the discussion produces is recorded in section 10.10, dated, before the first line of code, never during
+the build.
 
 ### 10.1 The evidence
 
@@ -375,3 +379,41 @@ any adopter who has even one unverifiable capability they did not review.
   application.
 - D5, THE PROPERTY NAME. Recommendation: `tibyan.attested.exposeReviewed`, beside the three controls it
   joins. `Reviewed` names the act the adopter is performing, which `allow` or `names` would not.
+
+### 10.10 Ratification record (2026-09-23)
+
+Ratified by the maintainer on 2026-09-23, as written, in a session that built nothing. Rule 12 is the reason
+for the separate commit: the frozen design lands before implementation begins, so the build implements the
+ratified rule rather than the rule drifting to fit the build.
+
+WHAT IS RATIFIED: the runtime-only scope and the not-reopened list of section 10.2; the rule and conditions X1
+to X5 of section 10.3; the refusal of the record-field alternative in section 10.4; the meaning of "reviewed"
+and its honest residue in section 10.5; the startup logging of section 10.6, with the incidental defect
+recorded there fixed in the build as a rule-13 diagnostic amendment; fixtures RX-1 to RX-10 as the build's
+pre-registered tests; and the forecast of section 10.8, a measured gain of zero today and byte-identical
+benchmarks by construction.
+
+THE FIVE DECISIONS of section 10.9, each standing at its recommendation because the section was ratified as
+written, none separately chosen:
+
+- D1: an X2, X3 or X5 violation FAILS STARTUP with a located error naming the entry.
+- D2: the list pins the NAME ONLY. The residue of section 10.5 stands recorded; fingerprinting the fronting
+  declaration is a provider phase with its own evidence bar, not this one.
+- D3: a BARE LIST, no provenance fields. The build adds one sentence to docs/SECURITY.md: the host's version
+  control is the record of who opened what, and when.
+- D4: the global flag `tibyan.attested.exposeSecurityUnverifiable` is KEPT, unchanged in meaning and default,
+  and gains the WARN of section 10.6.
+- D5: the property is `tibyan.attested.exposeReviewed`.
+
+THE OPENING OF THE BUILD SESSION. The maintainer has things to discuss before the build starts; what they are
+is not recorded here. The build session therefore begins with that discussion, then with sections 10.9 and
+10.10, and either confirms the five values above or records an amendment here, dated, before code. A decision changed after code has started is exactly the drift
+rule 12 exists to prevent.
+
+THE EXIT CRITERION, restated from sections 10.6 to 10.9 so the build session knows when it is done, adding
+nothing to them: RX-1 to RX-10 green as tests in the runtime module; the startup line of section 10.6 names
+only registered capabilities, with the fix flagged as a rule-13 amendment in that session's summary;
+docs/SECURITY.md carrying the D3 sentence; every benchmark byte-identical across serialized IR, generated MCP
+output and generated OpenAPI document against a worktree at the pre-build commit, with the five counts of
+section 10.8 unmoved; and on as-backend, with the fifteen names listed per hosting service and the global flag removed from the local
+profile, the same fifteen registered, which is the forecast gain of zero reported as zero.
