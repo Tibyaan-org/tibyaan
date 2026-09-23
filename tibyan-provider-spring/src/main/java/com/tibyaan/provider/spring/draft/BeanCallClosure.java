@@ -67,9 +67,21 @@ public final class BeanCallClosure {
     // their import package (java.*), see isPureLibraryType.
     private static final Set<String> PURE_TYPES = Set.of(
             "ObjectMapper", "Clock", "Logger", "String", "Integer", "Long", "Boolean", "Double", "BigDecimal",
-            "List", "Map", "Set", "Optional", "Collection");
+            "List", "Map", "Set", "Optional", "Collection",
+            // DL-1.2 A3 (section 4.17.16): computations over their arguments.
+            "Gson", "PasswordEncoder");
 
-    private static final Set<String> STEREOTYPES = Set.of("Service", "Component", "Repository");
+    // DL-1.2 A1: a configuration class is a bean, so an abstract config resolves to its configured subclass.
+    private static final Set<String> STEREOTYPES = Set.of("Service", "Component", "Repository",
+            "Configuration", "ConfigurationProperties");
+
+    // DL-1.2 A2: a provider field is transparent; these calls obtain the bean and mutate nothing.
+    private static final Set<String> PROVIDER_TYPES = Set.of("ObjectProvider", "Provider", "Supplier");
+    private static final Set<String> PROVIDER_GETTERS = Set.of("get", "getObject", "getIfAvailable", "getIfUnique");
+
+    // DL-1.2 A4: fluent HTTP clients carry their verb in the call.
+    private static final Set<String> FLUENT_CLIENTS = Set.of("RestClient", "WebClient");
+    private static final Set<String> FLUENT_MUTATING_VERBS = Set.of("post", "put", "patch", "delete");
 
     private static final Set<String> REFLECTIVE_CALLS = Set.of("getBean", "getDeclaredMethod");
 
@@ -159,6 +171,20 @@ public final class BeanCallClosure {
                     continue;
                 }
                 Optional<String> field = fieldReceiver(call, fieldTypes, shadowing);
+                if (field.isEmpty() && cu.isPresent()) {
+                    // DL-1.2 A2: a call chained directly on a provider's result, provider.getIfAvailable().m(), is
+                    // classified as a call on a field of the provided type T.
+                    Optional<String> provided = providedType(call, fieldTypes, shadowing);
+                    if (provided.isPresent()) {
+                        Finding one = classifyFieldCall(call, providerFieldName(call), provided.get(), cu.get(), path,
+                                hops, chain, remoteReads);
+                        worst = worse(worst, one);
+                        if (worst.severity() == Severity.WRITE) {
+                            return worst;
+                        }
+                        continue;
+                    }
+                }
                 if (field.isEmpty() && isSelfCall(call) && !isHelper(call, helpers)) {
                     // Build decision (section 4.17.15): a call to the same class's own non-helper method (an overload,
                     // a public delegate) is followed within the bean without counting a hop. Without it the counter
@@ -198,6 +224,12 @@ public final class BeanCallClosure {
             return new Finding(Severity.WRITE, where + " goes to " + simple
                     + ", an external effect (bean-call closure, section 4.17.14, C3)");
         }
+        if (PROVIDER_TYPES.contains(simple)) {
+            // DL-1.2 A2: obtaining the bean is READ; what is then called on it is classified by the caller.
+            return PROVIDER_GETTERS.contains(call.getNameAsString())
+                    ? Finding.read()
+                    : new Finding(Severity.UNKNOWN, where + " is not a provider lookup (A2)");
+        }
         if (simple.equals("RestTemplate")) {
             if (call.getNameAsString().startsWith("getFor")) {
                 remoteReads.add("RestTemplate." + call.getNameAsString() + " in " + chain);
@@ -205,12 +237,18 @@ public final class BeanCallClosure {
             }
             return new Finding(Severity.UNKNOWN, where + " is a RestTemplate call that is not a GET (C4)");
         }
-        if (simple.equals("WebClient")) {
-            if (call.getNameAsString().equals("get")) {
-                remoteReads.add("WebClient.get in " + chain);
+        if (FLUENT_CLIENTS.contains(simple)) {
+            // DL-1.2 A4: the verb is explicit in the call, exactly as on a Feign method.
+            String verb = call.getNameAsString();
+            if (verb.equals("get")) {
+                remoteReads.add(simple + ".get in " + chain);
                 return Finding.read();
             }
-            return new Finding(Severity.UNKNOWN, where + " is a WebClient call that is not a GET (C4)");
+            if (FLUENT_MUTATING_VERBS.contains(verb)) {
+                return new Finding(Severity.WRITE, where + " is a " + simple + " " + verb.toUpperCase()
+                        + ", a remote mutation (C4, A4)");
+            }
+            return new Finding(Severity.UNKNOWN, where + " is a " + simple + " call whose verb is not explicit (C4)");
         }
 
         Resolved resolution = resolveType(declaredType, cu);
@@ -246,8 +284,21 @@ public final class BeanCallClosure {
                         + "' has no in-tree stereotyped implementation (C6)");
             }
             if (impls.size() > 1) {
-                return new Finding(Severity.UNKNOWN, where + ": '" + simple + "' has " + impls.size()
-                        + " in-tree implementations and the runtime picks one (C2, decision D2)");
+                // DL-1.2 A5 (D2 amended): the runtime picks one implementation, so the label is sound whichever it
+                // picks only if every implementation is labeled and the most severe wins.
+                Finding worst = Finding.read();
+                List<String> parts = new ArrayList<>();
+                for (ClassOrInterfaceDeclaration impl : impls) {
+                    Finding one = recurse(call, impl, where, path, hops, chain);
+                    parts.add(impl.getNameAsString() + " " + one.severity());
+                    worst = worse(worst, one);
+                }
+                if (worst.severity() == Severity.READ) {
+                    return Finding.read();
+                }
+                return new Finding(worst.severity(), where + ": '" + simple + "' has " + impls.size()
+                        + " in-tree implementations (" + String.join(", ", parts) + "), the most severe wins"
+                        + " (C2, decision D2 as amended by A5); " + worst.reason());
             }
             bean = impls.get(0);
         }
@@ -367,6 +418,35 @@ public final class BeanCallClosure {
         }
         Resolved r = resolveType(type.getExtendedTypes(0).getNameAsString(), cu.get());
         return r.fqcn() != null ? byFqcn.get(r.fqcn()) : null;
+    }
+
+    // DL-1.2 A2: for a call whose scope is provider.get*() on a provider-typed field, the provided type T.
+    private static Optional<String> providedType(MethodCallExpr call, Map<String, String> fieldTypes,
+                                                 Set<String> shadowing) {
+        if (call.getScope().isEmpty() || !call.getScope().get().isMethodCallExpr()) {
+            return Optional.empty();
+        }
+        MethodCallExpr inner = call.getScope().get().asMethodCallExpr();
+        if (!PROVIDER_GETTERS.contains(inner.getNameAsString())) {
+            return Optional.empty();
+        }
+        Optional<String> field = fieldReceiver(inner, fieldTypes, shadowing);
+        if (field.isEmpty()) {
+            return Optional.empty();
+        }
+        String declared = fieldTypes.get(field.get());
+        if (!PROVIDER_TYPES.contains(simpleName(declared))) {
+            return Optional.empty();
+        }
+        int lt = declared.indexOf('<');
+        int gt = declared.lastIndexOf('>');
+        return lt >= 0 && gt > lt ? Optional.of(declared.substring(lt + 1, gt).trim()) : Optional.empty();
+    }
+
+    private static String providerFieldName(MethodCallExpr call) {
+        MethodCallExpr inner = call.getScope().get().asMethodCallExpr();
+        return inner.getScope().map(s -> s.isNameExpr() ? s.asNameExpr().getNameAsString()
+                : s.asFieldAccessExpr().getNameAsString()).orElse("provider") + "." + inner.getNameAsString() + "()";
     }
 
     private static boolean isSelfCall(MethodCallExpr call) {
