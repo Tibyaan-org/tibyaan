@@ -2331,10 +2331,9 @@ IR, MCP and OpenAPI against a worktree at fd64243. The adopter's uncommitted `ti
 through the merge: 243 entries carry `previousLabel`, all 990 stay pending, the 11 prepared descriptions survive.
 
 
-#### 4.17.16 DL-1.2: the closed-set amendment of the bean-call closure (designed 2026-09-23, PENDING RATIFICATION)
+#### 4.17.16 DL-1.2: the closed-set amendment of the bean-call closure (designed 2026-09-23, RATIFIED 2026-09-24 as written, build pending)
 
-STATUS: DESIGNED, NOT RATIFIED, NOT BUILT. It changes labels, so under rule 12 it takes its own ratification before
-code. It amends section 4.17.14's closed sets and one of its decisions; the mechanism is unchanged.
+STATUS: RATIFIED 2026-09-24 AS WRITTEN by the maintainer, committed before code (rule 12). It amends section 4.17.14's closed sets and one of its decisions; the mechanism is unchanged.
 
 THE EVIDENCE, from the DL-1.1 census on as-backend (section 4.17.15; docs/experiments/as-backend-trial.md section
 10.3). Of the 362 UNKNOWN labels, 123 are C6 (a field type the closure cannot place) and 96 are C2. Read by type:
