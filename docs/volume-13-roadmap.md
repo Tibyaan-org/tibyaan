@@ -571,7 +571,7 @@ deferred to DL-2 by name. Ratified 2026-09-23 and BUILT 2026-09-23 (build record
 reviewed tier, the write gate and Volume 7 section 10 are in the tree, the three benchmarks are byte-identical,
 and the example app's write runs end to end behind the gate. The reading sample then ran (as-backend-trial.md
 section 10.2): 3 of 30 READ labels hide a write through a call into another bean. DL-1.1, the bean-call closure of
-the READ label, is DESIGNED and PENDING RATIFICATION (Volume 5 section 4.17.14) and ranks next.
+the READ label, is DESIGNED and RATIFIED 2026-09-23 as written (Volume 5 section 4.17.14) and is the next build.
 
 ## 4. Tier 3: direction only (production readiness and beyond)
 

@@ -2215,11 +2215,11 @@ registered), which needs the adopter's services running; dry run and in-runtime 
 name); collection inputs (DL-2).
 
 
-#### 4.17.14 DL-1.1: the bean-call closure of the READ label (designed 2026-09-23, PENDING RATIFICATION)
+#### 4.17.14 DL-1.1: the bean-call closure of the READ label (designed 2026-09-23, RATIFIED 2026-09-23 as written, build pending)
 
-STATUS: DESIGNED, NOT RATIFIED, NOT BUILT. It changes labels, which are matching outcomes, so under rule 12 it
-takes its own ratification before any code, exactly as the read-safety receiver-awareness refinement did
-(section 4.15.2.1).
+STATUS: RATIFIED 2026-09-23 AS WRITTEN by the maintainer, so D1 to D3 stand at their recommendations: a hop bound of
+four, UNKNOWN on an ambiguous C2 resolution, and READ for a remote GET with the call named in the reason. It changes
+labels, which are matching outcomes, so under rule 12 this record is committed before any code.
 
 THE EVIDENCE. The reading sample of docs/experiments/as-backend-trial.md section 10.2: 3 of 30 sampled READ labels
 hide a write or an external effect, and all three are calls into another bean (a JMS publisher, a counter service
