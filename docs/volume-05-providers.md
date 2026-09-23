@@ -2330,6 +2330,63 @@ The C6 list is the evidence for the next amendment of the closed sets.
 IR, MCP and OpenAPI against a worktree at fd64243. The adopter's uncommitted `tibyan/drafts.json` was re-drafted
 through the merge: 243 entries carry `previousLabel`, all 990 stay pending, the 11 prepared descriptions survive.
 
+
+#### 4.17.16 DL-1.2: the closed-set amendment of the bean-call closure (designed 2026-09-23, PENDING RATIFICATION)
+
+STATUS: DESIGNED, NOT RATIFIED, NOT BUILT. It changes labels, so under rule 12 it takes its own ratification before
+code. It amends section 4.17.14's closed sets and one of its decisions; the mechanism is unchanged.
+
+THE EVIDENCE, from the DL-1.1 census on as-backend (section 4.17.15; docs/experiments/as-backend-trial.md section
+10.3). Of the 362 UNKNOWN labels, 123 are C6 (a field type the closure cannot place) and 96 are C2. Read by type:
+
+| Cause | Count | What it is in the adopter |
+|---|---|---|
+| `ObjectProvider<T>` field, `getIfAvailable` | 54 | Spring's lazy bean provider; the call obtains a bean, it mutates nothing |
+| an abstract config class with no stereotyped subclass | 31 | its one subclass is `@Configuration @ConfigurationProperties`; the called methods are property getters and a Base64 encoding of two of them |
+| `Gson` | 19 | `toJson` 18, `fromJson` 1: pure serialization |
+| `RestClient` (Spring 6.1) | 15 | `get` 14, `post` 1: the verb is explicit in the call |
+| `PasswordEncoder` | 4 | `matches` and `encode`: pure computation |
+| two implementations of one proxy interface (D2) | 77 | a local implementation and a Feign one, chosen by profile |
+| no single method of that name and arity on the bean | 18 | same-arity overloads |
+
+THE AMENDMENT, five clauses, each traceable to a row above:
+
+- A1, CONFIGURATION IS A BEAN. `@Configuration` and `@ConfigurationProperties` join the C2 stereotype set, so an
+  abstract config class resolves to its one configured subclass and its getters are followed. A getter with no
+  in-tree body (a Lombok accessor) is READ, as any bodiless same-class method already is.
+- A2, PROVIDERS ARE TRANSPARENT. A call to `getObject`, `getIfAvailable`, `getIfUnique` or `get` on a field typed
+  `ObjectProvider<T>`, `Provider<T>` or `Supplier<T>` is READ in itself, and a call chained directly on its result
+  (`provider.getIfAvailable().m()`) is classified as a call on a field of type T. A provider result stored in a
+  local and called later is not followed, exactly as no local receiver is followed today; that residue is named.
+- A3, THE PURE SET GAINS `Gson` and `PasswordEncoder`. Both are computations over their arguments. The set stays
+  closed; `ObjectMapper` was already in it.
+- A4, FLUENT HTTP CLIENTS GO BY THEIR VERB. On a field typed `RestClient` or `WebClient`, `get` is READ with the
+  call named (as C4 already says for `WebClient`), and `post`, `put`, `patch` and `delete` are WRITE, because the
+  verb is explicit in the call exactly as it is on a Feign method. `RestTemplate` keeps its C4 rule: its verb is an
+  argument to `exchange`, so anything but `getFor*` stays UNKNOWN.
+- A5, DECISION D2 AMENDED: AN AMBIGUOUS IMPLEMENTATION TAKES THE WORST LABEL ACROSS ALL OF THEM. The runtime picks
+  one implementation, and the label is sound whichever it picks only if every implementation is labeled and the
+  most severe wins: all READ gives READ, any WRITE gives WRITE, otherwise UNKNOWN, with the reason naming every
+  implementation and its label. This is stricter than the ratified D2 in one direction (a WRITE in any
+  implementation now surfaces) and looser in the other (77 profile-selected proxies whose implementations all
+  read stop being UNKNOWN). The 18 same-arity overload cases stay UNKNOWN: nothing in the call decides which.
+
+FORECAST, to be checked by the build: C6 falls from 123 to about 3 (the two static-call cases and `Files` stay);
+C2 falls from 96 to about 19 (the overloads and any mixed-label pair); READ rises and WRITE rises by the split of
+the 200 addressed entries, which the build reports exactly. The 22 audited pure reads that kept READ keep it; of
+the 5 that dropped, the abstract-config three and the `RestClient` one return to READ under A1 and A4, and the D2
+one returns to READ if both implementations read. The three false READs of section 10.2 stay caught: none of the
+five clauses touches C3 or C5. Every benchmark byte-identical, by construction as in 4.17.15.
+
+FIXTURES LA-1 to LA-6: LA-1 a `@ConfigurationProperties` subclass of an abstract config, its getter is READ; LA-2
+`provider.getIfAvailable().save()` on an `ObjectProvider<Repo>` is WRITE, and `provider.getIfAvailable()` alone is
+READ; LA-3 `gson.toJson` and `encoder.matches` are READ; LA-4 `restClient.get()` is READ with the call named and
+`restClient.post()` is WRITE; LA-5 two implementations that both read give READ, one that writes gives WRITE, one
+that is UNKNOWN gives UNKNOWN; LA-6 two same-arity overloads stay UNKNOWN. Plus the as-backend re-census against
+the forecast above.
+
+No open decisions: each clause is a closed-set change with one honest reading of its evidence.
+
 ## 5. Future providers
 
 | Provider | Source | Why it matters |
