@@ -61,6 +61,7 @@ Note on the version: the latest released artifact is `0.3.0`, and a local build 
 | `scan` | Resiliently survey a system's source into a Capability IR (never aborts on a bad file). |
 | `generate` | Generate a backend (MCP or OpenAPI) from an IR file, or by scanning a path (strict). |
 | `attest` | Stamp fingerprints into the attestations file, and confirm one drafted entry. |
+| `draft` | Draft a labeled candidate tool for every public service method, reads and writes, into `tibyan/drafts.json` (DL-0 and DL-1). |
 | `validate` | Validate an IR JSON file without generating. |
 | `version` | Print the tool and IR schema versions. |
 
@@ -251,6 +252,54 @@ relaxed later (Volume 5, section 4.15.5):
 | 3 | The scan could not run: the path is missing or cannot be walked. |
 
 ---
+
+## `tibyan draft`
+
+Drafts a candidate tool for EVERY public method of every concrete `@Service` class, reads and writes alike,
+labeled by what the tool could establish, and writes the reviewable `tibyan/drafts.json` beside the source
+(spike DL-0; the record of phase DL-1, Volume 5 section 4.17). It serves nothing by itself: an entry ships only
+after a named human approves it in the file and `tibyan scan` admits it.
+
+### Synopsis
+
+```
+tibyan draft <path> [--out <drafts.json>]
+```
+
+### What each entry carries
+
+The tool writes `name` (a minted default you may rename), `target`, `binding`, `label`, `reason`, `capability`
+(when the label is VERIFIED or ATTESTED), `returnType`, `inputs` (each with its Java type and the mapped
+primitive, or `null` when the mapper cannot map it), and `fingerprint`, the pin of the code you approve.
+You write `description` (the sentence the tool never authors), `descriptionOrigin` (`human`, or `ai-draft` when
+an agent wrote it), `review` (`approved` or `rejected`; the tool writes `pending`), `reviewedBy` and
+`reviewedOn`.
+
+The five labels: `VERIFIED` (a discovered binding), `ATTESTED` (a confirmed attestation target), `READ` (no
+mutation visible in the analyzed slice), `WRITE` (a mutation is visible), `UNKNOWN` (the check could not
+decide, or the method returns nothing). A label is what the tool could establish, never a proof of meaning.
+
+### Re-running
+
+Re-running merges and never overwrites: your review fields are kept, new methods are appended as pending, a
+target that no longer exists is marked `stale` in place, and an entry whose recomputed label differs from the
+one you approved gets `previousLabel` and its review RESET to `pending`, because you approved something else.
+
+### What happens at `tibyan scan`
+
+Every `approved` entry is checked (Volume 5 section 4.17.3) and either admitted as `reviewed_<name>` or refused
+with a located cause: `TARGET_UNRESOLVED`, `STALE_DRAFT`, `LABEL_DRIFT`, `SUPERSEDED` (the target is already a
+verified or attested capability), `INPUT_UNMAPPED` (a collection or DTO parameter; collection inputs are
+deferred to DL-2), `REVIEW_INCOMPLETE`. The survey prints `reviewed N` beside `discovered` and `attested`,
+never summed, plus the pending and refused draft counts. A WRITE or ACTION capability then registers at the
+runtime only when its exact name is in `tibyan.writes.allow` (docs/SECURITY.md, the write gate).
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | The drafts file was written. |
+| 3 | The source root could not be read at all. |
 
 ## `tibyan validate`
 

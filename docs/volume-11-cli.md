@@ -224,7 +224,7 @@ The build plugin is the one exception, and deliberately so (section 3.1.1, ratif
 
 Future commands follow the same rule: they call the pipeline or the plugin registry, and they hold no compiler logic themselves.
 
-## 3.5 `tibyan draft` and the reviewed tier in the survey (spike DL-0 built 2026-09-23; phase DL-1 designed and RATIFIED 2026-09-23, build pending)
+## 3.5 `tibyan draft` and the reviewed tier in the survey (spike DL-0 and phase DL-1 both built 2026-09-23)
 
 `tibyan draft <path> [--out <drafts.json>]` writes `tibyan/drafts.json`: one entry per public method of every
 concrete `@Service` class, labeled VERIFIED, ATTESTED, READ, WRITE or UNKNOWN with the located reason (built in

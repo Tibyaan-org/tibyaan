@@ -567,7 +567,10 @@ CLI in Volume 11 section 3.5. The drafts file becomes the record, review is a ba
 proves eight conditions (RV-A to RV-H) before an approved entry enters the IR as `reviewed_<name>` with a `Review`
 component, WRITE and ACTION exist behind an exact-name write gate, and section 4.17.9 lists the six constitution
 changes the ratification decides. Six open decisions (D1 to D6) carry recommendations; collection inputs are
-deferred to DL-2 by name. Ratified, not built.
+deferred to DL-2 by name. Ratified 2026-09-23 and BUILT 2026-09-23 (build record Volume 5 section 4.17.13): the
+reviewed tier, the write gate and Volume 7 section 10 are in the tree, the three benchmarks are byte-identical,
+and the example app's write runs end to end behind the gate. The next evidence is the maintainer's reading sample
+and the first real approvals on as-backend.
 
 ## 4. Tier 3: direction only (production readiness and beyond)
 

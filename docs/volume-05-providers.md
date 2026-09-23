@@ -1886,9 +1886,10 @@ DECISION 4: `mis-constrained 0` IS REPORTED ONLY WHERE A CONSTRAINT EXISTS. The 
 MEASURED (2026-09-01), and the forecast of section 4.16.9 held: pms 5 discovered, erp 35, as-backend 5, with the serialized IR, the generated MCP output and the generated OpenAPI document all BYTE-IDENTICAL to a worktree built at the pre-build commit. DISCOVERED IS BYTE-IDENTICAL BY CONSTRUCTION, not merely by measurement, for the reason section 4.16.9 gives. The one measured change on any benchmark is pms's survey gaining two `enum-parsed-in-body` lines, both of them WRITES (`LeaseServiceImpl#updateStatus`, `LeaseSigningServiceImpl#applyWebhookUpdate`), correctly named as visible-and-unconstrained rather than refused. erp and as-backend produce no such lines.
 
 WHAT IS STILL GATED ON AN ATTESTER, restated so the payoff is not misread as delivered. erp's 10 enum-parameter reads (section 4.16.9) become ATTESTABLE by this build, not attested: erp has no record file, so attested stays 0. This is the first phase whose payoff is gated on a human authoring entries rather than on a further build, and the tool does not and will not author them.
-### 4.17 DL-1: reviewed drafts, the third tier and the write gate (v2 direction; designed 2026-09-23, RATIFIED 2026-09-23 as written, build pending)
+### 4.17 DL-1: reviewed drafts, the third tier and the write gate (v2 direction; designed and RATIFIED 2026-09-23 as written; BUILT 2026-09-23, build record at 4.17.13)
 
-STATUS: RATIFIED 2026-09-23 AS WRITTEN, NOT BUILT. The maintainer ratified this section without amendment, so the six
+STATUS: RATIFIED 2026-09-23 AS WRITTEN AND BUILT THE SAME DAY (build record, decisions and measurements at section
+4.17.13). The maintainer ratified this section without amendment, so the six
 decisions of section 4.17.11 stand at their recommendations (recorded one by one in section 4.17.12) and the six
 constitution changes of section 4.17.9 are ratified with it. Under rule 12 this frozen text is committed before any
 code; the build is its own later session. This is the phase the v2 direction (Volume 13 section 3) names as the one
@@ -2008,10 +2009,13 @@ deliberately and are re-baselined in the build.
 - HINTS. The tool definition carries `readOnlyHint` true for verified, attested and reviewed READ tools, and
   `readOnlyHint` false with `destructiveHint` true for WRITE and ACTION, so a client that gates on hints (the
   directory policy and the coding agents do) asks before a write. Carriage depends on the pinned stack exposing tool
-  annotations through the Spring AI callback path; a look at the pinned MCP SDK jar (0.18.3) found no annotation
-  class, so the build must verify it, and if the pinned versions cannot carry hints, the name prefix and the first
-  sentence remain the channel (they are already the E6b channel) and the hint follows the Volume 16 stack bump,
-  recorded as a gap.
+  annotations through the Spring AI callback path. VERIFIED AT BUILD (2026-09-23): the pinned MCP SDK 0.18.3 DOES
+  carry them (`McpSchema.ToolAnnotations` with readOnlyHint and destructiveHint exists in mcp-core), but the Spring
+  AI 1.0.9 bridge does not: `ToolDefinition` has name, description and inputSchema only, and
+  `McpToolUtils.toSyncToolSpecification` never sets annotations. So the hints are NOT carried in DL-1; the name
+  prefix and the first sentence remain the channel (they are already the E6b channel), a tripwire test fails the
+  day a stack bump adds an annotations surface, and the alternative path the pinned stack does offer (registering
+  `McpServerFeatures.SyncToolSpecification` beans directly) is recorded for the Volume 16 session.
 - STARTUP HONESTY. The startup log names every WRITE and ACTION it did NOT register with the reason
   `write-not-allowed`, beside section 10's exclusion reasons, and the registered-names defect of section 10.6 is
   fixed in the same place.
@@ -2124,6 +2128,91 @@ re-baselined), runtime (the gate, the composition, the hints check), CLI (the su
 write method and the end-to-end write behind the gate (RV-2), then the benchmark byte-identity check against a
 worktree at the pre-build commit. The maintainer's reading sample of the drafts file is the first real measurement
 and is recorded in as-backend-trial.md section 10 whenever it is done, before or after the build.
+
+
+#### 4.17.13 DL-1 build record (BUILT 2026-09-23)
+
+Built in the session that ran spike DL-0, designed and ratified this section, at the maintainer's explicit
+instruction. THAT BREAKS THE ONE-PHASE-PER-SESSION RULE and is recorded here as a process exception, not a
+precedent: the maintainer directed "start building DL-1" after ratifying it in the same session. Rule 12 held:
+the frozen text (commit 89b3441) landed before any DL-1 code.
+
+WHAT IS BUILT, by layer, in the order section 4.17.12 gives:
+
+- CORE. `Review(label, reviewedBy, reviewedOn, descriptionOrigin, fingerprint)` and `ReviewLabel` (READ, WRITE,
+  UNKNOWN, each mapping to a kind); `Capability` gains the optional `review` component, `hasReview()` and the
+  `Capability.reviewed(...)` factory that sets kind from the label and readOnly only for READ. Validation rules 12
+  and 13 as ratified, plus two guards rule 12 implies: a capability is in exactly one tier (never both a review
+  and an attestation), and the kind must equal the label's kind. `tibyan-core` stays zero-dependency.
+- PROVIDER. The drafts record of 4.17.2 (fingerprint stamped over the attestation slice, equal by test to
+  `attestationFingerprint`), the merge, and `DraftIntake` with RV-A to RV-H, wired into `scan` after the attestation
+  intake and before the section 4.14 security composition. `ScanReport` gains the draft refusals, the pending count
+  and `reviewedCount()`.
+- BACKENDS. Manifest `kind` (emitted only when not READ), `tier`, `review{}`, and the class as the first sentence;
+  OpenAPI GET for reviewed reads and POST for WRITE and ACTION. Every existing golden file is byte-identical and
+  new golden cases cover the reviewed shapes.
+- RUNTIME. `tibyan.reviewed.expose`, `tibyan.writes.allow` and `tibyan.security.exposeUnverifiable`, both lists
+  bound through the Spring `Binder` and checked at startup under section 10's X1 to X5, the gate with its five
+  exclusion reason tokens, and startup honesty. THIS ALSO BUILDS VOLUME 7 SECTION 10 under its D5 amendment: the
+  exact-name security list, RX-1 to RX-10, the WARN, and the registered-names fix.
+- CLI. `tibyan draft` merges into an existing file; `tibyan scan` prints the reviewed tier, the draft refusals and
+  the pending count, and the Totals line gains `reviewed N` and `review-drift 0` only where they apply.
+- END TO END (RV-2, the Q3 the spike deferred). The example app gains one write, `ProductService#rename`. An
+  integration test drafts it, approves it in the file, scans, generates, and starts the packaged app twice: without
+  the allow list the tool is not advertised; with its exact name listed it runs against the real H2 store and the
+  verified `getProduct` read observes the change.
+
+BUILD DECISIONS, each a place where the ratified text did not decide and the build had to, recorded so the
+text and the code do not diverge silently:
+
+1. THE ATTESTED GLOBAL SWITCH IS ATTESTED-ONLY. `tibyan.attested.exposeSecurityUnverifiable` never opens a
+   reviewed capability; a security-unverifiable reviewed capability opens only by exact name in
+   `tibyan.security.exposeUnverifiable`. The switch's name says attested, and widening it to a tier that did not
+   exist when it shipped in 0.3.0 would be the silent widening section 10 exists to remove.
+2. AN APPROVED ENTRY KEEPS THE FINGERPRINT THE REVIEWER APPROVED. A re-run of `tibyan draft` re-pins pending and
+   rejected entries only; an approved entry whose body changed is refused STALE_DRAFT at scan until a person
+   re-approves it. Re-pinning an approval on a re-run would let a changed body ship under an old signature.
+3. RV-6 FIRES ONLY WHERE THE SLICES DIFFER. Any edit inside the method body changes the fingerprint, so RV-B
+   refuses first. LABEL_DRIFT therefore fires when the label moves through code the fingerprint slice does not
+   cover, such as the one-hop private helper read-safety follows. That gap between the labeled slice and the
+   fingerprinted slice is real and is exactly the case RV-C exists for; the test pins it.
+4. NAMES. A reviewer may rename an entry, so intake refuses as REVIEW_INCOMPLETE an empty or non-identifier name,
+   a name already carrying `reviewed_`, and a name colliding with an existing capability. A new candidate whose
+   minted name collides with a reviewer's name takes a numeric suffix; a reviewer's name is never changed.
+5. OUTPUTS. `void` and an undescribable return carry the placeholder output STRING with a `void` or
+   `opaqueOutput` annotation, and both surfaces disclose it (manifest `void: true` or `opaqueOutput: <type>`;
+   OpenAPI 204, or the permissive object of Volume 6 section 4.1). `List`, `Set` and `Collection` of an element
+   set `outputMultiple`; `Page`, `Optional` and `Iterable` are opaque.
+6. THE DESCRIPTION rides an annotation named `description` on the reviewed capability, because `Review` has no
+   sentence slot and the backends already read annotations; the reviewer's words are carried verbatim.
+7. OPENAPI PATHS for reviewed operations are `/reviewed/<name>` with every input a query parameter (GET) or a
+   JSON body (POST), because nothing proves a reviewed input is an identifier, so no entity path is derived.
+8. THE RUNTIME REFUSES A MANIFEST that carries a WRITE or ACTION without the reviewed tier, or an unknown kind, at
+   startup: the runtime-side mirror of rule 12.
+9. THE IR ACCESSOR is `Review.complete()`, not `isComplete()`: an is-prefixed method is serialized by the IR mapper
+   and broke the round-trip, the trap `Capability.hasAttestation` already documents. Caught by the integration test.
+
+RULE-13 AMENDMENT, flagged: the startup line "registered N MCP tool(s)" now names only the registered tools and each
+excluded tool is logged with its reason. No registration outcome changed.
+
+THE HINTS GAP, measured: the pinned MCP SDK 0.18.3 has `McpSchema.ToolAnnotations`, but the Spring AI 1.0.9 bridge
+never sets it (`ToolDefinition` carries name, description and schema only; `McpToolUtils.toSyncToolSpecification`
+never calls `annotations`). readOnlyHint and destructiveHint are NOT carried. The name prefix and the first sentence
+carry the tier; a tripwire test fails when a stack bump adds the surface; registering `SyncToolSpecification` beans
+directly is the recorded option for a Volume 16 session.
+
+MEASURED (2026-09-23): `mvn clean verify` green across 12 modules; tests core 38, pipeline 10, provider 235,
+backend-mcp 14, backend-openapi 13, runtime 68, cli 16, maven-plugin 2, integration 5 (3 existing, 2 new).
+pms, erp and as-backend are BYTE-IDENTICAL across the serialized IR, the generated MCP output and the generated
+OpenAPI document, by `diff -r` against a worktree at the pre-build commit 89b3441; none carries an approved draft.
+All counters unmoved: discovered 5 / 37 / 5, attested 0 / 0 / 15, mis-bound 0, attestation-drift 0,
+mis-constrained 0.
+
+NOT DONE, named: the maintainer's reading sample of the as-backend drafts file (the first real measurement of
+the READ label, still owed); the as-backend runtime check of section 10.10's exit criterion (the fifteen names in
+`tibyan.security.exposeUnverifiable` with the global flag removed from the local profile, the same fifteen
+registered), which needs the adopter's services running; dry run and in-runtime confirmation (not in scope by
+name); collection inputs (DL-2).
 
 ## 5. Future providers
 

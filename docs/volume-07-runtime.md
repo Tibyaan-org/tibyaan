@@ -206,7 +206,7 @@ unknown method naming the arity; the legal-value set read from the enum and neve
 non-enum carrying none; and a CHARACTER-EXACT replica of the real pms `CostCategory` declaration proving all
 eight literals in declaration order, that `renovation` matches, and that `RENOVATION` does not.
 
-## 10. Per-capability attested exposure (phase Reviewed Exposure; designed 2026-09-20, RATIFIED 2026-09-23, build pending)
+## 10. Per-capability attested exposure (phase Reviewed Exposure; designed 2026-09-20, RATIFIED 2026-09-23, BUILT 2026-09-23 inside DL-1 under the D5 amendment)
 
 STATUS: RATIFIED 2026-09-23 AS WRITTEN, NOT BUILT. The maintainer ratified this section on 2026-09-23 without
 amendment, so the five decisions of section 10.9 stand at their recommended values, recorded one by one in
@@ -419,14 +419,15 @@ output and generated OpenAPI document against a worktree at the pre-build commit
 section 10.8 unmoved; and on as-backend, with the fifteen names listed per hosting service and the global flag removed from the local
 profile, the same fifteen registered, which is the forecast gain of zero reported as zero.
 
-## 11. The write gate and the reviewed tier at the runtime (phase DL-1; designed and RATIFIED 2026-09-23, build pending)
+## 11. The write gate and the reviewed tier at the runtime (phase DL-1; designed, RATIFIED and BUILT 2026-09-23)
 
 Designed in Volume 5, section 4.17.6. A reviewed READ registers when `tibyan.reviewed.expose` is true (default
 true, decision D2). A WRITE or ACTION registers only when its exact name is in `tibyan.writes.allow`, a list under
 section 10's five conditions, default empty: the write gate. Section 4.14's security composition applies to
 reviewed capabilities, so a security-unverifiable one does not register by default; which exact-name list opens it
 is decision D1 of section 4.17.11, which proposes amending section 10 D5 to one list for any tier before section 10
-is built. Tool hints (`readOnlyHint`, `destructiveHint`) are carried if the pinned stack can carry them; the pinned
-MCP SDK jar shows no annotation class, so the build verifies and, failing that, records the gap and relies on the
-name prefix and the first sentence. Startup names every write it did not register with `write-not-allowed`. Not
-built by name: dry-run and an in-runtime confirmation step. Not ratified, not built.
+is built. Tool hints (`readOnlyHint`, `destructiveHint`) are NOT carried in DL-1: the build verified that the pinned MCP
+SDK 0.18.3 has `McpSchema.ToolAnnotations` but the Spring AI 1.0.9 callback bridge never sets them, so the name
+prefix and the description's first sentence carry the class, a tripwire test watches the bridge, and the direct
+`SyncToolSpecification` path is the recorded option for the Volume 16 session. Startup names every write it did not register with `write-not-allowed`. Not
+built by name: dry-run and an in-runtime confirmation step. Built 2026-09-23 (Volume 5, section 4.17.13), with the hints finding recorded above.

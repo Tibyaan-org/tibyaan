@@ -14,7 +14,26 @@ not stable before 1.0.0.
 
 ## Unreleased
 
+### Added
+
+- **`tibyan draft`, and the reviewed tier (phases DL-0 and DL-1, the v2 direction).** `tibyan draft <path>`
+  writes `tibyan/drafts.json`: one labeled candidate for every public service method, reads and writes
+  (`VERIFIED`, `ATTESTED`, `READ`, `WRITE`, `UNKNOWN`). An entry a named human approves in that file is
+  admitted at `tibyan scan` as `reviewed_<name>` after eight checks (resolve, stale, label drift, superseded,
+  inputs bind, output describable, review complete, label to kind) and reaches both backends with its class
+  in the first sentence. Writes and actions exist for the first time, as reviewed capabilities only, and
+  register at the runtime only by exact name in `tibyan.writes.allow` (default empty). New runtime
+  properties: `tibyan.reviewed.expose` (default true), `tibyan.writes.allow`, and
+  `tibyan.security.exposeUnverifiable`, the one exact-name list that opens a security-unverifiable
+  capability of any tier; the attested-only global switch is unchanged and never opens a reviewed tool.
+  The IR gains the `Review` component and validation rules 12 and 13; a model without approved drafts is
+  byte-identical to 0.3.0 output.
+
 ### Fixed
+
+- **The startup line "registered N MCP tool(s)" now names only the tools it registered.** It listed every
+  manifest capability, excluded ones included; excluded tools are now logged one per line with their reason
+  (rule-13 diagnostic amendment, Volume 7 section 10.6).
 
 - **The MCP server now advertises the version it actually is.** The runtime reported
   `spring.ai.mcp.server.version` as a hardcoded `0.1.0`, and never bumped it, so every MCP client

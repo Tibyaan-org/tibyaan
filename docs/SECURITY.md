@@ -11,16 +11,37 @@ against your real data. A tool named `getProduct` invokes the actual `ProductSer
 returns the actual product. There is no sandbox and no copy: an agent that can reach the MCP endpoint can
 invoke every exposed capability with the same access your service methods already have.
 
-## The read-only boundary, and why it exists
+## The write gate (phase DL-1, built 2026-09-23), and the read-only boundary it replaces
 
-v1 serves read-only capabilities only. Write and action capabilities are not merely turned off in the
-runtime; they are refused at the discovery level, so a write is never generated into the manifest in the
-first place. This boundary is deliberate: exposing a method that changes data to an autonomous agent is a
-different risk class from exposing a read, and it needs an explicit policy gate (which capabilities may be
-exposed, to whom, under what conditions) that v1 does not have. Until that gate exists, the honest default
-is to expose nothing that mutates state. If a future version adds writes, they will be off by default and
-gated, never silently enabled.
+Through 0.3.0 the tool served read-only capabilities only: a write was refused at discovery and never reached
+a manifest. From DL-1 on the boundary is a GATE, not a refusal, and it sits in three places at once:
 
+1. NOTHING PROVES A WRITE. The discovery rules still emit reads only. A write or action enters the manifest
+   solely as a REVIEWED capability: a `tibyan draft` entry that a named human approved in
+   `tibyan/drafts.json`, pinned by a fingerprint and by the tool's own label, and named `reviewed_<name>` so the
+   tier is visible in the name on every surface. A write without a reviewer fails validation (core rule 12).
+2. WRITES ARE OFF BY DEFAULT. The runtime registers a WRITE or ACTION capability only when its EXACT name is
+   listed in `tibyan.writes.allow`. No pattern, no prefix, no "all": opening fifteen writes means writing
+   fifteen names, and a listed name that does not resolve, is not a write, is blank or repeated fails startup.
+   Reviewed READ capabilities register by default (`tibyan.reviewed.expose`, default true), because the
+   committed approvals are the opt-in; set it false for a verified-and-attested-only surface.
+3. DECLARED SECURITY STILL BYPASSES. The layer calls the service method directly, so a controller's declared
+   authority does not run (see the section below). A reviewed capability whose fronting controller declares a
+   contract the tool cannot compile is `securityUnverifiable` and does NOT register until its exact name is
+   listed in `tibyan.security.exposeUnverifiable`, the one list for that stake in any tier. The attested-only
+   global switch `tibyan.attested.exposeSecurityUnverifiable` opens attested capabilities only, never a
+   reviewed one.
+
+The two exact-name lists carry no provenance of their own: the host's version control is the record of who opened
+what, and when (Volume 7 section 10, decision D3). Review the commit that adds a name as you would review the
+code it exposes.
+
+What the tool guarantees for a reviewed capability is carriage, the fingerprint pin, label drift and the gate.
+It does not guarantee the description is true; the named reviewer does, exactly as an attester does. There is
+no dry run and no in-runtime confirmation in DL-1: a client that honors tool hints is the confirmation, and the
+pinned Spring AI bridge cannot yet carry those hints (recorded as a gap in Volume 7, section 11), so today the
+name prefix and the first sentence of the description are what a client sees. Treat an allowed write as an
+unauthenticated admin action reachable by anyone who can reach the endpoint, and gate the endpoint accordingly.
 ## What the generated layer inherits, and what you must gate
 
 The layer inherits your application's process, its database connections, and its data access. It does not

@@ -60,7 +60,7 @@ flowchart TD
 | Field | Type | Meaning |
 |---|---|---|
 | name | string | Unique capability name, in business terms (for example getProduct) |
-| kind | enum | READ, WRITE, or ACTION. MVP uses READ only |
+| kind | enum | READ, WRITE, or ACTION. Verified and attested capabilities are READ; WRITE and ACTION exist only on reviewed capabilities (phase DL-1, section 3.10) |
 | inputs | map of string to Type | Named, typed inputs |
 | output | Type | The result type, often an entity reference. When outputMultiple is true, this is the element type of the collection, not the collection itself |
 | outputMultiple | boolean | True if the capability returns a collection of the output type (a list read). Default false. Deliberate growth, RATIFIED and BUILT for phase E4 2026-07-02; see the collection-output growth note in section 4 and Volume 5, section 4.10 |
@@ -68,6 +68,7 @@ flowchart TD
 | binding | BindingRef | An opaque reference the runtime resolves to real logic. The IR never holds framework details |
 | annotations | Annotation[] | Generic extension hooks |
 | attestation | Attestation (optional) | The human-attested claim and its provenance, absent on every tool-verified capability. Deliberate growth, phase Attestation, designed 2026-07-20, PENDING ratification and build; see section 3.8 |
+| review | Review (optional) | A named human's approval of a drafted capability beside the tool's own label, absent on verified and attested capabilities. Phase DL-1, built 2026-09-23; see section 3.10 |
 
 > The binding is deliberately opaque in the IR. It names what to invoke, not how. The runtime and its ExecutionAdapter resolve it to a real bean or call. This keeps the IR neutral while still being executable.
 
@@ -172,7 +173,7 @@ What this growth will never become: a general validation-constraint system (no r
 required-ness), a container type, a per-input annotation bag, or a carrier for anything the tool did not
 read from a resolved declaration. It carries one closed value set per input and nothing more.
 
-### 3.10 The Review component: the reviewed third tier, and the kinds WRITE and ACTION (phase DL-1; designed 2026-09-23, RATIFIED 2026-09-23 as written, build pending)
+### 3.10 The Review component: the reviewed third tier, and the kinds WRITE and ACTION (phase DL-1; designed and RATIFIED 2026-09-23, BUILT 2026-09-23)
 
 Designed in Volume 5, section 4.17.4, and recorded here as the IR-facing half. One optional component on
 Capability, `Review(label, reviewedBy, reviewedOn, descriptionOrigin, fingerprint)`, where `label` is the tool's
@@ -182,8 +183,8 @@ this phase on, only with a `Review` attached. Validation gains rule 12 (a `Revie
 ACTION capability must carry one) and rule 13 (the `reviewed_` prefix, reserved both ways, as rule 9 reserves
 `attested_`). Rule 5 is unchanged: `readOnly` is never true on WRITE or ACTION. The growth is argued against the
 section 4 bar in Volume 5, section 4.17.4; an IR without approved drafts serializes byte-identically to today's.
-Ratified 2026-09-23 as written (Volume 5, section 4.17.12); rules 12 and 13 are written into section 5 below as
-ratified text and take effect on the DL-1 build.
+Ratified and built 2026-09-23 (Volume 5, sections 4.17.12 and 4.17.13); rules 12 and 13 are in force in section 5
+below. The build adds two guards rule 12 implies: one tier per capability, and the kind equals the label's kind.
 
 ## 4. The primitive type system
 
@@ -236,7 +237,7 @@ Structural rules, checked in `tibyan-core`:
 
 11. BOUNDARY ATTESTATION COMPLETENESS (phase Attestation AT-3, Volume 5 section 4.15.2.3). A `boundary` attestation must carry a non-empty `securityOwner`, and must carry at least one of its two assertions: `readOnlyAffirmed` true (the delegation member) or a non-empty `assertedAuthorities` (the security-contract member). An entry that names a security owner and asserts nothing is refused. In the other direction, and this is the half that keeps the categories from blurring: a `predicate`, `shape`, or `both` attestation must carry NO `securityOwner`, must leave `readOnlyAffirmed` false, and must carry an empty `assertedAuthorities`. A data attestation wearing security fields fails loud, so a reader can never mistake one for the other, and neither can a consumer. Every value of `assertedAuthorities` is non-empty and the values are distinct. AND THE CONTRADICTION GUARD (added when C1 was built, 2026-09-01): a capability must never carry BOTH a compiled `requiredAuthorities` annotation and a non-empty `assertedAuthorities`. The declared-security composition runs after attestation intake, so this is the only place the two axes can be compared; if the tool proved a contract for that read, a human assertion over it is redundant at best and contradictory at worst, and the model fails loud rather than shipping two answers to one question.
 
-12. REVIEW COMPLETENESS AND NECESSITY (phase DL-1, section 3.10; ratified 2026-09-23, effective on the DL-1 build). A capability carrying a `Review` must carry every field non-empty (`label` from the closed set READ, WRITE, UNKNOWN; `reviewedBy`; `reviewedOn`; `descriptionOrigin` from `human` or `ai-draft`; `fingerprint`). A capability of kind WRITE or ACTION MUST carry a `Review`: no discovery rule proves a write, so a write without a named reviewer is refused. Rule 5 still holds: `readOnly` is never true on WRITE or ACTION.
+12. REVIEW COMPLETENESS AND NECESSITY (phase DL-1, section 3.10; ratified and built 2026-09-23). A capability carrying a `Review` must carry every field non-empty (`label` from the closed set READ, WRITE, UNKNOWN; `reviewedBy`; `reviewedOn`; `descriptionOrigin` from `human` or `ai-draft`; `fingerprint`). A capability of kind WRITE or ACTION MUST carry a `Review`: no discovery rule proves a write, so a write without a named reviewer is refused. Rule 5 still holds: `readOnly` is never true on WRITE or ACTION.
 
 13. THE REVIEWED PREFIX IS RESERVED IN BOTH DIRECTIONS (phase DL-1, section 3.10; same status). A capability carrying a `Review` is named `reviewed_<name>`, and a capability without one must not be. As with rule 9, the epistemic class is readable from the name alone on every surface, and a truncated description cannot hide it.
 

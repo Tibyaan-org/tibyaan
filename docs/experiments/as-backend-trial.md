@@ -513,3 +513,21 @@ the refusal-first tool serves today, and 263 READ candidates are invocable by th
 stand, before any human writes a sentence. The labels held on every proven target, in both directions. What it
 does NOT answer: whether the READ label is right in the maintainer's reading (the owed sample), and whether the
 description sentence can be produced cheaply, which is the assist question the direction leaves to DL-1.
+
+### 10.1 DL-1 built (2026-09-23): the re-measurement
+
+Phase DL-1 (Volume 5 section 4.17, build record 4.17.13) was built the same day. The same scan against the same
+adopter commit (23db1101cd), built from the DL-1 tree and diffed with `diff -r` against a worktree at the
+pre-build commit 89b3441, is BYTE-IDENTICAL across the serialized IR, the generated MCP output and the generated
+OpenAPI document. Totals unchanged: discovered 5, attested 15, failed 154, mis-bound 0, attestation-drift 0,
+mis-constrained 0. **[tibyaan]** This is forecast, not a finding: the adopter tree carries no `tibyan/drafts.json`,
+so nothing is reviewed and nothing new is served.
+
+What changes for this app from here is a human act, not a tool run: the drafts file of section 10 (990 entries,
+written to a scratch location, never into the adopter tree) becomes the record once it is committed into the
+adopter repository, and every entry the maintainer approves there is admitted at the next scan as
+`reviewed_<name>`. The first approvals are the owed reading sample of section 10. Two things to know before
+approving on this app: the 138 READ drafts with an unmapped input include every `List<Long>` and `List<Integer>`
+parameter, which intake refuses as INPUT_UNMAPPED until DL-2; and a reviewed capability behind a secured
+controller is security-unverifiable, as all fifteen attested ones are, so it opens only by exact name in
+`tibyan.security.exposeUnverifiable`.
