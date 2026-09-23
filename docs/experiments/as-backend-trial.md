@@ -459,3 +459,57 @@ sentence cheap and safe to give (findings F1 to F4) than on admitting reads with
 applies as everywhere: the select-plus-count shape and the 25-row default both come from this author's
 private foundation library, so the COUNTS are idiom-bound; the lesson, that a provable access pattern does
 not carry its own semantics, is not.
+
+## 10. SPIKE DL-0, draft and label (2026-09-23)
+
+The first build of the v2 direction (Volume 13 section 3, "v2 direction"). Tool: CLI 0.4.0-SNAPSHOT at commit
+fdd5ec3. Target: branch Ahmed-0000-tibyan-mcp-trial at 23db1101cd, working tree clean, the 15-entry record in
+place. The drafts file was written to a scratch location, never into the adopter tree. **[tibyaan]** unless marked.
+
+Q1, THE CENSUS. `tibyan draft` produced 990 candidates from 272 concrete service classes:
+
+| Label | Count | Of which |
+|---|---|---|
+| VERIFIED | 5 | the same five as section 9.8: getSSConfig, getDepartment, getOrder, getWFRequest, getSyncedUser |
+| ATTESTED | 15 | the fifteen confirmed entries, matched by target string |
+| READ | 401 | 263 with every input mapped, 138 with at least one unmapped input, 94 zero-argument |
+| WRITE | 204 | R1 write-set call on a repository field 159, setter on a loaded entity 35, R3 write-set-named call on another bean 9, L1/R9 1; no @Modifying and no mutating @Query hit |
+| UNKNOWN | 365 | 362 return void with no visible mutation; 3 are static calls (ThreadContext.remove twice, Files.delete once) |
+
+WRITE: 58 with every input mapped, 146 with an unmapped input. The unmapped input types among READ, most
+frequent first: List<Long> 40, OrderDirections 33 (an in-tree enum; the draft mapper does not resolve enums,
+attestation intake does), List<Integer> 26, WorkflowContext 20, RequestContextKeys 9. Names: 990 unique.
+
+Q2, LABEL CORRECTNESS, the automatic half: every one of the 15 attested targets is present in the file and
+labeled ATTESTED, none is labeled WRITE in either run, and with the record removed (a `git archive` copy of the
+same commit without `tibyan/attestations.json`) all 15 label READ and the census reads VERIFIED 5, ATTESTED 0,
+READ 416, WRITE 204, UNKNOWN 365. Every discovered binding labels VERIFIED. No spike-failure condition fired.
+THE MAINTAINER'S READING SAMPLE OF READ AND WRITE ENTRIES IS OWED: it was not done in this session, so the
+label correctness of the 401 READ entries beyond the 15 proven ones is UNMEASURED, and the known blind spot
+below says some of them are wrong.
+
+TWO AMENDMENTS MADE DURING THE SPIKE, recorded so the build and the design do not diverge silently:
+
+1. THE VOID RULE. The first run labeled 763 candidates READ, of which 364 return `void`. A void method cannot be
+   a read tool, and read-safety sees persistence only, so a void method with no visible mutation now labels
+   UNKNOWN with the reason stated. That moved 362 entries out of READ; the two-entry difference from 364 is the
+   two static-call UNKNOWNs that were already outside READ.
+2. THE TARGET SPELLING. The first run wrote parameter types comma-separated without a space and matched 2 of
+   the 15 attested targets by string, because the real record writes `(String, Integer)` with a space and
+   intake accepts both. The draft target now uses the record's spelling, and 15 of 15 match by string.
+
+Q3, SERVING AN APPROVED DRAFT: DEFERRED TO DL-1 BY NAME. Two reasons, both measured here rather than assumed:
+the runtime binds only scalar, enum and java.time inputs (Volume 7 section 9), so 138 READ and 146 WRITE
+drafts cannot be invoked today whatever serves them; and serving needs a manifest that carries the kind and
+the label plus the write gate, which is the design the direction names as the phase after the spike, not a
+spike question.
+
+BLIND SPOTS CONFIRMED, carried from read-safety and stated in the labeler: a call into another bean or a
+remote client whose name is not in the write set passes as READ; only one hop of private helpers is read; the
+check returns its first reason only, so an UNKNOWN can hide a later write.
+
+WHAT THE SPIKE ANSWERS FOR THE DIRECTION. On this app the draft-first surface is 990 candidates against the 20
+the refusal-first tool serves today, and 263 READ candidates are invocable by the current runtime as they
+stand, before any human writes a sentence. The labels held on every proven target, in both directions. What it
+does NOT answer: whether the READ label is right in the maintainer's reading (the owed sample), and whether the
+description sentence can be produced cheaply, which is the assist question the direction leaves to DL-1.

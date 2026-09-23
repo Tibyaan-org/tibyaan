@@ -555,6 +555,11 @@ as-backend with the census recorded as docs/experiments/as-backend-trial.md sect
 green, and Q3 answered on the example app or explicitly deferred to DL-1 with the reason. A wrong label on any
 attested or discovered target is a spike FAILURE and stops the direction until explained.
 
+DL-0 BUILT 2026-09-23 (commit fdd5ec3). Q1: 990 candidates on as-backend, VERIFIED 5, ATTESTED 15, READ 401,
+WRITE 204, UNKNOWN 365. Q2 automatic half green, no failure condition fired; the maintainer's reading sample is
+owed. Q3 deferred to DL-1 by name (input binding and the manifest shape). Two amendments recorded in the ledger:
+the void rule and the target spelling. Record: as-backend-trial.md section 10.
+
 ## 4. Tier 3: direction only (production readiness and beyond)
 
 This tier is deliberately coarse: one short paragraph per item, no designs, no phase plans, no acceptance criteria. Everything here is conditional on Tier 2 proving the semantic core on real applications, meaning the benchmark discovers a meaningful share of a real app's reads with zero mis-bindings. Writing detailed plans for this tier before that proof would repeat the original roadmap's mistake.
