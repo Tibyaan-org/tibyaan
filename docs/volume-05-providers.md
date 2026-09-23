@@ -2421,10 +2421,10 @@ BUILD DECISIONS: none beyond the ratified text. One note for the reasons: a prov
 reason is read-safety's, not A2's; the label is the same.
 
 
-#### 4.17.18 DL-1.3: bodiless accessors and overload disambiguation in the closure (designed 2026-09-24, PENDING RATIFICATION)
+#### 4.17.18 DL-1.3: bodiless accessors and overload disambiguation in the closure (designed and RATIFIED 2026-09-24 as written, build pending)
 
-STATUS: DESIGNED, NOT RATIFIED, NOT BUILT. It changes labels, so under rule 12 it takes its own ratification before
-code. Two rules, each with its own count.
+STATUS: RATIFIED 2026-09-24 AS WRITTEN by the maintainer, committed before code (rule 12). Two rules, each with its
+own count.
 
 THE EVIDENCE, the unforecast movement of section 4.17.17: 55 UNKNOWN labels on as-backend read "no single method of
 that name and arity on the bean". Read by target they are two different things:

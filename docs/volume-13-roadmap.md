@@ -575,7 +575,7 @@ the READ label, was ratified and BUILT 2026-09-23 (Volume 5 sections 4.17.14 and
 are caught, READ 401 to 271, WRITE 204 to 337, and the benchmarks are byte-identical. DL-1.2, the closed-set amendment of the
 closure (Volume 5 section 4.17.16), was ratified and BUILT 2026-09-24 (Volume 5 sections 4.17.16 and 4.17.17): READ 271 to 346, every audited pure
 read READ again, and 55 same-arity overloads recorded as the next candidate. DL-1.3 (Volume 5 section 4.17.18), bodiless accessors
-and overload disambiguation, is DESIGNED and PENDING RATIFICATION on that count.
+and overload disambiguation, was RATIFIED 2026-09-24 as written on that count and is the next build.
 
 ## 4. Tier 3: direction only (production readiness and beyond)
 
