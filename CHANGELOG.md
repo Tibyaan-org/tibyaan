@@ -37,6 +37,10 @@ not stable before 1.0.0.
   profile-selected implementations (DL-1.2).** `@Configuration` classes count as beans, `ObjectProvider` and
   `Provider` lookups are transparent, `Gson` and `PasswordEncoder` are pure, `RestClient` and `WebClient` go by
   their verb, and a field with several in-tree implementations takes the most severe label across them.
+- **Overloads are disambiguated and Lombok accessors are read (DL-1.3).** A call to a bodiless getter of a
+  declared field is READ, and a call to one of several same-arity overloads is resolved by the static type of
+  each argument the tool can read (a parameter, a typed local, a field, a literal, an enum constant, a `new`);
+  an argument it cannot type is named in the reason.
 
 ### Fixed
 

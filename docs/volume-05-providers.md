@@ -2421,7 +2421,7 @@ BUILD DECISIONS: none beyond the ratified text. One note for the reasons: a prov
 reason is read-safety's, not A2's; the label is the same.
 
 
-#### 4.17.18 DL-1.3: bodiless accessors and overload disambiguation in the closure (designed and RATIFIED 2026-09-24 as written, build pending)
+#### 4.17.18 DL-1.3: bodiless accessors and overload disambiguation in the closure (designed, RATIFIED and BUILT 2026-09-24; build record at 4.17.19)
 
 STATUS: RATIFIED 2026-09-24 AS WRITTEN by the maintainer, committed before code (rule 12). Two rules, each with its
 own count.
@@ -2469,6 +2469,38 @@ enum-constant argument picks the enum overload; LB-4 a null literal against two 
 LB-5 a method-call argument stays UNKNOWN with the argument named.
 
 No open decisions.
+
+
+#### 4.17.19 DL-1.3 build record (BUILT 2026-09-24)
+
+Built the same day it was ratified (record 13b444a before code). Labeler only; IR, MCP and OpenAPI byte-identical
+on pms, erp and as-backend against a worktree at 13b444a. Fixtures LB-1 to LB-5 as `OverloadClosureTest`; the
+DL-1.2 fixture LA-6, which pinned a same-arity overload as UNKNOWN, now resolves under B2 and its test says so.
+Provider 253 tests; `mvn clean verify` green across 12 modules.
+
+WHAT IS BUILT: the closure's method lookup returns a method, a bodiless accessor or a named ambiguity. B1 walks the
+superclass chain for a declared field `x` behind `getX()`, `isX()` or `x()`. B2 reads each argument's static type
+(parameter, explicitly typed local, field of the caller, literal, `Enum.CONST` of an in-tree type, `new T(...)`)
+and keeps exactly one overload whose parameter types match with boxing equivalence and `null` against any
+reference type. The closure's name index now includes enums, which B2 needed.
+
+MEASURED ON as-backend (990 candidates, same tree):
+
+| Label | DL-1.2 | DL-1.3 | Forecast |
+|---|---|---|---|
+| READ | 346 | 358 | up |
+| WRITE | 343 | 372 | up |
+| UNKNOWN | 281 | 240 | down by 15 to 55 |
+| "no single method" | 55 | 0 | |
+| untyped argument (new, named) | 0 | 13 | |
+
+42 of the 55 moved, inside the forecast band. The 13 that stay are overloads whose argument is a method-call
+result (`filters.getSorting()`, `USER_ID.label()`, a builder chain), the case B2 excludes by design; each reason
+names the argument. The 27 audited pure reads, the 20 audited WRITEs and the three caught false READs are
+unchanged. The remaining UNKNOWN: 207 void with nothing found, 13 untyped arguments, 12 A5 pairs whose
+implementations disagree, 5 reflection, 3 read-safety.
+
+BUILD DECISIONS: none beyond the ratified text.
 
 ## 5. Future providers
 

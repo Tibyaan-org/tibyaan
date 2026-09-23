@@ -602,3 +602,10 @@ WRITEs hold, the three false READs stay caught. C6 fell from 123 to the forecast
 forecast 19: 55 are same-arity overloads on beans the closure could not reach before, the next candidate by
 count. IR, MCP and OpenAPI unchanged **[tibyaan]**. The drafts file was re-drafted through the merge; all entries
 pending, the 11 prepared descriptions intact.
+
+### 10.5 DL-1.3 built (2026-09-24): 42 of the 55 overload cases decided
+
+Bodiless accessors and overload disambiguation (Volume 5 section 4.17.18, build record 4.17.19): READ 346 to 358,
+WRITE 343 to 372, UNKNOWN 281 to 240. The 55 "no single method" cases are gone; 13 return as a named untyped
+argument (a method-call result), the case the rule excludes. Audited sets unchanged. IR, MCP and OpenAPI unchanged
+**[tibyaan]**; the drafts file re-drafted through the merge, all pending, the 11 prepared descriptions intact.
