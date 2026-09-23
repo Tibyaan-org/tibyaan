@@ -51,6 +51,7 @@ public final class DraftLabeler {
     private final ReadSafety readSafety;
     private final JavaTypeMapper typeMapper;
     private final AttestationIntake fingerprints;
+    private final BeanCallClosure closure;
 
     /**
      * @param readSafety   the read-safety check the READ, WRITE and UNKNOWN labels come from
@@ -58,9 +59,19 @@ public final class DraftLabeler {
      * @param fingerprints the intake whose slice fingerprint stamps every entry; null leaves entries unstamped
      */
     public DraftLabeler(ReadSafety readSafety, JavaTypeMapper typeMapper, AttestationIntake fingerprints) {
+        this(readSafety, typeMapper, fingerprints, null);
+    }
+
+    /**
+     * @param closure the bean-call closure of the READ label (DL-1.1, section 4.17.14); null keeps the DL-0 label,
+     *                which stops at the declaring class
+     */
+    public DraftLabeler(ReadSafety readSafety, JavaTypeMapper typeMapper, AttestationIntake fingerprints,
+                        BeanCallClosure closure) {
         this.readSafety = readSafety;
         this.typeMapper = typeMapper;
         this.fingerprints = fingerprints;
+        this.closure = closure;
     }
 
     /** The label of one method with its located reason and, for the two proven labels, the capability. */
@@ -140,7 +151,17 @@ public final class DraftLabeler {
                     + capability.name() + "' (discovery rules, sections 4.1 to 4.11)", capability.name());
         }
 
-        Optional<String> refusal = readSafety.check(service, declaration, directPrivateHelpers(service, declaration));
+        List<MethodDeclaration> helpers = directPrivateHelpers(service, declaration);
+        Optional<String> refusal = readSafety.check(service, declaration, helpers);
+        // DL-1.1 (section 4.17.14): the most severe finding wins, so a write behind another bean overrides a clean
+        // slice, and an undecidable bean call turns a READ into UNKNOWN.
+        BeanCallClosure.Finding beans = closure == null ? null : closure.classify(service, declaration, helpers);
+        if (beans != null && beans.severity() == BeanCallClosure.Severity.WRITE) {
+            return new Verdict(DraftLabel.WRITE, beans.reason(), null);
+        }
+        if (refusal.isEmpty() && beans != null && beans.severity() == BeanCallClosure.Severity.UNKNOWN) {
+            return new Verdict(DraftLabel.UNKNOWN, beans.reason(), null);
+        }
         if (refusal.isEmpty() && declaration.getType().isVoidType()) {
             // A void method cannot be a read tool, and read-safety only sees persistence: a side effect
             // outside it (a message, a remote call, a file) is invisible, so the honest label is UNKNOWN.
@@ -151,7 +172,8 @@ public final class DraftLabeler {
         if (refusal.isEmpty()) {
             return new Verdict(DraftLabel.READ, "no mutation visible in the slice: the body, its one-hop private "
                     + "helpers, and the repository declarations it calls (read-safety, section 4.15.2); binding "
-                    + "and shape not proven", null);
+                    + "and shape not proven" + (beans == null ? "" : "; every field call closes over in-tree beans (section 4.17.14)"
+                    + (beans.reason().isEmpty() ? "" : "; " + beans.reason())), null);
         }
         if (isWrite(refusal.get())) {
             return new Verdict(DraftLabel.WRITE, refusal.get(), null);
@@ -195,7 +217,7 @@ public final class DraftLabeler {
         return Optional.empty();
     }
 
-    private static boolean isWrite(String reason) {
+    static boolean isWrite(String reason) {
         for (String marker : WRITE_MARKERS) {
             if (reason.contains(marker)) {
                 return true;
@@ -207,7 +229,7 @@ public final class DraftLabeler {
     // One hop: the private (non-public) methods of the same class that the body calls with no receiver or
     // with 'this' as the receiver. Read-safety reads their bodies too, which closes the hidden-helper write
     // that dg-refusals/MutService demonstrates. Deeper hops and calls into other beans are not followed.
-    private static List<MethodDeclaration> directPrivateHelpers(ClassOrInterfaceDeclaration service,
+    static List<MethodDeclaration> directPrivateHelpers(ClassOrInterfaceDeclaration service,
                                                                 MethodDeclaration declaration) {
         Set<String> calledNames = new HashSet<>();
         declaration.getBody().ifPresent(body -> body.findAll(MethodCallExpr.class).forEach(call -> {

@@ -89,7 +89,9 @@ public final class DraftIntake {
         this.typeMapper = typeMapper;
         this.enumInputValues = new EnumInputValues(resolver, units);
         this.displayByKey = displayByKey;
-        this.labeler = new DraftLabeler(new ReadSafety(catalog), typeMapper, attestationIntake);
+        ReadSafety readSafety = new ReadSafety(catalog);
+        this.labeler = new DraftLabeler(readSafety, typeMapper, attestationIntake,
+                new BeanCallClosure(units, catalog, readSafety));
         this.sources = sources;
     }
 

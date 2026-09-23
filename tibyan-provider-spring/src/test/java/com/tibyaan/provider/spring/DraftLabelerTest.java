@@ -46,7 +46,7 @@ class DraftLabelerTest {
                 Map.entry("OrderServiceImpl_closeAll", DraftLabel.WRITE),
                 Map.entry("OrderServiceImpl_count", DraftLabel.READ),
                 Map.entry("OrderServiceImpl_create", DraftLabel.WRITE),
-                Map.entry("OrderServiceImpl_describe", DraftLabel.READ),
+                Map.entry("OrderServiceImpl_describe", DraftLabel.UNKNOWN),
                 Map.entry("OrderServiceImpl_flushAll", DraftLabel.WRITE),
                 Map.entry("OrderServiceImpl_getById", DraftLabel.VERIFIED),
                 Map.entry("OrderServiceImpl_notify", DraftLabel.UNKNOWN),
@@ -59,8 +59,8 @@ class DraftLabelerTest {
         // The abstract service and the interface contribute nothing; the static factory is not a method.
         assertThat(report.drafts()).noneMatch(d -> d.binding().startsWith("AbstractAuditService"));
         assertThat(report.counts()).containsExactly(
-                Map.entry("VERIFIED", 1), Map.entry("ATTESTED", 0), Map.entry("READ", 4),
-                Map.entry("WRITE", 6), Map.entry("UNKNOWN", 2));
+                Map.entry("VERIFIED", 1), Map.entry("ATTESTED", 0), Map.entry("READ", 3),
+                Map.entry("WRITE", 6), Map.entry("UNKNOWN", 3));
     }
 
     @Test
@@ -100,7 +100,9 @@ class DraftLabelerTest {
         assertThat(find(report, "OrderServiceImpl_closeAll").reason()).contains("@Modifying");
         assertThat(find(report, "OrderServiceImpl_purge").reason()).contains("'deleteById'");
         assertThat(find(report, "OrderServiceImpl_raw").reason()).contains("persistence-infrastructure field 'em'");
-        assertThat(find(report, "OrderServiceImpl_notify").reason()).contains("returns void");
+        // DL-1.1 (section 4.17.14): the call into RemoteClient, which is not a stereotyped bean, is C6.
+        assertThat(find(report, "OrderServiceImpl_notify").reason()).contains("RemoteClient").contains("C6");
+        assertThat(find(report, "OrderServiceImpl_describe").reason()).contains("RemoteClient").contains("C6");
     }
 
     @Test

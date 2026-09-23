@@ -79,12 +79,12 @@ public class OrderServiceImpl {
         return em.createQuery(jpql).getResultList();
     }
 
-    // READ (known blind spot): a call into another bean that is not write-set-named passes.
+    // UNKNOWN since DL-1.1: a call into a class that is not a stereotyped bean is C6 (it was READ in DL-0).
     public String describe(Long id) {
         return remote.fetch(id);
     }
 
-    // UNKNOWN: returns void with no persistence mutation visible; a side effect elsewhere is not analyzed.
+    // UNKNOWN: returns void, and its call into RemoteClient is C6.
     public void notify(Long id) {
         remote.fetch(id);
     }

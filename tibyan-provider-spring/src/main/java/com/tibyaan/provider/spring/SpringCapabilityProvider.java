@@ -31,6 +31,7 @@ import com.tibyaan.provider.spring.attest.AttestationRecord;
 import com.tibyaan.provider.spring.attest.DraftProposal;
 import com.tibyaan.provider.spring.attest.IntakeRefusal;
 import com.tibyaan.provider.spring.attest.ReadSafety;
+import com.tibyaan.provider.spring.draft.BeanCallClosure;
 import com.tibyaan.provider.spring.draft.DraftEntry;
 import com.tibyaan.provider.spring.draft.DraftIntake;
 import com.tibyaan.provider.spring.draft.DraftLabeler;
@@ -976,7 +977,9 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
         List<ServiceMethodSource> sources = serviceExtractor.sources(parsed.units());
         AttestationIntake fingerprints = new AttestationIntake(parsed.units(), resolver, repositories, typeMapper,
                 Map.of());
-        DraftLabeler labeler = new DraftLabeler(new ReadSafety(repositories), typeMapper, fingerprints);
+        ReadSafety readSafety = new ReadSafety(repositories);
+        DraftLabeler labeler = new DraftLabeler(readSafety, typeMapper, fingerprints,
+                new BeanCallClosure(parsed.units(), repositories, readSafety));
         List<Capability> proven = report.model().capabilities().stream()
                 .filter(capability -> !capability.hasReview())
                 .toList();
