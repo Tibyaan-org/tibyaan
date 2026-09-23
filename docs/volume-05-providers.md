@@ -2420,6 +2420,56 @@ BUILD DECISIONS: none beyond the ratified text. One note for the reasons: a prov
 (`provider.getIfAvailable().save(x)`) is caught by read-safety's own L1 clause before the closure runs, so its
 reason is read-safety's, not A2's; the label is the same.
 
+
+#### 4.17.18 DL-1.3: bodiless accessors and overload disambiguation in the closure (designed 2026-09-24, PENDING RATIFICATION)
+
+STATUS: DESIGNED, NOT RATIFIED, NOT BUILT. It changes labels, so under rule 12 it takes its own ratification before
+code. Two rules, each with its own count.
+
+THE EVIDENCE, the unforecast movement of section 4.17.17: 55 UNKNOWN labels on as-backend read "no single method of
+that name and arity on the bean". Read by target they are two different things:
+
+| Case | Count | What it is |
+|---|---|---|
+| a getter on a `@Configuration` class with NO method in the file | 15 | Lombok `@Getter` accessors of declared fields (`PharmacyConfig#getRoleIdsHasAccessToPharmacyDetails` 9, `getPharmacyReqEmployeeRoleId` 2, `SecurityAdapterConfig#getInternalMS`, `getExpirationTimeInHours`, two more) |
+| `RequestServiceImpl#processRequest(Long, Events \| SCEvent, Map, String)` | 25 | two overloads differing in the second parameter's type; every caller passes an enum constant |
+| `JWTServiceImpl#extractClaim(String, String \| Function)` | 7 | a public String overload and a private generic one |
+| `ProductAdapterServiceImpl#getProductDetails(ProductIdDTO \| Long)` | 4 | a DTO and a primitive overload |
+| `cascadeActivateProduct` and three siblings, arity 1 | 4 | an id overload and an entity overload |
+
+THE RULES:
+
+- B1, A BODILESS ACCESSOR OF A DECLARED FIELD IS READ. When the bean declares no method of the called name but
+  declares a field `x` such that the call is `getX()`, `isX()` or `x()` with no arguments, the call reads a field
+  and is READ. Lombok generates exactly these; the same-class path already treats a bodiless self call as READ, so
+  this makes the cross-bean path agree. Anything else with no declared method stays UNKNOWN.
+- B2, OVERLOADS ARE DISAMBIGUATED BY THE STATIC TYPE OF EACH ARGUMENT, where the closure can read it: a parameter
+  of the calling method (its declared type), a local declared with an explicit type (`var` does not count), a field
+  of the calling class, a literal (String, integer, long, boolean, null), an enum constant written `Enum.CONST`
+  where `Enum` resolves in the tree, or a `new T(...)` expression. Each overload's parameter simple types are
+  compared position by position, with boxing equivalence (`long` and `Long`) and `null` matching any reference
+  type. Exactly one overload matching gives that overload; zero or more than one, or an argument the closure cannot
+  type (a method-call result, a lambda, a cast, an arithmetic expression), keeps UNKNOWN with the reason naming the
+  untyped argument. Applies to the cross-bean path (C2) and the same-class path alike.
+
+WHAT THIS DOES NOT DO: it does not resolve a method-call argument's type through its callee (that is type
+inference, not a lookup), and it does not choose among overloads by subtype (an argument typed by an interface
+against an overload typed by its implementation stays ambiguous).
+
+FORECAST: B1 moves the 15 config getters to READ. B2 resolves the 25 `processRequest` calls whose second argument
+is an enum constant, the 4 `getProductDetails` calls with a `Long` parameter or literal, and the 4 `cascade*` calls
+with an id parameter; the 7 `extractClaim` calls resolve where the argument is a String literal or parameter and
+stay UNKNOWN where it is a lambda. So at most 55 labels move, at least 15, and the build reports the number. The
+27 audited pure reads, the 20 audited WRITEs and the three caught false READs are unaffected: none of them was a
+"no single method" case. Every benchmark byte-identical, by construction.
+
+FIXTURES LB-1 to LB-5: LB-1 a `@Getter`-style bodiless `getX()` on a field `x` is READ; LB-2 two overloads
+distinguished by a parameter's declared type, one saving and one reading, label by the chosen one; LB-3 an
+enum-constant argument picks the enum overload; LB-4 a null literal against two reference overloads stays UNKNOWN;
+LB-5 a method-call argument stays UNKNOWN with the argument named.
+
+No open decisions.
+
 ## 5. Future providers
 
 | Provider | Source | Why it matters |
