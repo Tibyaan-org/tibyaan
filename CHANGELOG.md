@@ -28,6 +28,11 @@ not stable before 1.0.0.
   capability of any tier; the attested-only global switch is unchanged and never opens a reviewed tool.
   The IR gains the `Review` component and validation rules 12 and 13; a model without approved drafts is
   byte-identical to 0.3.0 output.
+- **The READ label of a draft now closes over calls into other beans (DL-1.1).** A draft is READ only when
+  every field call in its slice resolves to an in-tree bean whose method is itself read-only (four hops), a
+  MapStruct mapper, a Feign or RestTemplate GET, or a JDK type; a message publisher behind a bean is WRITE,
+  reflection or an unresolved type is UNKNOWN. On the adopter benchmark this moved 130 READ labels, 3 of which
+  the reading sample had shown to hide a write.
 
 ### Fixed
 

@@ -583,3 +583,13 @@ PREPARED, NOT APPROVED: the 11 entries the readers confirmed as pure reads with 
 readers' sentence as `description` with `descriptionOrigin: ai-draft` in the adopter's uncommitted
 `tibyan/drafts.json`, every one still `pending`. Nothing ships until the maintainer approves an entry by name;
 the survey still reads reviewed 0.
+
+### 10.3 DL-1.1 built (2026-09-23): the three false READs are caught
+
+The bean-call closure (Volume 5 section 4.17.14, build record 4.17.15) re-labeled the same 990 candidates:
+READ 401 to 271, WRITE 204 to 337, UNKNOWN 365 to 362. `downloadFile` and `generateGlobalKeyAttributeId` are
+WRITE with the chain named; `getEligibleTransitions` is UNKNOWN (reflection). The 20 audited WRITEs hold; 22 of the
+27 audit-confirmed pure reads stay READ and 5 are UNKNOWN (one ambiguous implementation, three abstract config
+calls, one `RestClient`). 214 WRITEs come from a message publisher behind a bean, mostly void event handlers DL-1
+had called UNKNOWN. IR, MCP and OpenAPI output unchanged **[tibyaan]**; the drafts file re-drafted through the merge,
+243 entries carry `previousLabel`, all pending, the 11 prepared descriptions intact.

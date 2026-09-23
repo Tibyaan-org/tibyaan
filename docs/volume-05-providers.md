@@ -2215,7 +2215,7 @@ registered), which needs the adopter's services running; dry run and in-runtime 
 name); collection inputs (DL-2).
 
 
-#### 4.17.14 DL-1.1: the bean-call closure of the READ label (designed 2026-09-23, RATIFIED 2026-09-23 as written, build pending)
+#### 4.17.14 DL-1.1: the bean-call closure of the READ label (designed, RATIFIED and BUILT 2026-09-23; build record at 4.17.15)
 
 STATUS: RATIFIED 2026-09-23 AS WRITTEN by the maintainer, so D1 to D3 stand at their recommendations: a hop bound of
 four, UNKNOWN on an ambiguous C2 resolution, and READ for a remote GET with the call named in the reason. It changes
@@ -2275,6 +2275,60 @@ OPEN DECISIONS for the maintainer, each with a recommendation:
   UNKNOWN, named; the runtime picks one bean and the tool cannot say which.
 - D3, WHETHER C4 GET IS READ. Recommendation: READ, with the reason naming the remote call, because a GET that
   mutates is the remote service's defect; the reason tells the reviewer a network call happens.
+
+
+#### 4.17.15 DL-1.1 build record (BUILT 2026-09-23)
+
+Built the same day it was ratified, in a session that also built DL-1: a second process exception at the
+maintainer's instruction, recorded as such. Rule 12 held (record fd64243 before code). The labeler only: attestation
+intake, discovery, the IR and every surface are untouched, and the three benchmarks are byte-identical.
+
+WHAT IS BUILT: `BeanCallClosure` in the draft package, consulted by `DraftLabeler` after read-safety; the most
+severe finding wins. It keeps its own simple-name index with interfaces included, because the shared
+`TypeReferenceResolver` indexes classes and enums only (it keys entities) and a bean field is usually typed by
+an interface. Fixtures LC-1 to LC-7 as tests (`BeanCallClosureTest`); the DL-0 fixture's `describe` case, the blind
+spot DL-0 recorded, moves from READ to UNKNOWN and its test says why.
+
+BUILD DECISIONS, where the ratified text did not decide:
+
+1. SAME-CLASS CALLS ARE FOLLOWED WITHIN THE BEAN, no hop counted. A call to the class's own non-helper method
+   (an overload, a public delegate) is stepped into; an ambiguous self overload of one arity is UNKNOWN. Without
+   this the counter write of section 10.2 stays hidden behind `getNextValueAsString(type)` delegating to its
+   two-argument overload.
+2. AN ABSTRACT CLASS RESOLVES TO ITS CONCRETE SUBCLASSES, exactly as an interface resolves to its implementations
+   (C2). One stereotyped subclass is the bean; two are UNKNOWN (D2); none is C6.
+3. ANY `@Mapper` TYPE IS PURE, interface or abstract class: MapStruct generates the implementation outside the
+   tree, and every mapper call in the reading sample was a pure mapping.
+4. THE PATH IS AN IDENTITY SET. JavaParser nodes compare structurally, so a chain of look-alike methods (LC-6's
+   `go()` delegates) read as a cycle until the path compared by identity.
+5. `RestTemplate` GET-family calls and `WebClient.get` are READ with the call named; `RestClient` (Spring 6.1)
+   is not in the ratified C4 set and falls to C6 UNKNOWN, recorded for the next amendment.
+
+MEASURED ON as-backend (990 candidates, same tree):
+
+| Label | DL-1 | DL-1.1 |
+|---|---|---|
+| READ | 401 | 271 |
+| WRITE | 204 | 337 |
+| UNKNOWN | 365 | 362 |
+
+The three false READs of section 10.2 are caught: `downloadFile` is WRITE through C2 then C3 (the chain names
+`MQClientServiceImpl#sendMessage` and `JmsTemplate`), `generateGlobalKeyAttributeId` is WRITE through C2 (four
+steps to `CounterInternalServiceImpl#getNextValue` and its repository insert), `getEligibleTransitions` is UNKNOWN
+through C5. The 20 audited WRITEs stay WRITE. Of the 27 audit-confirmed pure reads, 22 stay READ and 5 drop to
+UNKNOWN: one D2 ambiguity (`SystemSettingsProxyService` has two implementations), three calls on an abstract
+security config with no stereotyped subclass, one `RestClient`. That is the forecast coverage cost, measured: 5 of
+27. Two audited UNKNOWNs became WRITE, correctly: void notification handlers that publish. THE LARGEST MOVEMENT is
+the one nobody forecast: 214 of the 337 WRITEs are C3, a message publisher behind a bean, mostly void event
+handlers; DL-1 had labeled them UNKNOWN, and a reviewer would have had to find the publish by hand.
+
+THE REMAINING UNKNOWN (362): 135 void with nothing found, 123 C6 (54 `ObjectProvider`, 28 the abstract security
+config, 19 `Gson`, 15 `RestClient`), 96 C2 (ambiguous implementations and unresolved methods), 5 C5, 3 read-safety.
+The C6 list is the evidence for the next amendment of the closed sets.
+
+`mvn clean verify` green across 12 modules (provider 242 tests). pms, erp and as-backend byte-identical across
+IR, MCP and OpenAPI against a worktree at fd64243. The adopter's uncommitted `tibyan/drafts.json` was re-drafted
+through the merge: 243 entries carry `previousLabel`, all 990 stay pending, the 11 prepared descriptions survive.
 
 ## 5. Future providers
 
