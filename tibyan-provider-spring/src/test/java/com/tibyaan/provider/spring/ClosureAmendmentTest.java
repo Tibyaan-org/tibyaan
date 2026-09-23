@@ -60,9 +60,9 @@ class ClosureAmendmentTest {
     }
 
     @Test
-    void la6_sameArityOverloadsStayUnknown() {
+    void la6_sameArityOverloadsAreResolvedByTheArgumentTypeSinceDl13() {
+        // Under DL-1.2 this stayed UNKNOWN; DL-1.3 B2 reads the Long parameter and picks the Long overload.
         DraftEntry describe = entry("describe");
-        assertThat(describe.label()).isEqualTo(DraftLabel.UNKNOWN);
-        assertThat(describe.reason()).contains("no single method");
+        assertThat(describe.label()).isEqualTo(DraftLabel.READ);
     }
 }

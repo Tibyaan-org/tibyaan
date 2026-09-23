@@ -3,6 +3,7 @@ package com.tibyaan.provider.spring.draft;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.ImportDeclaration;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
+import com.github.javaparser.ast.body.EnumDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.Parameter;
@@ -117,6 +118,11 @@ public final class BeanCallClosure {
                     fqcnsBySimpleName.computeIfAbsent(type.getNameAsString(), k -> new ArrayList<>()).add(fqcn);
                 });
             }
+            // Enums are in the name index too (DL-1.3 B2 reads an enum constant argument as its enum type).
+            for (EnumDeclaration type : unit.findAll(EnumDeclaration.class)) {
+                type.getFullyQualifiedName().ifPresent(fqcn ->
+                        fqcnsBySimpleName.computeIfAbsent(type.getNameAsString(), k -> new ArrayList<>()).add(fqcn));
+            }
         }
         for (CompilationUnit unit : units) {
             for (ClassOrInterfaceDeclaration type : unit.findAll(ClassOrInterfaceDeclaration.class)) {
@@ -176,7 +182,7 @@ public final class BeanCallClosure {
                     // classified as a call on a field of the provided type T.
                     Optional<String> provided = providedType(call, fieldTypes, shadowing);
                     if (provided.isPresent()) {
-                        Finding one = classifyFieldCall(call, providerFieldName(call), provided.get(), cu.get(), path,
+                        Finding one = classifyFieldCall(call, providerFieldName(call), provided.get(), cu.get(), new Caller(owner, body), path,
                                 hops, chain, remoteReads);
                         worst = worse(worst, one);
                         if (worst.severity() == Severity.WRITE) {
@@ -189,7 +195,7 @@ public final class BeanCallClosure {
                     // Build decision (section 4.17.15): a call to the same class's own non-helper method (an overload,
                     // a public delegate) is followed within the bean without counting a hop. Without it the counter
                     // write of the reading sample stays hidden behind a one-argument overload.
-                    worst = worse(worst, recurseWithin(call, owner, path, hops, chain));
+                    worst = worse(worst, recurseWithin(call, owner, path, new Caller(owner, body), hops, chain));
                     if (worst.severity() == Severity.WRITE) {
                         return worst;
                     }
@@ -198,7 +204,7 @@ public final class BeanCallClosure {
                 if (field.isEmpty() || cu.isEmpty()) {
                     continue;
                 }
-                Finding one = classifyFieldCall(call, field.get(), fieldTypes.get(field.get()), cu.get(), path, hops,
+                Finding one = classifyFieldCall(call, field.get(), fieldTypes.get(field.get()), cu.get(), new Caller(owner, body), path, hops,
                         chain, remoteReads);
                 worst = worse(worst, one);
                 if (worst.severity() == Severity.WRITE) {
@@ -212,7 +218,7 @@ public final class BeanCallClosure {
         return worst;
     }
 
-    private Finding classifyFieldCall(MethodCallExpr call, String field, String declaredType, CompilationUnit cu,
+    private Finding classifyFieldCall(MethodCallExpr call, String field, String declaredType, CompilationUnit cu, Caller caller,
                                       Set<MethodDeclaration> path, int hops, String chain, Set<String> remoteReads) {
         String simple = simpleName(declaredType);
         String where = "the call '" + field + "." + call.getNameAsString() + "' in " + chain;
@@ -289,7 +295,7 @@ public final class BeanCallClosure {
                 Finding worst = Finding.read();
                 List<String> parts = new ArrayList<>();
                 for (ClassOrInterfaceDeclaration impl : impls) {
-                    Finding one = recurse(call, impl, where, path, hops, chain);
+                    Finding one = recurse(call, impl, where, caller, path, hops, chain);
                     parts.add(impl.getNameAsString() + " " + one.severity());
                     worst = worse(worst, one);
                 }
@@ -306,35 +312,34 @@ public final class BeanCallClosure {
             return new Finding(Severity.UNKNOWN, where + ": '" + bean.getNameAsString()
                     + "' is not a Spring stereotyped bean (C6)");
         }
-        return recurse(call, bean, where, path, hops, chain);
+        return recurse(call, bean, where, caller, path, hops, chain);
     }
 
     // A same-class call: follow the target within this bean, no hop counted.
-    private Finding recurseWithin(MethodCallExpr call, ClassOrInterfaceDeclaration owner, Set<MethodDeclaration> path,
+    private Finding recurseWithin(MethodCallExpr call, ClassOrInterfaceDeclaration owner, Set<MethodDeclaration> path, Caller caller,
                                   int hops, String chain) {
-        Optional<MethodDeclaration> target = findMethod(owner, call.getNameAsString(), call.getArguments().size());
-        if (target.isEmpty()) {
-            long sameArity = owner.getMethodsByName(call.getNameAsString()).stream()
-                    .filter(m -> m.getParameters().size() == call.getArguments().size()).count();
-            return sameArity > 1
-                    ? new Finding(Severity.UNKNOWN, "the self call '" + call.getNameAsString() + "' in " + chain
-                            + " matches " + sameArity + " overloads of one arity (C2)")
-                    : Finding.read(); // No in-tree body: inherited from a library type.
+        Lookup lookup = lookup(owner, call, caller);
+        if (lookup.method() != null) {
+            return path.contains(lookup.method()) ? Finding.read() : step(owner, lookup.method(), path, hops, chain);
         }
-        if (path.contains(target.get())) {
-            return Finding.read();
+        if (lookup.ambiguous()) {
+            return new Finding(Severity.UNKNOWN, "the self call '" + call.getNameAsString() + "' in " + chain + ": "
+                    + lookup.reason() + " (C2)");
         }
-        return step(owner, target.get(), path, hops, chain);
+        return Finding.read(); // A bodiless accessor (B1), or no in-tree body: inherited from a library type.
     }
 
-    private Finding recurse(MethodCallExpr call, ClassOrInterfaceDeclaration bean, String where,
+    private Finding recurse(MethodCallExpr call, ClassOrInterfaceDeclaration bean, String where, Caller caller,
                             Set<MethodDeclaration> path, int hops, String chain) {
-        Optional<MethodDeclaration> target = findMethod(bean, call.getNameAsString(), call.getArguments().size());
-        if (target.isEmpty()) {
-            return new Finding(Severity.UNKNOWN, where + ": no single method '" + call.getNameAsString() + "' of arity "
-                    + call.getArguments().size() + " on '" + bean.getNameAsString() + "' (C2)");
+        Lookup lookup = lookup(bean, call, caller);
+        if (lookup.accessor()) {
+            return Finding.read(); // DL-1.3 B1: a bodiless getter of a declared field reads that field.
         }
-        MethodDeclaration callee = target.get();
+        if (lookup.method() == null) {
+            return new Finding(Severity.UNKNOWN, where + ": " + lookup.reason() + " on '" + bean.getNameAsString()
+                    + "' (C2)");
+        }
+        MethodDeclaration callee = lookup.method();
         if (path.contains(callee)) {
             return Finding.read(); // Cycle-safe: a method already on the path contributes READ.
         }
@@ -390,22 +395,195 @@ public final class BeanCallClosure {
         return false;
     }
 
-    private Optional<MethodDeclaration> findMethod(ClassOrInterfaceDeclaration type, String name, int arity) {
+    /** The calling method and its class, the context an argument's static type is read in (DL-1.3 B2). */
+    private record Caller(ClassOrInterfaceDeclaration owner, MethodDeclaration method) {
+    }
+
+    /** The outcome of looking a call up on a type: the method, a bodiless accessor, or an ambiguity with its reason. */
+    private record Lookup(MethodDeclaration method, boolean accessor, boolean ambiguous, String reason) {
+        static Lookup found(MethodDeclaration m) {
+            return new Lookup(m, false, false, "");
+        }
+        static Lookup accessorOf(String field) {
+            return new Lookup(null, true, false, "a bodiless accessor of the field '" + field + "'");
+        }
+        static Lookup none(String reason) {
+            return new Lookup(null, false, false, reason);
+        }
+        static Lookup ambiguous(String reason) {
+            return new Lookup(null, false, true, reason);
+        }
+    }
+
+    // DL-1.3: the method of that name and arity with an in-tree body, walking the superclass chain; overloads of
+    // one arity are disambiguated by the static type of each argument (B2); a name with no declared method but a
+    // declared field it reads is a bodiless accessor (B1).
+    private Lookup lookup(ClassOrInterfaceDeclaration type, MethodCallExpr call, Caller caller) {
+        String name = call.getNameAsString();
+        int arity = call.getArguments().size();
+        ClassOrInterfaceDeclaration current = type;
+        Set<ClassOrInterfaceDeclaration> seen = identityTypeSet();
+        boolean anyDeclared = false;
+        while (current != null && seen.add(current)) {
+            List<MethodDeclaration> declared = current.getMethodsByName(name).stream()
+                    .filter(m -> m.getParameters().size() == arity)
+                    .toList();
+            anyDeclared |= !declared.isEmpty();
+            List<MethodDeclaration> matches = declared.stream().filter(m -> m.getBody().isPresent()).toList();
+            if (matches.size() == 1) {
+                return Lookup.found(matches.get(0));
+            }
+            if (matches.size() > 1) {
+                return disambiguate(matches, call, caller);
+            }
+            current = superclassOf(current);
+        }
+        if (!anyDeclared && arity == 0) {
+            Optional<String> field = accessedField(type, name);
+            if (field.isPresent()) {
+                return Lookup.accessorOf(field.get());
+            }
+        }
+        return Lookup.none("no single method '" + name + "' of arity " + arity);
+    }
+
+    // B1: getX(), isX() or x() with no declared method, on a type (or its superclasses) declaring a field x.
+    private Optional<String> accessedField(ClassOrInterfaceDeclaration type, String name) {
+        List<String> candidates = new ArrayList<>();
+        for (String prefix : List.of("get", "is")) {
+            if (name.startsWith(prefix) && name.length() > prefix.length()) {
+                String rest = name.substring(prefix.length());
+                candidates.add(Character.toLowerCase(rest.charAt(0)) + rest.substring(1));
+            }
+        }
+        candidates.add(name);
         ClassOrInterfaceDeclaration current = type;
         Set<ClassOrInterfaceDeclaration> seen = identityTypeSet();
         while (current != null && seen.add(current)) {
-            List<MethodDeclaration> matches = current.getMethodsByName(name).stream()
-                    .filter(m -> m.getParameters().size() == arity && m.getBody().isPresent())
-                    .toList();
-            if (matches.size() == 1) {
-                return Optional.of(matches.get(0));
-            }
-            if (matches.size() > 1) {
-                return Optional.empty();
+            Map<String, String> fields = fieldTypes(current);
+            for (String candidate : candidates) {
+                if (fields.containsKey(candidate)) {
+                    return Optional.of(candidate);
+                }
             }
             current = superclassOf(current);
         }
         return Optional.empty();
+    }
+
+    // B2: exactly one overload whose parameter types match every argument's static type, or ambiguous.
+    private Lookup disambiguate(List<MethodDeclaration> overloads, MethodCallExpr call, Caller caller) {
+        List<String> argTypes = new ArrayList<>();
+        for (int i = 0; i < call.getArguments().size(); i++) {
+            Optional<String> t = argumentType(call.getArgument(i), caller);
+            if (t.isEmpty()) {
+                return Lookup.ambiguous(overloads.size() + " overloads of arity " + call.getArguments().size()
+                        + " and argument " + (i + 1) + " ('" + abbreviate(call.getArgument(i).toString())
+                        + "') has no readable static type");
+            }
+            argTypes.add(t.get());
+        }
+        List<MethodDeclaration> matching = new ArrayList<>();
+        for (MethodDeclaration overload : overloads) {
+            boolean all = true;
+            for (int i = 0; i < argTypes.size(); i++) {
+                if (!typeMatches(overload.getParameter(i).getType().asString(), argTypes.get(i))) {
+                    all = false;
+                    break;
+                }
+            }
+            if (all) {
+                matching.add(overload);
+            }
+        }
+        if (matching.size() == 1) {
+            return Lookup.found(matching.get(0));
+        }
+        return Lookup.ambiguous(overloads.size() + " overloads of arity " + call.getArguments().size() + ", "
+                + matching.size() + " match the argument types " + argTypes);
+    }
+
+    // The static type of an argument the closure can read: a parameter, a typed local, a field of the calling
+    // class, a literal, an enum constant of an in-tree type, or a new T(...). Anything else is empty.
+    private Optional<String> argumentType(Expression arg, Caller caller) {
+        if (arg.isStringLiteralExpr()) {
+            return Optional.of("String");
+        }
+        if (arg.isIntegerLiteralExpr()) {
+            return Optional.of("int");
+        }
+        if (arg.isLongLiteralExpr()) {
+            return Optional.of("long");
+        }
+        if (arg.isBooleanLiteralExpr()) {
+            return Optional.of("boolean");
+        }
+        if (arg.isDoubleLiteralExpr()) {
+            return Optional.of("double");
+        }
+        if (arg.isCharLiteralExpr()) {
+            return Optional.of("char");
+        }
+        if (arg.isNullLiteralExpr()) {
+            return Optional.of("null");
+        }
+        if (arg.isObjectCreationExpr()) {
+            return Optional.of(simpleName(arg.asObjectCreationExpr().getType().asString()));
+        }
+        if (arg.isNameExpr()) {
+            String name = arg.asNameExpr().getNameAsString();
+            for (Parameter p : caller.method().getParameters()) {
+                if (p.getNameAsString().equals(name)) {
+                    return Optional.of(simpleName(p.getType().asString()));
+                }
+            }
+            Optional<String> local = caller.method().getBody().flatMap(b -> b.findAll(VariableDeclarator.class).stream()
+                    .filter(v -> v.getNameAsString().equals(name) && !v.getType().isVarType())
+                    .map(v -> simpleName(v.getType().asString()))
+                    .findFirst());
+            if (local.isPresent()) {
+                return local;
+            }
+            String field = fieldTypes(caller.owner()).get(name);
+            return field == null ? Optional.empty() : Optional.of(simpleName(field));
+        }
+        if (arg.isFieldAccessExpr() && arg.asFieldAccessExpr().getScope().isNameExpr()) {
+            String scope = arg.asFieldAccessExpr().getScope().asNameExpr().getNameAsString();
+            Optional<CompilationUnit> cu = caller.owner().findCompilationUnit();
+            if (cu.isPresent() && resolveType(scope, cu.get()).fqcn() != null) {
+                return Optional.of(scope); // An enum constant, or a constant of an in-tree type.
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static final Set<String> PRIMITIVES = Set.of("int", "long", "boolean", "double", "char", "float",
+            "short", "byte");
+
+    private static boolean typeMatches(String parameterType, String argumentType) {
+        String p = simpleName(parameterType);
+        if (argumentType.equals("null")) {
+            return !PRIMITIVES.contains(p);
+        }
+        return p.equals(argumentType) || box(p).equals(box(argumentType));
+    }
+
+    private static String box(String type) {
+        return switch (type) {
+            case "int", "Integer" -> "Integer";
+            case "long", "Long" -> "Long";
+            case "boolean", "Boolean" -> "Boolean";
+            case "double", "Double" -> "Double";
+            case "char", "Character" -> "Character";
+            case "float", "Float" -> "Float";
+            case "short", "Short" -> "Short";
+            case "byte", "Byte" -> "Byte";
+            default -> type;
+        };
+    }
+
+    private static String abbreviate(String text) {
+        return text.length() > 40 ? text.substring(0, 37) + "..." : text;
     }
 
     private ClassOrInterfaceDeclaration superclassOf(ClassOrInterfaceDeclaration type) {
