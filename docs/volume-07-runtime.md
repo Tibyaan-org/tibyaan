@@ -417,3 +417,15 @@ docs/SECURITY.md carrying the D3 sentence; every benchmark byte-identical across
 output and generated OpenAPI document against a worktree at the pre-build commit, with the five counts of
 section 10.8 unmoved; and on as-backend, with the fifteen names listed per hosting service and the global flag removed from the local
 profile, the same fifteen registered, which is the forecast gain of zero reported as zero.
+
+## 11. The write gate and the reviewed tier at the runtime (phase DL-1; designed 2026-09-23, PENDING RATIFICATION)
+
+Designed in Volume 5, section 4.17.6. A reviewed READ registers when `tibyan.reviewed.expose` is true (default
+true, decision D2). A WRITE or ACTION registers only when its exact name is in `tibyan.writes.allow`, a list under
+section 10's five conditions, default empty: the write gate. Section 4.14's security composition applies to
+reviewed capabilities, so a security-unverifiable one does not register by default; which exact-name list opens it
+is decision D1 of section 4.17.11, which proposes amending section 10 D5 to one list for any tier before section 10
+is built. Tool hints (`readOnlyHint`, `destructiveHint`) are carried if the pinned stack can carry them; the pinned
+MCP SDK jar shows no annotation class, so the build verifies and, failing that, records the gap and relies on the
+name prefix and the first sentence. Startup names every write it did not register with `write-not-allowed`. Not
+built by name: dry-run and an in-runtime confirmation step. Not ratified, not built.

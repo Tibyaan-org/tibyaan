@@ -1886,6 +1886,216 @@ DECISION 4: `mis-constrained 0` IS REPORTED ONLY WHERE A CONSTRAINT EXISTS. The 
 MEASURED (2026-09-01), and the forecast of section 4.16.9 held: pms 5 discovered, erp 35, as-backend 5, with the serialized IR, the generated MCP output and the generated OpenAPI document all BYTE-IDENTICAL to a worktree built at the pre-build commit. DISCOVERED IS BYTE-IDENTICAL BY CONSTRUCTION, not merely by measurement, for the reason section 4.16.9 gives. The one measured change on any benchmark is pms's survey gaining two `enum-parsed-in-body` lines, both of them WRITES (`LeaseServiceImpl#updateStatus`, `LeaseSigningServiceImpl#applyWebhookUpdate`), correctly named as visible-and-unconstrained rather than refused. erp and as-backend produce no such lines.
 
 WHAT IS STILL GATED ON AN ATTESTER, restated so the payoff is not misread as delivered. erp's 10 enum-parameter reads (section 4.16.9) become ATTESTABLE by this build, not attested: erp has no record file, so attested stays 0. This is the first phase whose payoff is gated on a human authoring entries rather than on a further build, and the tool does not and will not author them.
+### 4.17 DL-1: reviewed drafts, the third tier and the write gate (v2 direction; designed 2026-09-23, PENDING RATIFICATION)
+
+STATUS: DESIGNED, NOT RATIFIED, NOT BUILT. Under rule 12 nothing here is implemented until the maintainer ratifies
+it, and the open decisions of section 4.17.11 are the maintainer's to settle first. This is the phase the v2
+direction (Volume 13 section 3) names as the one after spike DL-0, and it is the phase that AMENDS THE
+CONSTITUTION: section 4.17.9 lists every rule it changes, so the ratification is of those changes as much as of
+the mechanism.
+
+#### 4.17.1 The evidence
+
+Spike DL-0 (docs/experiments/as-backend-trial.md section 10, commit fdd5ec3). On as-backend the draft-first
+surface is 990 candidates from 272 concrete service classes against the 20 the refusal-first tool serves: VERIFIED
+5, ATTESTED 15, READ 401 (263 with every input mapped), WRITE 204 (58 with every input mapped), UNKNOWN 365 (362
+void). The labels held on every proven target in both directions. Two facts from the census shape this design:
+138 READ and 146 WRITE drafts carry an input the mapper cannot map (List<Long> 40, an in-tree enum 33,
+List<Integer> 26, a DTO 20), so input binding is on the critical path; and the maintainer's reading sample of the
+READ labels is still owed, so this design must not let a wrong READ label ship silently, which is what the
+per-entry human approval and the name prefix are for.
+
+#### 4.17.2 The record: tibyan/drafts.json is the file, and the review is an edit
+
+The drafts file DL-0 writes becomes the record, exactly as tibyan/attestations.json is the record for attestations
+(section 4.15.3): committed beside the source, reviewed through the team's own version control, never edited by the
+tool except where stated. Each entry keeps DL-0's tool-written fields (name, target, binding, label, reason,
+capability, returnType, inputs) and gains:
+
+- `fingerprint`, TOOL-STAMPED at draft time over the same structural slice section 4.15.4 fingerprints, so an
+  approval is pinned to the code it approved.
+- `description`, REVIEWER-WRITTEN, the sentence the tool never authors. Empty means not approvable.
+- `descriptionOrigin`, `human` (default) or `ai-draft`: who produced the words, kept permanently, shown on every
+  surface exactly as AT-4's origin token is.
+- `review`: `pending` (the tool's value), `approved` or `rejected` (a reviewer's values).
+- `reviewedBy` and `reviewedOn`: the named human and the date, both required for `approved`.
+- `name`: the reviewer MAY rename the minted default; the tool applies the tier prefix (4.17.4) itself.
+
+RE-RUNNING `tibyan draft` MERGES, NEVER OVERWRITES: an existing entry keeps every reviewer field; a new method
+appends a pending entry; a target that no longer resolves is marked `stale` in place with its old fingerprint kept;
+a target whose recomputed label differs from the recorded one is marked with both labels and its review is RESET
+to `pending`, because a person approved a READ and the code is now a WRITE. Nothing is deleted by the tool.
+
+REVIEW IS A BATCH ACT BY DESIGN: a reviewer approves any number of entries in one edit and one commit. There is no
+per-entry command and no `--confirm` for drafts. The named human, the date and the fingerprint on each entry are
+what make a batch honest; AT-4's per-entry rule stays in force for ATTESTATIONS, whose sentences carry safety claims
+(predicate, shape, boundary) that a draft never does.
+
+#### 4.17.3 Intake: what the provider proves about an approved entry before it enters the IR
+
+Intake runs at scan, for every entry with `review: approved`, and REFUSES with a located cause or admits; a
+`pending` entry is counted in its own queue and produces nothing; a `rejected` entry produces nothing and is not
+counted as a refusal. The conditions, all of which must hold:
+
+- RV-A, RESOLVE. The target resolves to exactly one public instance method of one concrete `@Service` class
+  (section 4.15.3 condition 1, the same resolver). Else `TARGET_UNRESOLVED`.
+- RV-B, NOT STALE. The recomputed fingerprint equals the stamped one. Else `STALE_DRAFT`, and the survey names the
+  entry; the same loud invalidation attestations have.
+- RV-C, NO LABEL DRIFT. The recomputed label equals the recorded label. Else `LABEL_DRIFT` naming both. This is the
+  guard that keeps a reviewer's approval attached to what they read.
+- RV-D, NOT ALREADY PROVEN. The target is neither a discovered binding nor an attested target. Else `SUPERSEDED`:
+  the proven tier wins, and the entry is reported so the reviewer can delete it. A reviewed capability never
+  shadows a verified or attested one.
+- RV-E, EVERY INPUT BINDS. Each parameter maps to a primitive through the type mapper, or resolves to an in-tree
+  enum whose closed value set section 4.16 reads (the EI-1 path, so the runtime's EI-R enforcement applies
+  unchanged), or is a paging parameter (`Pageable`, `Sort`) the runtime already binds. A collection, a DTO, or an
+  unresolvable type refuses with `INPUT_UNMAPPED` naming the parameter and its type. Collection inputs are DEFERRED
+  TO DL-2 BY NAME (decision D6), with the as-backend count as the trigger evidence.
+- RV-F, THE OUTPUT IS DESCRIBABLE. `void` yields no output; a primitive maps; an in-tree entity yields an
+  `ENTITY_REF`; anything else yields the permissive object of Volume 6 section 4.1 (the partiality rule), exactly
+  as an attested SHAPE output does. Never a refusal: a reviewer who approved a DTO-returning read accepted that
+  shape.
+- RV-G, THE HUMAN HALF IS PRESENT. `description`, `reviewedBy` and `reviewedOn` are non-empty and `review` is
+  `approved`. Else `REVIEW_INCOMPLETE`.
+- RV-H, LABEL TO KIND. READ becomes kind READ with `readOnly` true; WRITE becomes kind WRITE with `readOnly`
+  false; UNKNOWN becomes kind ACTION with `readOnly` false (decision D4). VERIFIED and ATTESTED never reach here
+  (RV-D).
+
+Read-safety is NOT re-run as a gate for WRITE and ACTION: the label already says a mutation is visible or unknown,
+and the reviewer approved a write as a write. It IS re-run for READ through RV-C, because a READ label is a
+read-safety verdict and drift in it is drift in the safety claim.
+
+#### 4.17.4 IR growth: the Review component, two kinds that now exist, and two core rules (Volume 4 section 3.10)
+
+One optional component on Capability, `Review(label, reviewedBy, reviewedOn, descriptionOrigin, fingerprint)`,
+plain records, `tibyan-core` stays zero-dependency. `CapabilityKind.WRITE` and `ACTION`, declared since the MVP and
+never produced, are produced from this phase on, only by this intake, only with a `Review` attached.
+
+Core validation gains two rules. RULE 12, REVIEW COMPLETENESS AND NECESSITY: a capability carrying a `Review` must
+carry every field non-empty with `label` from the closed set; and a capability of kind WRITE or ACTION MUST carry a
+`Review`, because no discovery rule proves a write and none ever will under this design, so a write without a named
+reviewer is a write nobody signed for. RULE 13, THE REVIEWED PREFIX, reserved in both directions exactly as rule 9
+reserves `attested_`: a capability carrying a `Review` is named `reviewed_<name>`, and no other capability is. The
+E6b verdict stands: the epistemic class lives in the name, not only in a description that gets truncated.
+
+Argued against the Volume 4 section 4 bar. Counted evidence: 990 candidates on one app, of which the two proven
+tiers cover 20. Truthful naming: the component is named for what it is, a human review, and carries the tool's
+own label beside the human's name so neither is mistaken for the other. No coercion: verified and attested
+capabilities are untouched; an IR without approved drafts serializes byte-identically to today's. Rule 5's
+"read-only capabilities" clause is rewritten by this phase, section 4.17.9.
+
+#### 4.17.5 Backends (Volume 6, sections 3.9 and 4.6)
+
+MCP manifest, per tool, additive fields the runtime already tolerates: `kind` (READ, WRITE, ACTION), `tier`
+(`verified`, `attested`, `reviewed`), and for a reviewed tool `review{label, reviewedBy, reviewedOn,
+descriptionOrigin}`. The description's FIRST sentence is the class, before the reviewer's words: `Reviewed by
+<reviewedBy> (<descriptionOrigin>), not tool-verified; the tool labeled it <label>.` followed by the reviewer's
+sentence verbatim. OpenAPI: a reviewed READ renders as today's GET; a WRITE or ACTION renders as a POST operation
+whose request body carries the inputs, tagged `reviewed`, with the same first sentence. Both golden files change
+deliberately and are re-baselined in the build.
+
+#### 4.17.6 Runtime (Volume 7 section 11): the write gate, the hints, and what is deliberately not built
+
+- REGISTRATION. A reviewed READ registers when `tibyan.reviewed.expose` is true (default TRUE, decision D2: the
+  committed approvals are the opt-in, as for attested). A WRITE or ACTION registers ONLY when its exact name is in
+  `tibyan.writes.allow`, a list with Volume 7 section 10's five conditions applied verbatim (exact names, every
+  entry resolves, every entry is needed, the list widens nothing else, no blanks or duplicates), default EMPTY.
+  This is the write gate the direction names, and the section 10 list is its first member in shape.
+- SECURITY COMPOSITION. Section 4.14's declared-authority composition runs for reviewed capabilities exactly as for
+  attested ones, so a reviewed capability fronted by a secured controller carries `securityUnverifiable` and does
+  NOT register by default, because the adapter bypasses that controller (Volume 7 gap 9), and for a WRITE that is
+  the first-order risk. Which list opens it is decision D1.
+- HINTS. The tool definition carries `readOnlyHint` true for verified, attested and reviewed READ tools, and
+  `readOnlyHint` false with `destructiveHint` true for WRITE and ACTION, so a client that gates on hints (the
+  directory policy and the coding agents do) asks before a write. Carriage depends on the pinned stack exposing tool
+  annotations through the Spring AI callback path; a look at the pinned MCP SDK jar (0.18.3) found no annotation
+  class, so the build must verify it, and if the pinned versions cannot carry hints, the name prefix and the first
+  sentence remain the channel (they are already the E6b channel) and the hint follows the Volume 16 stack bump,
+  recorded as a gap.
+- STARTUP HONESTY. The startup log names every WRITE and ACTION it did NOT register with the reason
+  `write-not-allowed`, beside section 10's exclusion reasons, and the registered-names defect of section 10.6 is
+  fixed in the same place.
+- INVOCATION is the same reflective invoke; enum inputs bind through EI-R unchanged. NOT BUILT, named: dry-run
+  (no rollback-only transaction wrapping exists, and adding one is a design of its own), and an in-runtime
+  confirmation step (the client's hint-driven confirmation is the confirmation in DL-1).
+
+#### 4.17.7 CLI (Volume 11 section 3.5)
+
+`tibyan draft` exists and gains the merge and the fingerprint stamp. There is no review command: review is editing
+the file. `tibyan scan` reports `reviewed N` beside `discovered` and `attested`, never summed, plus `drafts pending
+M` and `drafts refused K` with each refusal's cause and target. `tibyan generate` and the Maven plugin emit reviewed
+capabilities from the IR like any other. The survey prints the tool's label and the reviewer's name for every
+reviewed capability.
+
+#### 4.17.8 The description assist stays outside the tool
+
+The file contract is the assist boundary, unchanged from AT-4: any agent may fill `description` and set
+`descriptionOrigin: ai-draft`; only a named human's `approved` ships it. Adding a model call to the tool remains a
+Volume 16 decision with the open questions of section 4.15.5.1, and DL-1 does not take it. On as-backend the
+existing adoption prompt is the assist.
+
+#### 4.17.9 What this phase changes in the constitution, listed for the ratification
+
+1. CLAUDE.md rule 5: the IR is entities plus capabilities of kind READ, WRITE and ACTION; the ledger gains the
+   `Review` component and rules 12 and 13; "read-only capabilities" is no longer the IR's definition.
+2. The refusal bias is restated: a false refusal is a coverage miss and a false pass is a safety breach FOR A
+   PROOF; a labeled, reviewed capability is neither a proof nor a pass, it is a named human's decision carried
+   faithfully, and the tool's guarantee for it is carriage, fingerprint, label drift and the gate, never truth.
+3. "Fail loud, never guess" applies to proofs and labels: the tool never upgrades a label to a proof, never
+   authors a description, and refuses every intake condition loudly. It no longer applies to EMISSION: an
+   unprovable method is drafted, not refused.
+4. The read-only boundary of docs/SECURITY.md becomes the write gate: writes exist, are off by default, and open by
+   exact name only.
+5. AT-4's no-batch rule is scoped to attestations; drafts are reviewed in batch by design (4.17.2).
+6. "Zero wrong bindings" and the four zero invariants are claims about the VERIFIED and ATTESTED tiers. A new
+   counter, `review-drift 0` (no approved entry whose fingerprint or label moved without being caught), joins them
+   as the reviewed tier's invariant.
+
+#### 4.17.10 Pre-registered fixtures (RV-1 to RV-12) and the forecast
+
+- RV-1: an approved READ draft with mapped inputs becomes `reviewed_<name>`, kind READ, readOnly true, Review
+  complete, on IR, manifest, OpenAPI and survey.
+- RV-2: an approved WRITE draft becomes kind WRITE, readOnly false, and does NOT register without
+  `tibyan.writes.allow`; with its exact name listed it registers and invokes end to end (the example app gains
+  one write method for this, the Q3 the spike deferred).
+- RV-3: an approved UNKNOWN draft becomes kind ACTION and is gated like a write.
+- RV-4: a `pending` entry produces nothing and is counted as pending; a `rejected` entry produces nothing and is
+  not a refusal.
+- RV-5: RV-B, a stamped fingerprint that no longer matches refuses STALE_DRAFT.
+- RV-6: RV-C, a READ approved and then made a WRITE refuses LABEL_DRIFT naming both labels.
+- RV-7: RV-D, an approved entry whose target is a discovered binding refuses SUPERSEDED; the verified capability
+  is unchanged.
+- RV-8: RV-E, a collection input refuses INPUT_UNMAPPED naming it; an in-tree enum input binds with its closed set
+  and EI-R refuses an illegal value at invoke.
+- RV-9: RV-G, a blank description or reviewer refuses REVIEW_INCOMPLETE.
+- RV-10: rule 12, a WRITE capability without a Review fails core validation; rule 13, the prefix both ways.
+- RV-11: re-running `tibyan draft` keeps reviewer fields, appends new methods, marks a vanished target stale, and
+  resets a label-changed entry to pending.
+- RV-12: an IR with no approved drafts serializes byte-identically, and the three benchmarks, which carry no
+  approved drafts, stay byte-identical across IR, MCP and OpenAPI output.
+
+FORECAST. pms and erp: byte-identical, no record file. as-backend: byte-identical until the maintainer approves
+entries; the first approvals are the reading sample of section 10, so the phase's first real measurement is the
+sample's error rate and the count of approved entries that pass intake. Every one of the five counters unmoved.
+
+#### 4.17.11 Open decisions for the maintainer, each with a recommendation
+
+- D1, THE SECURITY-UNVERIFIABLE LIST. Section 10's `tibyan.attested.exposeReviewed` is ratified and unbuilt.
+  Recommendation: amend section 10 D5 before its build to ONE exact-name list for security-unverifiable
+  capabilities of any tier, `tibyan.security.exposeUnverifiable`, with section 10's five conditions, so the
+  adopter does not maintain two lists with one meaning.
+- D2, DEFAULT EXPOSURE OF REVIEWED READS. Recommendation: TRUE, as for attested: the committed approvals are the
+  opt-in, and a second switch adds friction without honesty.
+- D3, THE PREFIX. Recommendation: `reviewed_`, reserved both ways (rule 13), because E6b was ratified on evidence
+  and a truncated description is the case it was ratified for.
+- D4, UNKNOWN DRAFTS. Refuse them, or admit them as kind ACTION behind the write gate. Recommendation: ACTION
+  behind the gate; 362 of the 365 are void methods a reviewer may legitimately want served, and the gate is what
+  makes that safe to allow by name.
+- D5, UNRESOLVABLE OUTPUTS. Refuse, or the permissive object. Recommendation: the permissive object, the same
+  partiality rule attested SHAPE already uses; a reviewer approving a read accepted its shape.
+- D6, COLLECTION INPUTS. Recommendation: DEFER TO DL-2 by name with the trigger recorded: 66 READ entries on
+  as-backend carry List<Long> or List<Integer>, so DL-2 has its evidence the day DL-1 ships.
+
 ## 5. Future providers
 
 | Provider | Source | Why it matters |

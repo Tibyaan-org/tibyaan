@@ -223,3 +223,12 @@ The build plugin is the one exception, and deliberately so (section 3.1.1, ratif
 | tibyan list | List available providers and backends discovered as plugins |
 
 Future commands follow the same rule: they call the pipeline or the plugin registry, and they hold no compiler logic themselves.
+
+## 3.5 `tibyan draft` and the reviewed tier in the survey (spike DL-0 built 2026-09-23; phase DL-1 designed 2026-09-23, PENDING RATIFICATION)
+
+`tibyan draft <path> [--out <drafts.json>]` writes `tibyan/drafts.json`: one entry per public method of every
+concrete `@Service` class, labeled VERIFIED, ATTESTED, READ, WRITE or UNKNOWN with the located reason (built in
+spike DL-0, Volume 13 section 3). DL-1 (Volume 5, section 4.17.7) adds the merge on re-run and the fingerprint
+stamp, and makes the file the record: review is editing it, there is no review command, and `tibyan scan` reports
+`reviewed N` beside `discovered` and `attested`, never summed, plus the pending and refused draft counts with each
+refusal's cause and target. Exit codes unchanged: 0 written, 3 the source could not be read.

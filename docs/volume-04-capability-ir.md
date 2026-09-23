@@ -172,6 +172,18 @@ What this growth will never become: a general validation-constraint system (no r
 required-ness), a container type, a per-input annotation bag, or a carrier for anything the tool did not
 read from a resolved declaration. It carries one closed value set per input and nothing more.
 
+### 3.10 The Review component: the reviewed third tier, and the kinds WRITE and ACTION (phase DL-1; designed 2026-09-23, PENDING RATIFICATION)
+
+Designed in Volume 5, section 4.17.4, and recorded here as the IR-facing half. One optional component on
+Capability, `Review(label, reviewedBy, reviewedOn, descriptionOrigin, fingerprint)`, where `label` is the tool's
+own read-safety label from the closed set READ, WRITE, UNKNOWN and the other four fields are the named human's
+act and its pin. `CapabilityKind.WRITE` and `ACTION`, declared since the MVP and never produced, are produced from
+this phase on, only with a `Review` attached. Validation gains rule 12 (a `Review` is complete, and a WRITE or
+ACTION capability must carry one) and rule 13 (the `reviewed_` prefix, reserved both ways, as rule 9 reserves
+`attested_`). Rule 5 is unchanged: `readOnly` is never true on WRITE or ACTION. The growth is argued against the
+section 4 bar in Volume 5, section 4.17.4; an IR without approved drafts serializes byte-identically to today's.
+Not ratified, not built; the rules are written into section 5 below only when the maintainer ratifies them.
+
 ## 4. The primitive type system
 
 The type system is closed. A type is either one of these primitives or a reference to an entity defined in the same model.

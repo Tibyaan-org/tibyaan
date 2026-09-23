@@ -560,6 +560,14 @@ WRITE 204, UNKNOWN 365. Q2 automatic half green, no failure condition fired; the
 owed. Q3 deferred to DL-1 by name (input binding and the manifest shape). Two amendments recorded in the ledger:
 the void rule and the target spelling. Record: as-backend-trial.md section 10.
 
+DL-1, REVIEWED DRAFTS, DESIGNED 2026-09-23, PENDING RATIFICATION: Volume 5, section 4.17, with the IR half in
+Volume 4 section 3.10, the surfaces in Volume 6 sections 3.9 and 4.6, the runtime in Volume 7 section 11, and the
+CLI in Volume 11 section 3.5. The drafts file becomes the record, review is a batch edit by a named human, intake
+proves eight conditions (RV-A to RV-H) before an approved entry enters the IR as `reviewed_<name>` with a `Review`
+component, WRITE and ACTION exist behind an exact-name write gate, and section 4.17.9 lists the six constitution
+changes the ratification decides. Six open decisions (D1 to D6) carry recommendations; collection inputs are
+deferred to DL-2 by name. Not ratified, not built.
+
 ## 4. Tier 3: direction only (production readiness and beyond)
 
 This tier is deliberately coarse: one short paragraph per item, no designs, no phase plans, no acceptance criteria. Everything here is conditional on Tier 2 proving the semantic core on real applications, meaning the benchmark discovers a meaningful share of a real app's reads with zero mis-bindings. Writing detailed plans for this tier before that proof would repeat the original roadmap's mistake.
