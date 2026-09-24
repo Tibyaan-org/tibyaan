@@ -680,7 +680,7 @@ neither.
 Fixtures are CI-1 to CI-7 and SI-1 to SI-12 of Volume 5 section 4.19; the runtime halves of CI-3, CI-7, SI-3
 and SI-11 live in `tibyan-runtime-spring`.
 
-## 14. Hosted bindings: the startup check (candidate F9; designed 2026-09-24, RATIFIED 2026-09-24 as written, build in this session; ratification record at 14.7)
+## 14. Hosted bindings: the startup check (candidate F9; designed and RATIFIED 2026-09-24, BUILT 2026-09-24; ratification record at 14.7, build record at 14.8)
 
 ### 14.1 The evidence
 
@@ -747,3 +747,36 @@ Ratified by the maintainer on 2026-09-24, as written, with the instruction "rati
 Both decisions of 14.6 stand at their recommendations: an unhosted tool is skipped and named (D1), and an
 exposure-list name the service does not host stays valid and is reported (D2). This record is committed
 before any code (rule 12).
+
+### 14.8 Build record (BUILT 2026-09-24)
+
+BUILT as ratified, H1 to H3, in the runtime module alone.
+
+WHAT CHANGED IN CODE. `BindingHost`, a runtime-internal interface with one question, `unhostedReason(binding)`;
+`SpringExecutionAdapter` implements it with the section 12.2 resolution factored into `beansOfClass` and shared
+with invocation (no bean, more than one bean, an unqualified binding, each worded for the line);
+`ToolRegistrar.registration` asks it after the exposure policy has decided and before a callback is created,
+so an unhosted tool is neither registered nor counted as excluded, and `Registration` carries the `unhosted`
+map; `TibyanAutoConfiguration.logStartup` prints the one H1 line. A plain `ExecutionAdapter` is not asked, so
+nothing changes for a caller that is not the Spring runtime. H2 holds by construction: the lists are validated
+before the hosting check, against the manifest, exactly as before. No property was added (H3).
+
+FIXTURES. HB-1 to HB-5 in `HostedBindingsTest` (a hosted binding registers with no line; an unhosted one is
+named with `no bean of class`; two beans of the class are named as ambiguous with both bean names; a
+CGLIB-proxied bean hosts its user class; an unhosted name in `tibyan.writes.allow` neither fails startup nor
+registers, and is reported), plus the plain-adapter case. `StartupHonestyTest` and the two real-adapter
+cases of `WriteGateTest` now host the beans their manifests bind to, because an unhosted binding no longer
+registers; their assertions are unchanged.
+
+THE FORECAST, CHECKED. Runtime only: the diff is five files in `tibyan-runtime-spring`, so every generated
+artifact on all three benchmarks is byte-identical by construction. On the pharmacy service of as-backend,
+repackaged on this build with the security list and the write allowed: the registered line went from 31 to
+20, and the H1 line named 11: three VERIFIED tools (`getWFRequest`, `getSSConfig`, `getDepartment`, bound to
+the workflow-engine, system-settings and user-core services), one ATTESTED
+(`attested_currentStockAutoComplete`, bound to the stock service) and the seven REVIEWED tools sections 10.7
+and 10.9 named. The forecast said at least nine; the two beyond it are the verified reads of other services,
+which section 9 had never counted because nothing then distinguished a registered tool from an executable
+one. `tools/list` returned 20 and a hosted reviewed read still answered. The 13-tool WARN of section 10.6
+(attested tools opened by the global switch alone) is unchanged and still open on this app.
+
+`mvn clean verify`: green, 12 modules.

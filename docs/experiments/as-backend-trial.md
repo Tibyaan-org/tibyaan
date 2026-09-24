@@ -861,3 +861,21 @@ throwaway database and nowhere else.
 
 NEXT: F9 is designed pending ratification (Volume 7 section 14): the pharmacy service still registers seven
 reviewed tools whose beans it does not host and finds out at call time.
+
+### 10.12 F9 built (2026-09-24): the pharmacy service registers what it can execute
+
+**[reported]** the pharmacy service repackaged on the F9 runtime, same lists as section 10.11: the registered
+line went from 31 tools to 20, and one new line named the 11 the service cannot execute, each with its class:
+three verified reads of other services (`getWFRequest`, `getSSConfig`, `getDepartment`), one attested
+(`attested_currentStockAutoComplete`) and the seven reviewed tools of sections 10.7 and 10.9
+(`CurrentStockServiceImpl`, `LocalStockProxyService`, the stock `LookupServiceImpl`, `PharmacyUserServiceImpl`,
+`RoleServiceImpl`, `ScopeServiceImpl`, `SubProductServiceImpl`). `tools/list` returned 20;
+`reviewed_LocalPharmacyProxyService_getApprovedPharmacies` still answered. The 13-tool WARN of section 10.6
+stands: those attested tools register only because the global switch is on in the local profile.
+
+What this closes: F9. An agent reading this service's tool list no longer learns, one failed call at a time,
+which tools belong to another service. What it does not close: the adopter still ships one reactor-wide
+manifest into every service; that is the adopter's practice and F9 makes it honest rather than forbidding it.
+
+The reviewed tier on this app now stands at 11 approvals (10 reads, 1 write), all executed or refused as their
+descriptions say, on a throwaway database.
