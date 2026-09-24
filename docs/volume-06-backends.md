@@ -276,3 +276,11 @@ Golden files change deliberately in the build.
 Designed in Volume 5, section 4.17.5. A reviewed READ renders as today's GET with the reviewed first sentence; a
 WRITE or ACTION renders as a POST operation whose request body carries the inputs, tagged `reviewed`. An
 unresolvable output renders the permissive object of section 4.1.
+
+## 3.10 MCP and OpenAPI: the `binding` value is qualified (phase Binding Identity; designed and RATIFIED 2026-09-24, BUILD PENDING)
+
+The manifest's `binding` field keeps its name and place; its value becomes the qualified form the provider now
+emits, `a.b.ProductService#findById` instead of `ProductService#findById` (Volume 7 section 12, R1). Neither
+backend reads the binding; both copy it, so the change is one field's content on every entry of every golden,
+a deliberate visible diff under rule 10, with nothing else moving. The OpenAPI document carries the same value
+wherever it carried the old one. The runtime side, R2 and R3, is Volume 7 section 12.2.

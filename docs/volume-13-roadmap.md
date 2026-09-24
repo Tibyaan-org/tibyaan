@@ -579,6 +579,24 @@ and overload disambiguation, was ratified and BUILT 2026-09-24 (Volume 5 section
 The first real approvals happened 2026-09-24 (as-backend-trial.md section 10.6): reviewed 9, refused 0. The next
 evidence is a reviewed tool called through a real MCP client on the adopter's running services.
 
+
+### Binding Identity: the qualified binding, verified at resolution (UNPLANNED, found by measurement 2026-09-24; designed and RATIFIED 2026-09-24; BUILD PENDING)
+
+Goal: close F7 of docs/experiments/as-backend-trial.md section 10.7, the runtime mis-bind risk the first
+end-to-end reviewed call exposed on every tier: bindings are `<SimpleName>#<method>` and the runtime resolves
+beans by simple name, so a reused simple name (four `LookupServiceImpl` classes in the adopter's reactor) can
+invoke a class the reviewer never read. Evidence: one reviewed tool did resolve to the wrong class and failed
+only because that class lacks the method. Rank: it preempts everything below the invariants, DL-2 and candidate
+hygiene included, under the standing mis-bind rule; it is the follow-on Entity Identity named on 2026-07-13
+(Volume 5 section 4.12.4) with its evidence finally in hand. Design: Volume 7 section 12 (R1 the provider
+qualifies the binding on every tier, R2 the runtime resolves by user-class canonical name and refuses zero or
+many, R3 an unqualified manifest fails startup), Volume 5 section 4.18, Volume 4 rule 7 amended reading,
+Volume 6 section 3.10. Exit criterion: fixtures BI-1 to BI-11 green, goldens updated with a diff confined to
+`binding` values, the three benchmarks' counts unchanged against a pre-build worktree (discovered 5 / 35 / 5,
+attested 15, reviewed 9, every zero invariant), and the section 10.7 call repeated on as-backend with the
+wrong-class case answering `no bean of class`. Not byte-identical by design; any movement outside the
+`binding` field is a regression finding.
+
 ## 4. Tier 3: direction only (production readiness and beyond)
 
 This tier is deliberately coarse: one short paragraph per item, no designs, no phase plans, no acceptance criteria. Everything here is conditional on Tier 2 proving the semantic core on real applications, meaning the benchmark discovers a meaningful share of a real app's reads with zero mis-bindings. Writing detailed plans for this tier before that proof would repeat the original roadmap's mistake.

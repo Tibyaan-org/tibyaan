@@ -431,3 +431,159 @@ SDK 0.18.3 has `McpSchema.ToolAnnotations` but the Spring AI 1.0.9 callback brid
 prefix and the description's first sentence carry the class, a tripwire test watches the bridge, and the direct
 `SyncToolSpecification` path is the recorded option for the Volume 16 session. Startup names every write it did not register with `write-not-allowed`. Not
 built by name: dry-run and an in-runtime confirmation step. Built 2026-09-23 (Volume 5, section 4.17.13), with the hints finding recorded above.
+
+## 12. Binding Identity: the qualified binding, verified at resolution (phase Binding Identity; found 2026-09-24 as F7, designed and RATIFIED 2026-09-24, BUILD PENDING)
+
+### 12.1 The evidence
+
+docs/experiments/as-backend-trial.md section 10.7, finding F7. The first reviewed capability executed end to
+end on as-backend, and one reviewed tool resolved to the wrong class. The manifest carried
+`LookupServiceImpl#getAllSuppliersLookups`; the reviewed target was
+`zag.service.stock.core.service.LookupServiceImpl`; the hosting service's context holds
+`zag.zpi.pharmacy.core.service.LookupServiceImpl`, one of four classes of that simple name in the reactor;
+`SpringExecutionAdapter.resolveBean` tried the default bean name `lookupServiceImpl`, then the first bean whose
+SIMPLE class name matched, and returned the pharmacy class. The call failed only because that class has no
+zero-argument method of that name. With a same-named method it would have invoked code the reviewer never read.
+
+This is the follow-on Volume 5 section 4.12.4 named and left open on 2026-07-13 ("it does not RESOLVE the
+ambiguity by qualifying the binding target, a separate follow-on, if evidence shows a real service-name
+collision"). The evidence exists now. Core rule 7 (Volume 4 section 5) is not the fix and was never claimed
+to be: it makes two capabilities with one binding string refuse at SCAN, within one reactor. It says nothing
+about the beans a HOST holds, and the F7 host held a class the scan's binding string matched by accident.
+
+The shape is the Entity Identity shape (section 4.12), on the last identifier the tool still keys by simple
+name. Every tier is exposed: verified, attested and reviewed bindings are all `<SimpleName>#<method>`.
+
+### 12.2 The rule
+
+Three parts. R1 is the provider's, R2 and R3 the runtime's.
+
+**R1, the binding is qualified (provider, every tier).** The binding string is
+`<canonical qualified class name>#<methodName>`, for example `a.b.ProductService#findById`. The qualified
+name is the declaration's, as JavaParser reads it from source (`getFullyQualifiedName()`, which for a nested
+type is the dotted canonical form `Outer.Inner`, never the binary `Outer$Inner`). One producer per tier, each
+already holding the declaration: `ServiceMethod.toBinding()` for the verified tier (the extractor passes the
+service declaration's qualified name alongside the simple name), `ResolvedTarget.binding()` for the attested
+and reviewed tiers (the target string already begins with the FQCN; `resolveTarget` carries it through instead
+of re-minting from the simple name). A declaration whose qualified name JavaParser cannot give (a local or
+anonymous class, which no rule reaches today) refuses the candidate with a located message; it never falls
+back to the simple name. The Controller-Authority tie (`ControllerSecurity.resolveBinding`) already resolves
+the injected field's type to an FQCN through the section 4.12.4 resolver; it emits that FQCN as the binding's
+class part, so the association between a controller route and its bound service holds by construction, with
+no new resolution step.
+
+Nothing else about a capability moves: not its name (`get<Entity>`, `list<E>`, `attested_<name>`,
+`reviewed_<SimpleName>_<method>`), not its inputs, output, annotations, attestation or review, not the
+fingerprint (computed over the slice, section 4.15.4, never over the binding string).
+
+**R2, resolution by class identity (runtime, every invocation).** `resolveBean` takes the class part of the
+binding and selects the beans whose USER class has that canonical name: for each bean definition name,
+`applicationContext.getType(name)` unwrapped by `ClassUtils.getUserClass` (which strips the CGLIB subclass
+Spring Boot's default `proxyTargetClass=true` produces for `@Transactional` and other advised beans), compared
+by `getCanonicalName()`. Exactly one match invokes. Zero refuses: `no bean of class '<fqcn>' is hosted by this
+application (binding '<binding>' of capability '<name>')`. More than one refuses and names the bean names:
+`binding '<binding>' is ambiguous: beans [a, b] are of class '<fqcn>'; the adapter never guesses`. The bean-name
+shortcut (`lookupServiceImpl`) and the simple-name walk are REMOVED, not kept as fallbacks: a fallback to the
+simple name is the defect. Method resolution by name and arity, and argument coercion to the declared parameter
+types, are unchanged (section 9, EI-R). The adapter may cache a successful resolution per binding after the
+first invocation; that is an implementation detail with no observable difference.
+
+One limit stated honestly: a bean advised by a JDK interface proxy (`proxyTargetClass=false`, not the Boot
+default) exposes only the proxy type, whose user class is not the target; such a bean resolves to zero and is
+refused with the message above, which names that possibility. Neither benchmark nor the adopter uses that
+setting. Resolving through `AopUtils.getTargetClass` would need every bean instantiated, which is not the
+adapter's place.
+
+**R3, an unqualified manifest is refused at startup (runtime).** A manifest whose `binding` class part
+contains no `.` was generated by a tool older than this phase. The loader refuses it at startup, failing the
+host with a located message: the capability name, the binding, and the fix (regenerate the manifest with the
+same Tibyaan version as the runtime). Resolving such a binding by simple name is exactly F7, so the runtime
+never does it. This is the X1 to X5 precedent (section 10.3): a bad configuration input fails startup rather
+than silently narrowing the surface. The adopter pins the plugin and the runtime to one version through one
+BOM property, so the mismatch is a build error surfacing at the earliest honest moment.
+
+### 12.3 Core rule 7, amended
+
+Rule 7 keeps its text and its check; what changes is the content of the string it compares. Two same-simple-name
+`@Service` classes carrying the same read method no longer collide on the binding: they emit distinct qualified
+bindings. Whether both ship is then rule 2's question (capability names unique within the module) and the
+display-name rule's (section 4.12.3): `getCrmNote` and `getSupportNote` both emit, exactly as the Entity
+Identity fixture EI-1 always intended for the entity side, while two `getOffer` still refuse, now by rule 2
+naming both capabilities. The refusal moves; it is never lost. Rule 7 stays as the guard for the case it was
+written for, one declaration reached twice.
+
+### 12.4 What does not change
+
+The IR shape: `BindingRef` stays one opaque string (Volume 4 section 3.4 already gives the example
+`inventory.ProductService#findById`); this is not IR growth and rule 5 is untouched. The manifest field name
+`binding` on both backends. The `target` fields of the attestation record and the drafts file, which already
+carry the FQCN. Fingerprints. Every capability, tool and operation name. The security list and the write
+allowlist, which key on names. Read-safety, labels, the closure.
+
+### 12.5 What changes on disk, and the forecast
+
+The `binding` value of every capability in every IR JSON, manifest and OpenAPI document, and of every entry in
+every drafts file. `DraftMerge.carry` already takes `fresh.binding()` for an existing entry, so an adopter's
+drafts file re-qualifies on its next `tibyan draft` with every review, reviewer, description and approved
+fingerprint kept; the attestation record needs no edit. The golden files change in exactly that field, a
+deliberate visible diff under rule 10.
+
+Byte-identity is therefore NOT the forecast. The forecast, checked against a worktree at the pre-build commit
+on all three benchmarks, is: the diff is confined to `binding` values, one per capability and per draft entry;
+every count is unchanged (discovered 5 / 35 / 5, attested 15, reviewed 9 on as-backend; mis-bound 0,
+attestation-drift 0, review-drift 0, mis-constrained 0, mis-safe 0; the draft census READ 358 / WRITE 372 /
+UNKNOWN 240); no capability appears or disappears. Any other movement is a regression finding. On as-backend
+the end-to-end run of section 10.7 is repeated: `reviewed_LookupServiceImpl_getAllSuppliersLookups` on the
+pharmacy service must answer `no bean of class 'zag.service.stock.core.service.LookupServiceImpl'`, and
+`getApprovedPharmacies` must still return its result set.
+
+### 12.6 Pre-registered fixtures (BI-1 to BI-11)
+
+- BI-1 (provider, happy path): a `@Service` in package `a.b` emits `a.b.ProductService#findById`.
+- BI-2 (provider, the collision resolved): two `@Service` classes named `OfferService` in different packages,
+  each a clean by-id read on distinct entities `CrmOffer` and `SupportOffer`: both emit, distinct bindings,
+  distinct names. Before this phase rule 7 refused both.
+- BI-3 (provider, the refusal moved): as BI-2 but both entities named `Offer` in different packages with equal
+  display names impossible (section 4.12.3 gives them distinct display names), so both still emit; and the
+  same declaration reached twice still refuses under rule 7. The negative case is one declaration, two
+  capabilities, unchanged.
+- BI-4 (Controller-Authority): every existing authority fixture holds with the binding value changed and
+  nothing else; a controller injecting one of two same-simple-name services ties to the right one.
+- BI-5 (runtime, the F7 case): two beans of different classes sharing a simple name; the binding names one; that
+  one is invoked.
+- BI-6 (runtime): no bean of the class is hosted; refused with the `no bean of class` message naming the
+  capability.
+- BI-7 (runtime): two beans of one class; refused as ambiguous, both bean names listed.
+- BI-8 (runtime): a manifest with an unqualified binding; startup fails with the located message.
+- BI-9 (runtime): a CGLIB-proxied bean (`@Transactional`) resolves by its user class.
+- BI-10 (draft): an existing drafts file with unqualified bindings and one approved entry re-qualifies on
+  `tibyan draft`; review, reviewer, description and the approved fingerprint are kept; `tibyan scan` admits it
+  with `review-drift 0`.
+- BI-11 (attest): an existing attestation record admits unchanged, `attestation-drift 0`, with qualified
+  bindings on every attested capability.
+
+### 12.7 Scope
+
+In: R1 to R3, the amended rule 7 reading, the fixtures, the goldens, the three-benchmark check and the repeated
+as-backend call. May be taken in the same build session, flagged under rule 13 as a diagnostic amendment,
+because it changes no outcome and only what a failure says: F8, surfacing the cause class and message of an
+`InvocationTargetException` in the returned error and logging it at WARN. Out: F9, a startup check that every
+registered binding's class is hosted (a candidate that R2 makes trivial to build, but it is a registration
+policy, not a resolution rule, and it gets its own ratification); F10, nothing to build.
+
+### 12.8 Decisions, each with the recommendation that stands under "ratified as written"
+
+- D1, an unqualified manifest at startup: FAIL startup (recommended, R3) rather than skip the affected tools
+  with a WARN. The skip would leave a surface that silently lost tools, the shape section 10.6 called out.
+- D2, the name compared: the CANONICAL name (recommended), because it is what the provider reads from source;
+  the binary name would make every nested service a special case.
+- D3, resolution cost: resolve on every invocation, with an optional per-binding cache after the first success
+  (recommended); never resolve at startup in this phase, since that is F9's decision.
+
+### 12.9 Ratification record (2026-09-24)
+
+The maintainer ratified the section 10.7 direction ("a qualified binding verified at resolution") with the
+words "ratified as written, design F7 and push it", on the same day the finding was recorded. This section is
+that direction made concrete, committed before any code (rule 12). The build is a separate session: one phase,
+the eleven fixtures, the goldens updated with a visible diff, the three-benchmark forecast of 12.5 checked
+against a pre-build worktree, the as-backend call repeated, and the report ending with its spine (rule 14).

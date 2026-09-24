@@ -853,7 +853,7 @@ Once entities are keyed, every place the provider ties a Java type to an entity 
    - the type resolution: sections 4.4 condition 2 (entity field), 4.10 condition 2 (list element type), and 4.5 condition 2 (enum field) resolve by the resolver, not by last segment. An entity reference that cannot be narrowed to one key, or an enum reference that cannot be narrowed to one enum declaration, refuses loud rather than picking one of two same-named types.
 3. Emitting the reference. Having resolved to one entity by key, the provider emits that entity's display `name` in the `ENTITY_REF` or `Relation`, so the reference token's shape is unchanged (Volume 4, sections 3.5 and 4) and, when the resolved name is a unique simple name, byte-identical to today. A resolved cross-context reference emits the correct disambiguated name, `ENTITY_REF(CrmNote)`, never the other context's entity.
 
-Parallel hazard, now made loud: service-class simple names. The binding string stays `<ServiceClassSimpleName>#<methodName>` (section 4.1), which keys the runtime's bean resolution on the service class's SIMPLE name. On a bounded-context app two service classes can share a simple name just as two entities can, so two distinct capabilities could carry the SAME binding string. Rather than let that ship as a silent runtime mis-bind, core validation gains a binding-uniqueness rule (Volume 4, section 5, rule 7): if two emitted capabilities carry the same binding string, validation FAILS LOUD with a located message, consistent with the provable-or-refuse ethos. So the phase does not silently emit an unprovable binding; it refuses. What it does NOT do is RESOLVE the ambiguity by qualifying the binding target (a separate follow-on, if evidence shows a real service-name collision that two same-simple-name beans would otherwise resolve). The mis-bound-0 strengthening is therefore: entity identity is fully resolved, and the service-class hazard is converted from a possible silent mis-bind into a loud refusal, not left open.
+Parallel hazard, now made loud: service-class simple names. The binding string stays `<ServiceClassSimpleName>#<methodName>` (section 4.1), which keys the runtime's bean resolution on the service class's SIMPLE name. On a bounded-context app two service classes can share a simple name just as two entities can, so two distinct capabilities could carry the SAME binding string. Rather than let that ship as a silent runtime mis-bind, core validation gains a binding-uniqueness rule (Volume 4, section 5, rule 7): if two emitted capabilities carry the same binding string, validation FAILS LOUD with a located message, consistent with the provable-or-refuse ethos. So the phase does not silently emit an unprovable binding; it refuses. What it does NOT do is RESOLVE the ambiguity by qualifying the binding target (a separate follow-on, if evidence shows a real service-name collision that two same-simple-name beans would otherwise resolve). The mis-bound-0 strengthening is therefore: entity identity is fully resolved, and the service-class hazard is converted from a possible silent mis-bind into a loud refusal, not left open. RESOLVED 2026-09-24 by phase Binding Identity (section 4.18; Volume 7 section 12), on the evidence of a real collision at a real host.
 
 #### 4.12.5 What this rule will never do
 
@@ -2501,6 +2501,24 @@ unchanged. The remaining UNKNOWN: 207 void with nothing found, 13 untyped argume
 implementations disagree, 5 reflection, 3 read-safety.
 
 BUILD DECISIONS: none beyond the ratified text.
+
+
+### 4.18 Binding Identity: the qualified binding (phase Binding Identity; designed and RATIFIED 2026-09-24, BUILD PENDING; the rule is Volume 7 section 12)
+
+The follow-on section 4.12.4 named ("it does not RESOLVE the ambiguity by qualifying the binding target") has
+its evidence: docs/experiments/as-backend-trial.md section 10.7, finding F7, where a reviewed tool resolved at
+the runtime to a class the reviewer never read because four classes in that reactor share the simple name
+`LookupServiceImpl`. The provider-side rule is R1 of Volume 7 section 12.2: the binding string every tier
+emits becomes `<canonical qualified class name>#<methodName>`. Section 4.1's `<ServiceClassSimpleName>#<methodName>`
+is superseded by it; `ServiceMethod.toBinding()` produces the qualified form from the declaration the extractor
+already holds, `ResolvedTarget.binding()` carries the target's FQCN through for attested (4.15.4) and reviewed
+(4.17.3) capabilities, and the Controller-Authority tie (4.14) emits the FQCN the section 4.12.4 resolver already
+gives it. Names, inputs, outputs, annotations, fingerprints, the attestation record and the drafts file's
+`target` do not move; the drafts file's `binding` re-qualifies on the next `tibyan draft` through the existing
+merge, with every review kept. Core rule 7 keeps its check over the now-qualified string (Volume 7 section
+12.3): the same-simple-name collision it refused becomes two distinct bindings, and whether both ship is rule
+2's question. Fixtures BI-1 to BI-4, BI-10 and BI-11 are the provider's; the forecast (Volume 7 section 12.5)
+is a diff confined to `binding` values on all three benchmarks with every count unchanged.
 
 ## 5. Future providers
 
