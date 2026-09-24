@@ -183,7 +183,7 @@ class McpBackendGoldenTest {
                 "getProduct",
                 inputs,
                 Type.entityRef("Product"),
-                new BindingRef("ProductService#findById"));
+                new BindingRef("com.example.ProductService#findById"));
 
         return new CapabilityModel(
                 "legacy-spring-app", "0.1",
@@ -210,7 +210,7 @@ class McpBackendGoldenTest {
                 Type.entityRef("Unit"),
                 false,
                 true,
-                new BindingRef("UnitServiceImpl#findById"),
+                new BindingRef("com.example.UnitServiceImpl#findById"),
                 List.of(new Annotation("view", List.of("UnitVTO"))),
                 null);
 
@@ -233,7 +233,7 @@ class McpBackendGoldenTest {
                 "listContact",
                 new LinkedHashMap<>(),
                 Type.entityRef("Contact"),
-                new BindingRef("ContactService#findAll"),
+                new BindingRef("com.example.ContactService#findAll"),
                 List.of(Annotation.flag("paged")));
 
         return new CapabilityModel(
@@ -258,7 +258,7 @@ class McpBackendGoldenTest {
                 List.of(Field.of("id", Primitive.LONG, false)), List.of(), Metadata.empty());
 
         Capability getProduct = Capability.read("getProduct", inputs("id", Primitive.LONG),
-                Type.entityRef("Product"), new BindingRef("ProductService#findById"));
+                Type.entityRef("Product"), new BindingRef("com.example.ProductService#findById"));
 
         Map<String, Type> searchInputs = new LinkedHashMap<>();
         searchInputs.put("fullName", Primitive.STRING);
@@ -270,19 +270,19 @@ class McpBackendGoldenTest {
                 "Returns the tenants matching the given filters.", meanings, null, "a.elseginy",
                 AttestationOrigin.HUMAN_AUTHORED, "2026-07-24", "sha256:abc123");
         Capability searchTenants = Capability.attested("attested_searchTenants", searchInputs,
-                Type.entityRef("Tenant"), true, new BindingRef("TenantServiceImpl#getAllByFilter"),
+                Type.entityRef("Tenant"), true, new BindingRef("com.example.TenantServiceImpl#getAllByFilter"),
                 List.of(), attestation);
 
         Capability findByStatus = Capability.reviewed("reviewed_findProductsByStatus",
                 inputs("status", Primitive.STRING), Type.entityRef("Product"), true,
-                new BindingRef("ProductService#findByStatus"),
+                new BindingRef("com.example.ProductService#findByStatus"),
                 List.of(new Annotation("description", List.of("Lists the products in the given status."))),
                 Map.of("status", List.of("ACTIVE", "DISCONTINUED")),
                 new Review(ReviewLabel.READ, "a.elseginy", "2026-09-23", Review.ORIGIN_HUMAN, "sha256:r1"));
 
         Capability createProduct = Capability.reviewed("reviewed_createProduct",
                 inputs("name", Primitive.STRING), Primitive.LONG, false,
-                new BindingRef("ProductService#create"),
+                new BindingRef("com.example.ProductService#create"),
                 List.of(new Annotation("description",
                         List.of("Creates a product with the given name and returns its id."))),
                 Map.of(),
@@ -290,7 +290,7 @@ class McpBackendGoldenTest {
 
         Capability reindexProducts = Capability.reviewed("reviewed_reindexProducts",
                 new LinkedHashMap<>(), Primitive.STRING, false,
-                new BindingRef("ProductService#reindex"),
+                new BindingRef("com.example.ProductService#reindex"),
                 List.of(Annotation.flag("void"),
                         new Annotation("description", List.of("Rebuilds the product search index."))),
                 Map.of(),
@@ -299,7 +299,7 @@ class McpBackendGoldenTest {
 
         Capability productStats = Capability.reviewed("reviewed_getProductStats",
                 inputs("id", Primitive.LONG), Primitive.STRING, false,
-                new BindingRef("ProductService#statsFor"),
+                new BindingRef("com.example.ProductService#statsFor"),
                 List.of(new Annotation("description", List.of("Returns sales statistics for the product.")),
                         new Annotation("opaqueOutput", List.of("ProductStatsDto"))),
                 Map.of(),
@@ -328,13 +328,13 @@ class McpBackendGoldenTest {
         Map<String, Type> warehouseInputs = new LinkedHashMap<>();
         warehouseInputs.put("id", Primitive.LONG);
         Capability getWarehouse = Capability.of("getWarehouse", CapabilityKind.READ, warehouseInputs,
-                Type.entityRef("Warehouse"), false, true, new BindingRef("WarehouseService#findById"),
+                Type.entityRef("Warehouse"), false, true, new BindingRef("com.example.WarehouseService#findById"),
                 List.of(new Annotation("requiredAuthorities", List.of("480012", "480013"))), null);
 
         Map<String, Type> reportInputs = new LinkedHashMap<>();
         reportInputs.put("id", Primitive.LONG);
         Capability getReport = Capability.of("getReport", CapabilityKind.READ, reportInputs,
-                Type.entityRef("Report"), false, true, new BindingRef("ReportService#findById"),
+                Type.entityRef("Report"), false, true, new BindingRef("com.example.ReportService#findById"),
                 List.of(new Annotation("securityUnverifiable", List.of("unparseable-expression"))), null);
 
         return new CapabilityModel("secured-app", "0.1",

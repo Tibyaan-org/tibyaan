@@ -59,7 +59,7 @@ class AttestationShapeProviderTest {
         assertThat(report.attestedCount()).isEqualTo(1);
         assertThat(report.attestationRefusals()).isEmpty();
         Capability capability = attested(report, "attested_getBuilding");
-        assertThat(capability.binding().value()).isEqualTo("BuildingServiceImpl#getBuilding");
+        assertThat(capability.binding().value()).isEqualTo("com.example.attestshape.BuildingServiceImpl#getBuilding");
         assertThat(capability.output()).isEqualTo(Type.entityRef("Building"));
         assertThat(capability.outputMultiple()).isFalse();
 

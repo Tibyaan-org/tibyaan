@@ -105,9 +105,10 @@ public final class SemanticValidator {
     }
 
     // Rule 7 (Volume 4 section 5, phase Entity Identity; Volume 5 section 4.12.4): binding strings are
-    // unique across emitted capabilities, so an unprovable binding (for example two same-simple-name
-    // @Service classes both yielding OfferService#findById) is refused rather than shipped as a possible
-    // runtime mis-bind. Enforced in core, provable-or-refuse, regardless of provider.
+    // unique across emitted capabilities, so one declaration reached twice is refused rather than shipped
+    // as a possible runtime mis-bind. Since Binding Identity (Volume 7 section 12.3) the string compared is
+    // the QUALIFIED binding, so two same-simple-name @Service classes no longer collide here; whether both
+    // ship is rule 2's question. Enforced in core, provable-or-refuse, regardless of provider.
     private static void checkBindingUniqueness(CapabilityModel model, List<String> errors) {
         Map<String, String> seen = new HashMap<>();
         for (Capability capability : model.capabilities()) {

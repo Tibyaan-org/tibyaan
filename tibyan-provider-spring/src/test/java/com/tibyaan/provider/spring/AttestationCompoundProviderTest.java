@@ -57,7 +57,7 @@ class AttestationCompoundProviderTest {
         assertThat(report.attestedCount()).isEqualTo(1);
 
         Capability capability = attested(report, "attested_searchTicketSummaries");
-        assertThat(capability.binding().value()).isEqualTo("TicketServiceImpl#searchSummaries");
+        assertThat(capability.binding().value()).isEqualTo("com.example.attestboth.TicketServiceImpl#searchSummaries");
         // The shape half: the output is the ASSERTED subject, because structure could not tie it.
         assertThat(capability.output()).isEqualTo(Type.entityRef("Ticket"));
 

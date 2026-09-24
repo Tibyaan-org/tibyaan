@@ -45,10 +45,10 @@ class EntityIdentityProviderTest {
                 .containsExactlyInAnyOrder("getCrmNote", "getSupportNote");
         Capability crm = capabilityNamed(model, "getCrmNote");
         assertThat(crm.output()).isEqualTo(Type.entityRef("CrmNote"));
-        assertThat(crm.binding().value()).isEqualTo("CrmNoteService#getById");
+        assertThat(crm.binding().value()).isEqualTo("example.crm.model.CrmNoteService#getById");
         Capability support = capabilityNamed(model, "getSupportNote");
         assertThat(support.output()).isEqualTo(Type.entityRef("SupportNote"));
-        assertThat(support.binding().value()).isEqualTo("SupportNoteService#getById");
+        assertThat(support.binding().value()).isEqualTo("example.support.model.SupportNoteService#getById");
 
         assertThat(validator.validate(model).isValid())
                 .as("the disambiguated model is valid: distinct names, distinct bindings")
@@ -81,7 +81,7 @@ class EntityIdentityProviderTest {
         assertThat(model.capabilities()).extracting(Capability::name).containsExactly("getCrmNote");
         Capability crm = model.capabilities().get(0);
         assertThat(crm.output()).isEqualTo(Type.entityRef("CrmNote"));
-        assertThat(crm.binding().value()).isEqualTo("NoteService#getById");
+        assertThat(crm.binding().value()).isEqualTo("example.crm.model.NoteService#getById");
         // No capability anywhere outputs the support Note: it was never bound.
         assertThat(model.capabilities()).noneMatch(c -> c.output().equals(Type.entityRef("SupportNote")));
 

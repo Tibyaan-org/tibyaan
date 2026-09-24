@@ -70,7 +70,7 @@ class DraftLabelerTest {
 
         assertThat(getById.capability()).isEqualTo("getOrder");
         assertThat(getById.target()).isEqualTo("com.example.draft.OrderServiceImpl#getById(Long)");
-        assertThat(getById.binding()).isEqualTo("OrderServiceImpl#getById");
+        assertThat(getById.binding()).isEqualTo("com.example.draft.OrderServiceImpl#getById");
         assertThat(getById.returnType()).isEqualTo("Order");
         assertThat(getById.inputs()).containsExactly(new DraftInput("id", "Long", "LONG"));
         assertThat(getById.description()).isEmpty();

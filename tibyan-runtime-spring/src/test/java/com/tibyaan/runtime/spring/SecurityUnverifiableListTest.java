@@ -32,7 +32,7 @@ class SecurityUnverifiableListTest {
     private static final String REVIEWED_READ = "reviewed_findOverdue";
 
     private static CapabilityDescriptor verified() {
-        return new CapabilityDescriptor(VERIFIED, "Read Product.", "ProductService#findById", "Product",
+        return new CapabilityDescriptor(VERIFIED, "Read Product.", "com.example.ProductService#findById", "Product",
                 List.of(new InputDescriptor("id", "LONG")));
     }
 
@@ -54,7 +54,7 @@ class SecurityUnverifiableListTest {
     private static CapabilityDescriptor reviewedUnverifiableRead() {
         return CapabilityDescriptor.reviewed(REVIEWED_READ,
                 "Reviewed by a.reviewer (human), not tool-verified; the tool labeled it READ. Lists overdue.",
-                "InvoiceService#findOverdue", "Invoice", List.of(), CapabilityDescriptor.KIND_READ, true,
+                "com.example.InvoiceService#findOverdue", "Invoice", List.of(), CapabilityDescriptor.KIND_READ, true,
                 new ReviewDescriptor("READ", "a.reviewer", "2026-09-23", "human"));
     }
 
@@ -228,7 +228,7 @@ class SecurityUnverifiableListTest {
     void d1_x3_aListedReviewedToolThatIsNotUnverifiableFailsStartup() {
         CapabilityDescriptor reviewedVerifiableRead = CapabilityDescriptor.reviewed("reviewed_findPaid",
                 "Reviewed by a.reviewer (human), not tool-verified; the tool labeled it READ. Lists paid.",
-                "InvoiceService#findPaid", "Invoice", List.of(), CapabilityDescriptor.KIND_READ, false,
+                "com.example.InvoiceService#findPaid", "Invoice", List.of(), CapabilityDescriptor.KIND_READ, false,
                 new ReviewDescriptor("READ", "a.reviewer", "2026-09-23", "human"));
         CapabilitiesManifest manifest = new CapabilitiesManifest("m", "0.1", List.of(reviewedVerifiableRead));
 

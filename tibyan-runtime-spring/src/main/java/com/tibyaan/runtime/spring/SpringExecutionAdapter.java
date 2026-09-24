@@ -5,25 +5,29 @@ import com.tibyaan.plugin.ExecutionAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
+import org.springframework.util.ClassUtils;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.stream.Collectors.joining;
 
 /**
  * The Spring {@link ExecutionAdapter} (Volume 7). It is the only place that maps a capability's
  * opaque binding to a real call. Given a {@link CapabilityRef} and arguments, it looks up the
- * capability in the manifest, resolves the binding's {@code <Bean>#<method>} form to a real bean
- * and method through the {@link ApplicationContext}, and invokes it reflectively.
+ * capability in the manifest, resolves the binding's {@code <qualified class>#<method>} form to a
+ * real bean and method through the {@link ApplicationContext}, and invokes it reflectively.
  *
  * <p>The binding is the real service method, discovered by the provider (Volume 5 section 4.1).
- * The adapter never depended on how the binding was produced: it resolves the same opaque
- * {@code <Bean>#<method>} string whether that string was once a convention or, as now, a
- * discovered fact, with no change here.
+ * Since phase Binding Identity (Volume 7 section 12, built 2026-09-24) its class part is the
+ * canonical qualified name and the bean is resolved by CLASS IDENTITY, never by bean name and never
+ * by simple name: a real host held a class of the same simple name as a reviewed target, and the
+ * simple-name walk resolved to it (docs/experiments/as-backend-trial.md section 10.7, F7).
  */
 public final class SpringExecutionAdapter implements ExecutionAdapter {
 
@@ -31,6 +35,9 @@ public final class SpringExecutionAdapter implements ExecutionAdapter {
 
     private final ApplicationContext applicationContext;
     private final Map<String, CapabilityDescriptor> capabilitiesByName;
+    // R2 (section 12.2): a successful resolution is cached per class name; an observable difference
+    // between resolving once and resolving on every call does not exist, since the context is fixed.
+    private final Map<String, Object> beansByClassName = new ConcurrentHashMap<>();
 
     public SpringExecutionAdapter(ApplicationContext applicationContext, CapabilitiesManifest manifest) {
         this.applicationContext = applicationContext;
@@ -53,12 +60,12 @@ public final class SpringExecutionAdapter implements ExecutionAdapter {
         int hash = binding.indexOf('#');
         if (hash < 0) {
             throw new IllegalStateException("malformed binding '" + binding + "' for capability '"
-                    + capability.name() + "'; expected <Bean>#<method>");
+                    + capability.name() + "'; expected <qualified class>#<method>");
         }
-        String beanHint = binding.substring(0, hash);
+        String className = binding.substring(0, hash);
         String methodName = binding.substring(hash + 1);
 
-        Object bean = resolveBean(beanHint);
+        Object bean = resolveBean(className, binding, capability.name());
         List<InputDescriptor> inputs = descriptor.inputs();
 
         // EI-R: resolve the method by name and ARITY, then convert each argument into that method's
@@ -76,24 +83,62 @@ public final class SpringExecutionAdapter implements ExecutionAdapter {
         try {
             log.debug("Tibyaan: invoking {} for capability {}", binding, capability.name());
             return method.invoke(bean, callArgs);
+        } catch (InvocationTargetException e) {
+            // F8 (as-backend-trial.md section 10.7), a diagnostic amendment flagged under rule 13: the bound
+            // method threw, and the caller gets the cause's class and message rather than an opaque
+            // "failed to invoke". Nothing about the outcome changes; only what the failure says.
+            Throwable cause = e.getCause() == null ? e : e.getCause();
+            log.warn("Tibyaan: binding '{}' of capability '{}' threw {}: {}", binding, capability.name(),
+                    cause.getClass().getName(), cause.getMessage());
+            throw new IllegalStateException("failed to invoke binding '" + binding + "': "
+                    + cause.getClass().getName() + (cause.getMessage() == null ? "" : ": " + cause.getMessage()),
+                    cause);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("failed to invoke binding '" + binding + "'", e);
         }
     }
 
-    // Resolve by bean name first (the Spring default, productService), then by type simple name.
-    private Object resolveBean(String beanHint) {
-        String beanName = Character.toLowerCase(beanHint.charAt(0)) + beanHint.substring(1);
-        if (applicationContext.containsBean(beanName)) {
-            return applicationContext.getBean(beanName);
+    /**
+     * Resolves the binding's class part to exactly one bean whose USER class has that canonical name
+     * (Volume 7 section 12.2, R2). The CGLIB subclass Spring Boot's default {@code proxyTargetClass=true}
+     * produces for an advised bean is unwrapped by {@link ClassUtils#getUserClass(Class)}. Zero matches and
+     * more than one match both refuse loudly; the adapter never picks a bean by its name or by its simple
+     * class name, because a fallback to the simple name is the F7 defect itself.
+     */
+    private Object resolveBean(String className, String binding, String capabilityName) {
+        if (className.indexOf('.') < 0) {
+            // R3 (section 12.2): an unqualified class part was produced by a tool older than Binding Identity;
+            // the loader refuses such a manifest at startup, and the adapter refuses it here as well so the
+            // rule holds for a manifest handed to it by any other path.
+            throw new IllegalStateException("binding '" + binding + "' of capability '" + capabilityName
+                    + "' is not qualified (expected <qualified class>#<method>); the manifest was generated by"
+                    + " a Tibyaan older than 0.4.0 and must be regenerated with the runtime's own version");
         }
+        Object cached = beansByClassName.get(className);
+        if (cached != null) {
+            return cached;
+        }
+        List<String> matches = new ArrayList<>();
         for (String name : applicationContext.getBeanDefinitionNames()) {
-            Class<?> type = applicationContext.getType(name);
-            if (type != null && type.getSimpleName().equals(beanHint)) {
-                return applicationContext.getBean(name);
+            Class<?> type = applicationContext.getType(name, false);
+            if (type != null && className.equals(ClassUtils.getUserClass(type).getCanonicalName())) {
+                matches.add(name);
             }
         }
-        throw new IllegalStateException("no bean found for binding hint '" + beanHint + "'");
+        if (matches.isEmpty()) {
+            throw new IllegalStateException("no bean of class '" + className + "' is hosted by this application"
+                    + " (binding '" + binding + "' of capability '" + capabilityName + "'); the bean is either not"
+                    + " on this service's classpath, not registered here, or advised by a JDK interface proxy that"
+                    + " hides its class");
+        }
+        if (matches.size() > 1) {
+            throw new IllegalStateException("binding '" + binding + "' of capability '" + capabilityName
+                    + "' is ambiguous: beans " + matches + " are of class '" + className
+                    + "'; the adapter never guesses which one a capability binds to");
+        }
+        Object bean = applicationContext.getBean(matches.get(0));
+        beansByClassName.put(className, bean);
+        return bean;
     }
 
     /**

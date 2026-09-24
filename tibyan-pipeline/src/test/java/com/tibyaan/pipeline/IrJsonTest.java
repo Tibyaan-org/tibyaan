@@ -42,7 +42,7 @@ class IrJsonTest {
                 .contains("\"LONG\"")
                 .contains("\"DECIMAL\"")
                 .contains("\"ENTITY_REF(Product)\"")
-                .contains("\"ProductService#findById\"")
+                .contains("\"com.example.ProductService#findById\"")
                 .contains("\"READ\"");
     }
 
@@ -91,7 +91,7 @@ class IrJsonTest {
         Map<String, Type> inputs = new LinkedHashMap<>();
         inputs.put("id", Primitive.LONG);
         Capability getProduct = Capability.read("getProduct", inputs, Type.entityRef("Product"),
-                new BindingRef("ProductService#findById"));
+                new BindingRef("com.example.ProductService#findById"));
         return new CapabilityModel("legacy-spring-app", "0.1",
                 List.of(product), List.of(getProduct), List.of(), Metadata.empty());
     }

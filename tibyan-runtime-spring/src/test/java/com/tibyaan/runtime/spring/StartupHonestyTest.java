@@ -54,7 +54,7 @@ class StartupHonestyTest {
 
     private static CapabilitiesManifest manifest() {
         return new CapabilitiesManifest("m", "0.1", List.of(
-                new CapabilityDescriptor(VERIFIED, "Read Product.", "ProductService#findById", "Product", List.of()),
+                new CapabilityDescriptor(VERIFIED, "Read Product.", "com.example.ProductService#findById", "Product", List.of()),
                 new CapabilityDescriptor(CITIES, "Human-attested.", "Svc#cities", "City", List.of(), true, true, false),
                 new CapabilityDescriptor(TENANTS, "Human-attested.", "Svc#tenants", "Tenant", List.of(), true, true, false),
                 CapabilityDescriptor.reviewed(READ, "Reviewed by r (human), not tool-verified; the tool labeled it READ. X.",

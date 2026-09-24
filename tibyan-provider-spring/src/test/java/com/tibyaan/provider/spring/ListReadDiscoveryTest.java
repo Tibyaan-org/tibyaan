@@ -26,7 +26,7 @@ class ListReadDiscoveryTest {
     void l1_bareFindAllDiscoversAndIsNotPaged() {
         ScanReport report = scan("l1");
         Capability listAlpha = capability(report, "listAlpha");
-        assertThat(listAlpha.binding().value()).isEqualTo("AlphaService#findAll");
+        assertThat(listAlpha.binding().value()).isEqualTo("com.example.list.l1.AlphaService#findAll");
         assertThat(listAlpha.output()).isEqualTo(Type.entityRef("Alpha"));
         assertThat(listAlpha.outputMultiple()).isTrue();
         assertThat(listAlpha.inputs()).isEmpty();
@@ -38,7 +38,7 @@ class ListReadDiscoveryTest {
     void l2_pagedFindAllDiscoversWithThePagedDisclosure() {
         ScanReport report = scan("l2");
         Capability listBeta = capability(report, "listBeta");
-        assertThat(listBeta.binding().value()).isEqualTo("BetaService#findAll");
+        assertThat(listBeta.binding().value()).isEqualTo("com.example.list.l2.BetaService#findAll");
         assertThat(listBeta.outputMultiple()).isTrue();
         assertThat(listBeta.inputs()).isEmpty();
         assertThat(paged(listBeta)).isTrue();
@@ -123,10 +123,10 @@ class ListReadDiscoveryTest {
     void l11_listBindsExactlyToTheRightEntitysCollection() {
         ScanReport report = scan("l11");
         Capability listBook = capability(report, "listBook");
-        assertThat(listBook.binding().value()).isEqualTo("BookService#findAll");
+        assertThat(listBook.binding().value()).isEqualTo("com.example.list.l11.BookService#findAll");
         assertThat(listBook.output()).isEqualTo(Type.entityRef("Book"));
         Capability listAuthor = capability(report, "listAuthor");
-        assertThat(listAuthor.binding().value()).isEqualTo("AuthorService#findAll");
+        assertThat(listAuthor.binding().value()).isEqualTo("com.example.list.l11.AuthorService#findAll");
         assertThat(listAuthor.output()).isEqualTo(Type.entityRef("Author"));
     }
 
@@ -138,7 +138,7 @@ class ListReadDiscoveryTest {
         assertThat(getCar.output()).isEqualTo(Type.entityRef("Car"));
         Capability listCar = capability(report, "listCar");
         assertThat(listCar.outputMultiple()).isTrue();
-        assertThat(listCar.binding().value()).isEqualTo("CarService#findAll");
+        assertThat(listCar.binding().value()).isEqualTo("com.example.list.l12.CarService#findAll");
         assertThat(entityOutcome(report, "Car").status()).isEqualTo(Status.DISCOVERED);
         assertThat(listOutcome(report, "Car").isDiscovered()).isTrue();
     }

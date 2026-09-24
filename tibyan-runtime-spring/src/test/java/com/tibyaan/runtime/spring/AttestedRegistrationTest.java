@@ -21,13 +21,13 @@ class AttestedRegistrationTest {
     private final ExecutionAdapter noop = (ref, arguments) -> null;
 
     private static CapabilityDescriptor verified() {
-        return new CapabilityDescriptor("getProduct", "Read Product.", "ProductService#findById", "Product",
+        return new CapabilityDescriptor("getProduct", "Read Product.", "com.example.ProductService#findById", "Product",
                 List.of(new InputDescriptor("id", "LONG")));
     }
 
     private static CapabilityDescriptor attested(boolean securityUnverifiable) {
         return new CapabilityDescriptor("attested_searchTenants", "Human-attested, not tool-verified.",
-                "TenantServiceImpl#getAllByFilter", "Tenant",
+                "com.example.TenantServiceImpl#getAllByFilter", "Tenant",
                 List.of(new InputDescriptor("fullName", "STRING")), true, securityUnverifiable, false);
     }
 
@@ -68,7 +68,7 @@ class AttestedRegistrationTest {
     void theLoaderToleratesTheNewAttestedFields() throws Exception {
         String json = "{\"module\":\"pms\",\"version\":\"0.1\",\"tools\":[{"
                 + "\"name\":\"attested_searchTenants\",\"description\":\"Human-attested, not tool-verified.\","
-                + "\"binding\":\"TenantServiceImpl#getAllByFilter\",\"output\":\"ENTITY_REF(Tenant)\","
+                + "\"binding\":\"com.example.TenantServiceImpl#getAllByFilter\",\"output\":\"ENTITY_REF(Tenant)\","
                 + "\"outputMultiple\":true,\"attested\":true,"
                 + "\"attestation\":{\"category\":\"predicate\",\"resultSemantic\":\"x\","
                 + "\"assertedBy\":\"a\",\"origin\":\"human-authored\",\"date\":\"2026-07-24\","

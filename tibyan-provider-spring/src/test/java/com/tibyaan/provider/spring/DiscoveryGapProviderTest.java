@@ -48,24 +48,24 @@ class DiscoveryGapProviderTest {
         Capability note = named(model, "getNote");
         assertThat(note.inputs()).containsExactly(entry("id", Primitive.LONG));
         assertThat(note.output()).isEqualTo(Type.entityRef("Note"));
-        assertThat(note.binding().value()).isEqualTo("NoteService#getById");
+        assertThat(note.binding().value()).isEqualTo("example.audit.NoteService#getById");
 
         // DG-2: the child inherits its @Id from an @Inheritance(JOINED) @Entity parent.
         Capability bundle = named(model, "getBundleItem");
         assertThat(bundle.inputs()).containsExactly(entry("id", Primitive.LONG));
-        assertThat(bundle.binding().value()).isEqualTo("BundleItemService#getById");
+        assertThat(bundle.binding().value()).isEqualTo("example.catalog.BundleItemService#getById");
 
         // DG-3: the clean, unguarded private-helper hop, view-returning.
         Capability foo = named(model, "getFoo");
         assertThat(foo.output()).isEqualTo(Type.entityRef("Foo"));
-        assertThat(foo.binding().value()).isEqualTo("FooService#getById");
+        assertThat(foo.binding().value()).isEqualTo("example.helper.FooService#getById");
         assertThat(foo.annotations()).anySatisfy(annotation -> {
             assertThat(annotation.key()).isEqualTo("view");
             assertThat(annotation.values()).containsExactly("FooVTO");
         });
 
         // DG-3b: an entity-returning read reached through a private helper stays a section 4.1 match.
-        assertThat(named(model, "getBar").binding().value()).isEqualTo("BarService#getById");
+        assertThat(named(model, "getBar").binding().value()).isEqualTo("example.helper.BarService#getById");
 
         assertThat(validator.validate(model).isValid()).isTrue();
     }
@@ -177,15 +177,15 @@ class DiscoveryGapProviderTest {
         CapabilityModel model = report.model();
 
         Capability car = named(model, "getCar");
-        assertThat(car.binding().value()).isEqualTo("CarService#getById");
+        assertThat(car.binding().value()).isEqualTo("example.fleet.CarService#getById");
         assertThat(car.output()).isEqualTo(Type.entityRef("Car"));
 
         Capability truck = named(model, "getTruck");
-        assertThat(truck.binding().value()).isEqualTo("TruckService#getById");
+        assertThat(truck.binding().value()).isEqualTo("example.fleet.TruckService#getById");
         assertThat(truck.output()).isEqualTo(Type.entityRef("Truck"));
 
         Capability vehicle = named(model, "getVehicle");
-        assertThat(vehicle.binding().value()).isEqualTo("VehicleService#getById");
+        assertThat(vehicle.binding().value()).isEqualTo("example.fleet.VehicleService#getById");
         assertThat(vehicle.output()).isEqualTo(Type.entityRef("Vehicle"));
 
         // No capability binds another member of the hierarchy's method.
@@ -202,11 +202,11 @@ class DiscoveryGapProviderTest {
         CapabilityModel model = report.model();
 
         Capability crm = named(model, "getCrmNote");
-        assertThat(crm.binding().value()).isEqualTo("CrmNoteService#getById");
+        assertThat(crm.binding().value()).isEqualTo("example.crm.CrmNoteService#getById");
         assertThat(crm.output()).isEqualTo(Type.entityRef("CrmNote"));
 
         Capability support = named(model, "getSupportNote");
-        assertThat(support.binding().value()).isEqualTo("SupportNoteService#getById");
+        assertThat(support.binding().value()).isEqualTo("example.support.SupportNoteService#getById");
         assertThat(support.output()).isEqualTo(Type.entityRef("SupportNote"));
 
         // Neither read outputs the other context's entity.

@@ -55,7 +55,7 @@ class AttestationIntakeProviderTest {
         ScanReport report = provider.scan(new ProviderInput(root));
 
         Capability attested = capability(report, "attested_searchTenants");
-        assertThat(attested.binding().value()).isEqualTo("TenantServiceImpl#getAllByFilter");
+        assertThat(attested.binding().value()).isEqualTo("com.example.attest.TenantServiceImpl#getAllByFilter");
         assertThat(attested.output()).isEqualTo(Type.entityRef("Tenant"));
         assertThat(attested.outputMultiple()).isTrue();
         assertThat(report.attestationRefusals()).isEmpty();
@@ -88,7 +88,7 @@ class AttestationIntakeProviderTest {
         ScanReport report = provider.scan(new ProviderInput(root));
 
         Capability attested = capability(report, "attested_getActiveTenant");
-        assertThat(attested.binding().value()).isEqualTo("TenantServiceImpl#getActiveTenant");
+        assertThat(attested.binding().value()).isEqualTo("com.example.attest.TenantServiceImpl#getActiveTenant");
         assertThat(attested.output()).isEqualTo(Type.entityRef("Tenant"));
         assertThat(attested.outputMultiple()).as("a by-id read is single, not a list").isFalse();
         assertThat(attested.attestation().parameterMeanings()).containsEntry("id", Attestation.ID_MARK);

@@ -122,7 +122,7 @@ class DraftReviewProviderTest {
         Capability reviewed = capability(report, "reviewed_InvoiceServiceImpl_summarize");
         assertThat(reviewed.kind()).isEqualTo(CapabilityKind.READ);
         assertThat(reviewed.readOnly()).isTrue();
-        assertThat(reviewed.binding().value()).isEqualTo("InvoiceServiceImpl#summarize");
+        assertThat(reviewed.binding().value()).isEqualTo("com.example.review.InvoiceServiceImpl#summarize");
         assertThat(reviewed.inputs()).containsExactly(
                 Map.entry("id", Primitive.LONG), Map.entry("currency", Primitive.STRING));
         // RV-F, decision D5: the DTO output is the permissive object, disclosed by name, never a refusal.
@@ -518,6 +518,31 @@ class DraftReviewProviderTest {
         assertThat(merged.get(0).review()).isEqualTo(DraftEntry.APPROVED);
         // An approved entry keeps the fingerprint the reviewer approved (build decision, section 4.17.13).
         assertThat(merged.get(0).fingerprint()).isEqualTo("sha256:old");
+    }
+
+    // ---------- BI-10 (Binding Identity, Volume 7 section 12.6): a drafts file re-qualifies on merge ----------
+
+    @Test
+    void bi10_anExistingApprovedEntryWithAnUnqualifiedBindingReQualifiesAndKeepsItsReview() {
+        // An adopter's drafts file written before Binding Identity carries Svc#find; the next run's fresh
+        // candidate carries a.Svc#find. carry() takes the fresh binding and every reviewer field of the old
+        // entry, including the fingerprint the reviewer approved.
+        DraftEntry existing = new DraftEntry("mine", "a.Svc#find(Long)", "Svc#find", DraftLabel.READ, "r",
+                null, "X", List.of(), "words", DraftEntry.APPROVED, REVIEWER, DATE, "human", "sha256:old", false,
+                null);
+        DraftEntry fresh = DraftEntry.fresh("Svc_find", "a.Svc#find(Long)", "a.Svc#find", DraftLabel.READ,
+                "r", null, "X", List.of(), "sha256:old");
+
+        List<DraftEntry> merged = DraftMerge.merge(List.of(fresh), List.of(existing));
+
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).binding()).isEqualTo("a.Svc#find");
+        assertThat(merged.get(0).name()).isEqualTo("mine");
+        assertThat(merged.get(0).review()).isEqualTo(DraftEntry.APPROVED);
+        assertThat(merged.get(0).reviewedBy()).isEqualTo(REVIEWER);
+        assertThat(merged.get(0).description()).isEqualTo("words");
+        assertThat(merged.get(0).fingerprint()).isEqualTo("sha256:old");
+        assertThat(merged.get(0).stale()).isFalse();
     }
 
     // ---------- RV-12: byte identity without an approved draft ----------

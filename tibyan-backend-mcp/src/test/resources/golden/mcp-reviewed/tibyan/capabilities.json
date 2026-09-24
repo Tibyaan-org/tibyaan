@@ -5,7 +5,7 @@
     {
       "name": "getProduct",
       "description": "Read Product by id.",
-      "binding": "ProductService#findById",
+      "binding": "com.example.ProductService#findById",
       "output": "ENTITY_REF(Product)",
       "inputs": [
         {
@@ -17,7 +17,7 @@
     {
       "name": "attested_searchTenants",
       "description": "Human-attested, not tool-verified. Returns the tenants matching the given filters. Asserted by a.elseginy (human-authored), 2026-07-24.",
-      "binding": "TenantServiceImpl#getAllByFilter",
+      "binding": "com.example.TenantServiceImpl#getAllByFilter",
       "output": "ENTITY_REF(Tenant)",
       "outputMultiple": true,
       "attested": true,
@@ -45,7 +45,7 @@
     {
       "name": "reviewed_findProductsByStatus",
       "description": "Reviewed by a.elseginy (human), not tool-verified; the tool labeled it READ. Lists the products in the given status.",
-      "binding": "ProductService#findByStatus",
+      "binding": "com.example.ProductService#findByStatus",
       "tier": "reviewed",
       "review": {
         "label": "READ",
@@ -66,7 +66,7 @@
     {
       "name": "reviewed_createProduct",
       "description": "Reviewed by a.elseginy (human), not tool-verified; the tool labeled it WRITE. Creates a product with the given name and returns its id.",
-      "binding": "ProductService#create",
+      "binding": "com.example.ProductService#create",
       "kind": "WRITE",
       "tier": "reviewed",
       "review": {
@@ -86,7 +86,7 @@
     {
       "name": "reviewed_reindexProducts",
       "description": "Reviewed by a.elseginy (ai-draft), not tool-verified; the tool labeled it UNKNOWN. Rebuilds the product search index. (returns nothing)",
-      "binding": "ProductService#reindex",
+      "binding": "com.example.ProductService#reindex",
       "kind": "ACTION",
       "tier": "reviewed",
       "review": {
@@ -102,7 +102,7 @@
     {
       "name": "reviewed_getProductStats",
       "description": "Reviewed by b.reviewer (human), not tool-verified; the tool labeled it READ. Returns sales statistics for the product. Returns ProductStatsDto; its field shape is not modeled.",
-      "binding": "ProductService#statsFor",
+      "binding": "com.example.ProductService#statsFor",
       "tier": "reviewed",
       "review": {
         "label": "READ",

@@ -48,7 +48,7 @@ class ReviewedManifestCarriageTest {
     @Test
     void aReviewedWriteCarriesItsKindTierReviewAndClassLeadingDescription() {
         Capability write = Capability.reviewed("reviewed_createProduct", inputs("name", Primitive.STRING),
-                Primitive.LONG, false, new BindingRef("ProductService#create"),
+                Primitive.LONG, false, new BindingRef("com.example.ProductService#create"),
                 List.of(new Annotation("description",
                         List.of("Creates a product with the given name and returns its id."))),
                 Map.of(), review(ReviewLabel.WRITE));
@@ -56,7 +56,7 @@ class ReviewedManifestCarriageTest {
         String json = ManifestWriter.toJson(model(write));
 
         // The fields ride right after the binding, in this order, and the review object is character-exact.
-        assertThat(json).contains("      \"binding\": \"ProductService#create\",\n"
+        assertThat(json).contains("      \"binding\": \"com.example.ProductService#create\",\n"
                 + "      \"kind\": \"WRITE\",\n"
                 + "      \"tier\": \"reviewed\",\n"
                 + "      \"review\": {\n"
@@ -74,7 +74,7 @@ class ReviewedManifestCarriageTest {
     @Test
     void anUnknownDraftIsAnActionAndAVoidOneSaysItReturnsNothing() {
         Capability action = Capability.reviewed("reviewed_reindexProducts", new LinkedHashMap<>(),
-                Primitive.STRING, false, new BindingRef("ProductService#reindex"),
+                Primitive.STRING, false, new BindingRef("com.example.ProductService#reindex"),
                 List.of(Annotation.flag("void"),
                         new Annotation("description", List.of("Rebuilds the product search index."))),
                 Map.of(), new Review(ReviewLabel.UNKNOWN, "a.elseginy", "2026-09-23",
@@ -94,7 +94,7 @@ class ReviewedManifestCarriageTest {
     @Test
     void aReviewedReadIsAReadWithNoKindFieldAndAnOpaqueOutputIsNamed() {
         Capability read = Capability.reviewed("reviewed_getProductStats", inputs("id", Primitive.LONG),
-                Primitive.STRING, false, new BindingRef("ProductService#statsFor"),
+                Primitive.STRING, false, new BindingRef("com.example.ProductService#statsFor"),
                 List.of(new Annotation("description", List.of("Returns sales statistics for the product.")),
                         new Annotation("opaqueOutput", List.of("ProductStatsDto"))),
                 Map.of(), review(ReviewLabel.READ));
@@ -113,7 +113,7 @@ class ReviewedManifestCarriageTest {
     @Test
     void withoutAReviewerSentenceTheClassSentenceStandsAloneAndNothingIsInvented() {
         Capability bare = Capability.reviewed("reviewed_touchProduct", inputs("id", Primitive.LONG),
-                Primitive.STRING, false, new BindingRef("ProductService#touch"), List.of(), Map.of(),
+                Primitive.STRING, false, new BindingRef("com.example.ProductService#touch"), List.of(), Map.of(),
                 review(ReviewLabel.WRITE));
 
         String json = ManifestWriter.toJson(model(bare));
@@ -126,7 +126,7 @@ class ReviewedManifestCarriageTest {
     void anEnumConstrainedReviewedInputRendersItsClosedSetAsToday() {
         Capability read = Capability.reviewed("reviewed_findProductsByStatus",
                 inputs("status", Primitive.STRING), Type.entityRef("Product"), true,
-                new BindingRef("ProductService#findByStatus"), List.of(),
+                new BindingRef("com.example.ProductService#findByStatus"), List.of(),
                 Map.of("status", List.of("ACTIVE", "DISCONTINUED")), review(ReviewLabel.READ));
 
         String json = ManifestWriter.toJson(model(read));
@@ -138,7 +138,7 @@ class ReviewedManifestCarriageTest {
     @Test
     void rv12_aVerifiedToolGainsNoKindTierOrReviewField() {
         Capability verified = Capability.read("getProduct", inputs("id", Primitive.LONG),
-                Type.entityRef("Product"), new BindingRef("ProductService#findById"));
+                Type.entityRef("Product"), new BindingRef("com.example.ProductService#findById"));
 
         String json = ManifestWriter.toJson(model(verified));
 

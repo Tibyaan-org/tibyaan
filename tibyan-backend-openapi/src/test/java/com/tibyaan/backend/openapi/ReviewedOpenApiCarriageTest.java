@@ -60,7 +60,7 @@ class ReviewedOpenApiCarriageTest {
     @Test
     void aReviewedWriteIsATaggedPostWhoseBodyCarriesTheInputs() {
         Capability write = Capability.reviewed("reviewed_createProduct", inputs("name", Primitive.STRING),
-                Primitive.LONG, false, new BindingRef("ProductService#create"),
+                Primitive.LONG, false, new BindingRef("com.example.ProductService#create"),
                 List.of(new Annotation("description",
                         List.of("Creates a product with the given name and returns its id."))),
                 Map.of(), review(ReviewLabel.WRITE));
@@ -100,7 +100,7 @@ class ReviewedOpenApiCarriageTest {
     @Test
     void aVoidActionIsAPostWithNoBodyThatResponds204() {
         Capability action = Capability.reviewed("reviewed_reindexProducts", new LinkedHashMap<>(),
-                Primitive.STRING, false, new BindingRef("ProductService#reindex"),
+                Primitive.STRING, false, new BindingRef("com.example.ProductService#reindex"),
                 List.of(Annotation.flag("void"),
                         new Annotation("description", List.of("Rebuilds the product search index."))),
                 Map.of(), new Review(ReviewLabel.UNKNOWN, "a.elseginy", "2026-09-23",
@@ -121,7 +121,7 @@ class ReviewedOpenApiCarriageTest {
     void aReviewedReadIsATaggedGetWithQueryParametersAndTheEnumRendersAsToday() {
         Capability read = Capability.reviewed("reviewed_findProductsByStatus",
                 inputs("status", Primitive.STRING), Type.entityRef("Product"), true,
-                new BindingRef("ProductService#findByStatus"),
+                new BindingRef("com.example.ProductService#findByStatus"),
                 List.of(new Annotation("description", List.of("Lists the products in the given status."))),
                 Map.of("status", List.of("ACTIVE", "DISCONTINUED")), review(ReviewLabel.READ));
 
@@ -145,7 +145,7 @@ class ReviewedOpenApiCarriageTest {
     @Test
     void anOpaqueOutputIsThePermissiveObjectThatDeclinesToEnumerateFields() {
         Capability read = Capability.reviewed("reviewed_getProductStats", inputs("id", Primitive.LONG),
-                Primitive.STRING, false, new BindingRef("ProductService#statsFor"),
+                Primitive.STRING, false, new BindingRef("com.example.ProductService#statsFor"),
                 List.of(new Annotation("description", List.of("Returns sales statistics for the product.")),
                         new Annotation("opaqueOutput", List.of("ProductStatsDto"))),
                 Map.of(), review(ReviewLabel.READ));
@@ -169,7 +169,7 @@ class ReviewedOpenApiCarriageTest {
     @Test
     void rv12_aVerifiedDocumentGainsNoReviewedTagPathOrExtension() {
         Capability verified = Capability.read("getProduct", inputs("id", Primitive.LONG),
-                Type.entityRef("Product"), new BindingRef("ProductService#findById"));
+                Type.entityRef("Product"), new BindingRef("com.example.ProductService#findById"));
 
         String json = OpenApiDocument.toJson(model(verified));
 

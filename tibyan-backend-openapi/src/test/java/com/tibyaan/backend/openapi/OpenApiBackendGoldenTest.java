@@ -115,11 +115,11 @@ class OpenApiBackendGoldenTest {
                 List.of(Field.of("id", Primitive.LONG, false)), List.of(), Metadata.empty());
         Capability getWarehouse = Capability.of("getWarehouse", CapabilityKind.READ,
                 inputs("id", Primitive.LONG), Type.entityRef("Warehouse"), false, true,
-                new BindingRef("WarehouseService#findById"),
+                new BindingRef("com.example.WarehouseService#findById"),
                 List.of(new Annotation("requiredAuthorities", List.of("480012", "480013"))), null);
         Capability getReport = Capability.of("getReport", CapabilityKind.READ,
                 inputs("id", Primitive.LONG), Type.entityRef("Report"), false, true,
-                new BindingRef("ReportService#findById"),
+                new BindingRef("com.example.ReportService#findById"),
                 List.of(new Annotation("securityUnverifiable", List.of("unparseable-expression"))), null);
         return new CapabilityModel("secured-app", "0.1",
                 List.of(warehouse, report), List.of(getWarehouse, getReport), List.of(), Metadata.empty());
@@ -151,7 +151,7 @@ class OpenApiBackendGoldenTest {
                 Field.of("price", Primitive.DECIMAL, false)),
                 List.of(), Metadata.empty());
         Capability getProduct = Capability.read("getProduct", inputs("id", Primitive.LONG),
-                Type.entityRef("Product"), new BindingRef("ProductService#findById"));
+                Type.entityRef("Product"), new BindingRef("com.example.ProductService#findById"));
         return new CapabilityModel("legacy-spring-app", "0.1",
                 List.of(product), List.of(getProduct), List.of(), Metadata.empty());
     }
@@ -161,7 +161,7 @@ class OpenApiBackendGoldenTest {
         Entity unit = new Entity("Unit", "Unit", List.of(Field.of("id", Primitive.LONG, false)),
                 List.of(), Metadata.empty());
         Capability getUnit = Capability.of("getUnit", CapabilityKind.READ, inputs("id", Primitive.LONG),
-                Type.entityRef("Unit"), false, true, new BindingRef("UnitServiceImpl#findById"),
+                Type.entityRef("Unit"), false, true, new BindingRef("com.example.UnitServiceImpl#findById"),
                 List.of(new Annotation("view", List.of("UnitVTO"))), null);
         return new CapabilityModel("pms-backend", "0.1",
                 List.of(unit), List.of(getUnit), List.of(), Metadata.empty());
@@ -174,7 +174,7 @@ class OpenApiBackendGoldenTest {
                 Field.of("name", Primitive.STRING, false)),
                 List.of(new Annotation("partial", List.of("parts", "tags"))), Metadata.empty());
         Capability getGizmo = Capability.read("getGizmo", inputs("id", Primitive.UUID),
-                Type.entityRef("Gizmo"), new BindingRef("GizmoService#findById"));
+                Type.entityRef("Gizmo"), new BindingRef("com.example.GizmoService#findById"));
         return new CapabilityModel("widgets", "0.1",
                 List.of(gizmo), List.of(getGizmo), List.of(), Metadata.empty());
     }
@@ -199,7 +199,7 @@ class OpenApiBackendGoldenTest {
                 Field.of("kind", Type.entityRef("Kind"), false)),
                 List.of(), Metadata.empty());
         Capability getSample = Capability.read("getSample", inputs("id", Primitive.UUID),
-                Type.entityRef("Sample"), new BindingRef("SampleService#findById"));
+                Type.entityRef("Sample"), new BindingRef("com.example.SampleService#findById"));
         return new CapabilityModel("types", "0.1",
                 List.of(sample, kind), List.of(getSample), List.of(), Metadata.empty());
     }
@@ -212,7 +212,7 @@ class OpenApiBackendGoldenTest {
                 Field.of("name", Primitive.STRING, false)),
                 List.of(), Metadata.empty());
         Capability listContact = Capability.readList("listContact", new LinkedHashMap<>(),
-                Type.entityRef("Contact"), new BindingRef("ContactService#findAll"),
+                Type.entityRef("Contact"), new BindingRef("com.example.ContactService#findAll"),
                 List.of(new Annotation("paged", List.of())));
         return new CapabilityModel("erp-backend", "0.1",
                 List.of(contact), List.of(listContact), List.of(), Metadata.empty());
@@ -236,7 +236,7 @@ class OpenApiBackendGoldenTest {
                 List.of(Field.of("id", Primitive.LONG, false)), List.of(), Metadata.empty());
 
         Capability getProduct = Capability.read("getProduct", inputs("id", Primitive.LONG),
-                Type.entityRef("Product"), new BindingRef("ProductService#findById"));
+                Type.entityRef("Product"), new BindingRef("com.example.ProductService#findById"));
 
         Map<String, Type> searchInputs = new LinkedHashMap<>();
         searchInputs.put("fullName", Primitive.STRING);
@@ -248,19 +248,19 @@ class OpenApiBackendGoldenTest {
                 "Returns the tenants matching the given filters.", meanings, null, "a.elseginy",
                 AttestationOrigin.HUMAN_AUTHORED, "2026-07-24", "sha256:abc123");
         Capability searchTenants = Capability.attested("attested_searchTenants", searchInputs,
-                Type.entityRef("Tenant"), true, new BindingRef("TenantServiceImpl#getAllByFilter"),
+                Type.entityRef("Tenant"), true, new BindingRef("com.example.TenantServiceImpl#getAllByFilter"),
                 List.of(), attestation);
 
         Capability findByStatus = Capability.reviewed("reviewed_findProductsByStatus",
                 inputs("status", Primitive.STRING), Type.entityRef("Product"), true,
-                new BindingRef("ProductService#findByStatus"),
+                new BindingRef("com.example.ProductService#findByStatus"),
                 List.of(new Annotation("description", List.of("Lists the products in the given status."))),
                 Map.of("status", List.of("ACTIVE", "DISCONTINUED")),
                 new Review(ReviewLabel.READ, "a.elseginy", "2026-09-23", Review.ORIGIN_HUMAN, "sha256:r1"));
 
         Capability createProduct = Capability.reviewed("reviewed_createProduct",
                 inputs("name", Primitive.STRING), Primitive.LONG, false,
-                new BindingRef("ProductService#create"),
+                new BindingRef("com.example.ProductService#create"),
                 List.of(new Annotation("description",
                         List.of("Creates a product with the given name and returns its id."))),
                 Map.of(),
@@ -268,7 +268,7 @@ class OpenApiBackendGoldenTest {
 
         Capability reindexProducts = Capability.reviewed("reviewed_reindexProducts",
                 new LinkedHashMap<>(), Primitive.STRING, false,
-                new BindingRef("ProductService#reindex"),
+                new BindingRef("com.example.ProductService#reindex"),
                 List.of(Annotation.flag("void"),
                         new Annotation("description", List.of("Rebuilds the product search index."))),
                 Map.of(),
@@ -277,7 +277,7 @@ class OpenApiBackendGoldenTest {
 
         Capability productStats = Capability.reviewed("reviewed_getProductStats",
                 inputs("id", Primitive.LONG), Primitive.STRING, false,
-                new BindingRef("ProductService#statsFor"),
+                new BindingRef("com.example.ProductService#statsFor"),
                 List.of(new Annotation("description", List.of("Returns sales statistics for the product.")),
                         new Annotation("opaqueOutput", List.of("ProductStatsDto"))),
                 Map.of(),

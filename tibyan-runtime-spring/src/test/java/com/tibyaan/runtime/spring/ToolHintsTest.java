@@ -36,10 +36,10 @@ class ToolHintsTest {
     @Test
     void aReviewedToolsDescriptionBeginsWithReviewedByAndIsCarriedVerbatim() {
         CapabilitiesManifest manifest = new CapabilitiesManifest("m", "0.1", List.of(
-                CapabilityDescriptor.reviewed("reviewed_findOverdue", READ_DESCRIPTION, "InvoiceService#findOverdue",
+                CapabilityDescriptor.reviewed("reviewed_findOverdue", READ_DESCRIPTION, "com.example.InvoiceService#findOverdue",
                         "Invoice", List.of(), CapabilityDescriptor.KIND_READ, false,
                         new ReviewDescriptor("READ", "a.reviewer", "2026-09-23", "ai-draft")),
-                CapabilityDescriptor.reviewed("reviewed_recordPayment", WRITE_DESCRIPTION, "LedgerService#record",
+                CapabilityDescriptor.reviewed("reviewed_recordPayment", WRITE_DESCRIPTION, "com.example.LedgerService#record",
                         "Receipt", List.of(), CapabilityDescriptor.KIND_WRITE, false,
                         new ReviewDescriptor("WRITE", "a.reviewer", "2026-09-23", "human"))));
         ExposurePolicy policy = new ExposurePolicy(true, false, false, true, List.of("reviewed_recordPayment"), List.of());

@@ -46,7 +46,7 @@ class BindingDiscoveryTest {
         // The proof of discovery: the binding is the real method AccountStore#loadById. The old
         // get<Entity> -> <Entity>Service#findById convention would have produced
         // AccountService#findById, which does not exist in the fixture.
-        assertThat(getAccount.binding().value()).isEqualTo("AccountStore#loadById");
+        assertThat(getAccount.binding().value()).isEqualTo("com.example.banking.AccountStore#loadById");
         assertThat(getAccount.binding().value()).isNotEqualTo("AccountService#findById");
 
         assertThat(validator.validate(model).isValid()).isTrue();

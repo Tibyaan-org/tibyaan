@@ -186,7 +186,7 @@ class EnumInputRuntimeBindingTest {
             context.registerBean("ambiguousService", AmbiguousService.class);
             context.refresh();
             SpringExecutionAdapter adapter = new SpringExecutionAdapter(context, manifest(
-                    "AmbiguousService#lookup", List.of(new InputDescriptor("key", "STRING"))));
+                    "com.tibyaan.runtime.spring.EnumInputRuntimeBindingTest.AmbiguousService#lookup", List.of(new InputDescriptor("key", "STRING"))));
 
             assertThatThrownBy(() -> adapter.invoke(new CapabilityRef("cap"), Map.of("key", "x")))
                     .isInstanceOf(IllegalStateException.class)
@@ -204,7 +204,7 @@ class EnumInputRuntimeBindingTest {
             context.registerBean("stringFinder", StringFinder.class);
             context.refresh();
             SpringExecutionAdapter adapter = new SpringExecutionAdapter(context, manifest(
-                    "StringFinder#find", List.of(new InputDescriptor("key", "STRING"))));
+                    "com.tibyaan.runtime.spring.EnumInputRuntimeBindingTest.StringFinder#find", List.of(new InputDescriptor("key", "STRING"))));
 
             assertThat(adapter.invoke(new CapabilityRef("cap"), Map.of("key", "abc")))
                     .isEqualTo(new Row("found=abc"));
@@ -217,7 +217,7 @@ class EnumInputRuntimeBindingTest {
             context.registerBean("reportService", ReportService.class);
             context.refresh();
             SpringExecutionAdapter adapter = new SpringExecutionAdapter(context, manifest(
-                    "ReportService#nope", List.of(new InputDescriptor("x", "STRING"))));
+                    "com.tibyaan.runtime.spring.EnumInputRuntimeBindingTest.ReportService#nope", List.of(new InputDescriptor("x", "STRING"))));
 
             assertThatThrownBy(() -> adapter.invoke(new CapabilityRef("cap"), Map.of("x", "y")))
                     .isInstanceOf(IllegalStateException.class)
@@ -267,7 +267,7 @@ class EnumInputRuntimeBindingTest {
             context.registerBean("reportService", ReportService.class);
             context.refresh();
             SpringExecutionAdapter adapter =
-                    new SpringExecutionAdapter(context, manifest("ReportService#" + method, inputs));
+                    new SpringExecutionAdapter(context, manifest("com.tibyaan.runtime.spring.EnumInputRuntimeBindingTest.ReportService#" + method, inputs));
             return adapter.invoke(new CapabilityRef("cap"), args);
         }
     }

@@ -37,7 +37,7 @@ class SpringExecutionAdapterTest {
         return new CapabilitiesManifest("legacy-spring-app", "0.1", List.of(
                 new CapabilityDescriptor(
                         "getProduct", "Read Product by id.",
-                        "ProductService#findById", "ENTITY_REF(Product)",
+                        "com.tibyaan.runtime.spring.SpringExecutionAdapterTest.ProductService#findById", "ENTITY_REF(Product)",
                         List.of(new InputDescriptor("id", "LONG")))));
     }
 
@@ -65,7 +65,7 @@ class SpringExecutionAdapterTest {
         // additive outputMultiple manifest field is tolerated by the loader and not acted on here.
         CapabilitiesManifest manifest = new CapabilitiesManifest("legacy-spring-app", "0.1", List.of(
                 new CapabilityDescriptor("listProduct", "List all Product.",
-                        "ProductService#findAll", "ENTITY_REF(Product)", List.of())));
+                        "com.tibyaan.runtime.spring.SpringExecutionAdapterTest.ProductService#findAll", "ENTITY_REF(Product)", List.of())));
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
             context.registerBean("productService", ProductService.class);
             context.refresh();

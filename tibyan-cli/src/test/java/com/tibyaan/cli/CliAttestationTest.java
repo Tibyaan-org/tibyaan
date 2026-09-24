@@ -105,7 +105,7 @@ class CliAttestationTest {
         // Now the scan intakes it: the survey shows the attested class, counted separately, drift 0.
         String afterStamp = runCapturingStdout("scan", root.toString());
         assertThat(afterStamp).contains("Attested, human-attested not tool-verified (1):");
-        assertThat(afterStamp).contains("@ attested_searchTenants -> TenantServiceImpl#getAllByFilter "
+        assertThat(afterStamp).contains("@ attested_searchTenants -> com.example.attest.TenantServiceImpl#getAllByFilter "
                 + "[predicate]: Returns the tenants matching the given filters. "
                 + "(asserted by a.elseginy, human-authored, 2026-07-24)");
         // Counted separately: discovered is 0 (the filtered read mints no verified capability), attested 1.

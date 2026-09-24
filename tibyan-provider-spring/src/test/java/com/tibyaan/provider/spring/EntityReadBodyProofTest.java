@@ -41,9 +41,9 @@ class EntityReadBodyProofTest {
         assertThat(report.discoveredCount()).isEqualTo(3);
         assertThat(report.failedCount()).isZero();
 
-        assertThat(named(model, "getDepot").binding().value()).isEqualTo("DepotService#getById");
-        assertThat(named(model, "getPallet").binding().value()).isEqualTo("PalletService#getById");
-        assertThat(named(model, "getCrate").binding().value()).isEqualTo("CrateService#getById");
+        assertThat(named(model, "getDepot").binding().value()).isEqualTo("rid.discovered.r1.DepotService#getById");
+        assertThat(named(model, "getPallet").binding().value()).isEqualTo("rid.discovered.r2.PalletService#getById");
+        assertThat(named(model, "getCrate").binding().value()).isEqualTo("rid.discovered.r3.CrateService#getById");
     }
 
     @Test

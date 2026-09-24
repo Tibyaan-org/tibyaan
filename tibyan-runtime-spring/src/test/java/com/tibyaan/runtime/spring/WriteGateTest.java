@@ -35,20 +35,20 @@ class WriteGateTest {
     private static final ReviewDescriptor REVIEW_UNKNOWN = new ReviewDescriptor("UNKNOWN", "a.reviewer", "2026-09-23", "ai-draft");
 
     private static CapabilityDescriptor verified() {
-        return new CapabilityDescriptor(VERIFIED, "Read Product.", "ProductService#findById", "Product",
+        return new CapabilityDescriptor(VERIFIED, "Read Product.", "com.example.ProductService#findById", "Product",
                 List.of(new InputDescriptor("id", "LONG")));
     }
 
     private static CapabilityDescriptor reviewedRead() {
         return CapabilityDescriptor.reviewed(READ,
                 "Reviewed by a.reviewer (human), not tool-verified; the tool labeled it READ. Lists overdue invoices.",
-                "InvoiceService#findOverdue", "Invoice", List.of(), CapabilityDescriptor.KIND_READ, false, REVIEW_READ);
+                "com.example.InvoiceService#findOverdue", "Invoice", List.of(), CapabilityDescriptor.KIND_READ, false, REVIEW_READ);
     }
 
     private static CapabilityDescriptor reviewedWrite(boolean securityUnverifiable) {
         return CapabilityDescriptor.reviewed(WRITE,
                 "Reviewed by a.reviewer (human), not tool-verified; the tool labeled it WRITE. Records a payment.",
-                "LedgerService#record", "ENTITY_REF(Receipt)",
+                "com.tibyaan.runtime.spring.WriteGateTest.LedgerService#record", "ENTITY_REF(Receipt)",
                 List.of(new InputDescriptor("note", "STRING"), new InputDescriptor("amount", "LONG")),
                 CapabilityDescriptor.KIND_WRITE, securityUnverifiable, REVIEW_WRITE);
     }
@@ -56,7 +56,7 @@ class WriteGateTest {
     private static CapabilityDescriptor reviewedAction() {
         return CapabilityDescriptor.reviewed(ACTION,
                 "Reviewed by a.reviewer (ai-draft), not tool-verified; the tool labeled it UNKNOWN. Runs the nightly job.",
-                "JobService#runNightly", "VOID", List.of(), CapabilityDescriptor.KIND_ACTION, false, REVIEW_UNKNOWN);
+                "com.example.JobService#runNightly", "VOID", List.of(), CapabilityDescriptor.KIND_ACTION, false, REVIEW_UNKNOWN);
     }
 
     private static CapabilitiesManifest manifest() {
@@ -189,7 +189,7 @@ class WriteGateTest {
     void aWriteWithoutTheReviewedTierIsRefusedAtStartupNotServedAsVerified() {
         // No backend emits this (core rule 12); a hand-edited manifest might. The runtime never guesses.
         CapabilityDescriptor unsignedWrite = new CapabilityDescriptor("recordPayment", "Records a payment.",
-                "LedgerService#record", "ENTITY_REF(Receipt)", List.of(), false, false, false,
+                "com.tibyaan.runtime.spring.WriteGateTest.LedgerService#record", "ENTITY_REF(Receipt)", List.of(), false, false, false,
                 CapabilityDescriptor.KIND_WRITE, null, null);
         CapabilitiesManifest manifest = new CapabilitiesManifest("m", "0.1", List.of(unsignedWrite));
 

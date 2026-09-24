@@ -127,7 +127,8 @@ public final class AttestationIntake {
     /** {@link #fingerprintOf(ResolvedTarget)} for a declaring class and method the caller already holds. */
     public String fingerprintOf(ClassOrInterfaceDeclaration declaringType, MethodDeclaration method) {
         return fingerprintOf(new ResolvedTarget(declaringType, method,
-                declaringType.getNameAsString() + "#" + method.getNameAsString()));
+                declaringType.getFullyQualifiedName().orElse(declaringType.getNameAsString())
+                        + "#" + method.getNameAsString()));
     }
 
     /**
@@ -902,8 +903,9 @@ public final class AttestationIntake {
                 for (MethodDeclaration method : type.getMethods()) {
                     if (method.getNameAsString().equals(methodName)
                             && parameterTypesMatch(method, paramSimple)) {
-                        matches.add(new ResolvedTarget(type, method,
-                                type.getNameAsString() + "#" + methodName));
+                        // Binding Identity (Volume 7 section 12, R1): the binding carries the FQCN the target
+                        // named, never the simple name.
+                        matches.add(new ResolvedTarget(type, method, fqcn + "#" + methodName));
                     }
                 }
             }

@@ -26,7 +26,7 @@ class DtoReadDiscoveryTest {
     void f1_directSpringDataFusedFormDiscovers() {
         ScanReport report = scan("f1");
         Capability capability = capability(report, "getWidget");
-        assertThat(capability.binding().value()).isEqualTo("WidgetService#findById");
+        assertThat(capability.binding().value()).isEqualTo("com.example.dto.f1.WidgetService#findById");
         assertThat(capability.output()).isEqualTo(Type.entityRef("Widget"));
         assertThat(viewAnnotation(capability)).containsExactly("WidgetVto");
         assertThat(outcome(report, "Widget").status()).isEqualTo(Status.DISCOVERED);
@@ -36,7 +36,7 @@ class DtoReadDiscoveryTest {
     void f2_oneHopDelegationTwoStatementDiscovers() {
         ScanReport report = scan("f2");
         Capability capability = capability(report, "getGadget");
-        assertThat(capability.binding().value()).isEqualTo("GadgetService#findById");
+        assertThat(capability.binding().value()).isEqualTo("com.example.dto.f2.GadgetService#findById");
         assertThat(capability.output()).isEqualTo(Type.entityRef("Gadget"));
         assertThat(viewAnnotation(capability)).containsExactly("GadgetVto");
     }
@@ -45,7 +45,7 @@ class DtoReadDiscoveryTest {
     void f3_optionalMapMethodReferenceDiscovers() {
         ScanReport report = scan("f3");
         Capability capability = capability(report, "getThing");
-        assertThat(capability.binding().value()).isEqualTo("ThingService#findById");
+        assertThat(capability.binding().value()).isEqualTo("com.example.dto.f3.ThingService#findById");
         assertThat(viewAnnotation(capability)).containsExactly("ThingVto");
     }
 

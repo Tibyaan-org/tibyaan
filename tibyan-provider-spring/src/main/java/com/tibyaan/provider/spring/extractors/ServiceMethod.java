@@ -12,12 +12,15 @@ import java.util.List;
  * Java-to-primitive mapping the entity fields use.
  *
  * @param serviceSimpleName    the owning service class's simple name, for example {@code ProductService}
+ * @param serviceQualifiedName the owning service class's canonical qualified name, for example
+ *                             {@code inventory.ProductService} (phase Binding Identity, Volume 7 section 12)
  * @param methodName           the method name, for example {@code findById}
  * @param returnTypeSimpleName the return type's simple name, for example {@code Product}
  * @param parameterTypes       each parameter's type as written in source, in declaration order
  */
 public record ServiceMethod(
         String serviceSimpleName,
+        String serviceQualifiedName,
         String methodName,
         String returnTypeSimpleName,
         List<String> parameterTypes) {
@@ -26,15 +29,23 @@ public record ServiceMethod(
         if (serviceSimpleName == null || serviceSimpleName.isBlank()) {
             throw new IllegalArgumentException("service method must name its service");
         }
+        if (serviceQualifiedName == null || serviceQualifiedName.isBlank()) {
+            throw new IllegalArgumentException("service method must name its service's qualified name");
+        }
         if (methodName == null || methodName.isBlank()) {
             throw new IllegalArgumentException("service method must have a name");
         }
         parameterTypes = parameterTypes == null ? List.of() : List.copyOf(parameterTypes);
     }
 
-    /** The binding string the runtime resolves, {@code <ServiceClassSimpleName>#<methodName>}. */
+    /**
+     * The binding string the runtime resolves, {@code <canonical qualified class name>#<methodName>}
+     * (phase Binding Identity, Volume 7 section 12, R1). Qualified on every tier since 2026-09-24: a real
+     * host had resolved a simple-name binding to a class of the same simple name that the reviewer never
+     * read.
+     */
     public String toBinding() {
-        return serviceSimpleName + "#" + methodName;
+        return serviceQualifiedName + "#" + methodName;
     }
 
     /** A readable signature for diagnostics, for example {@code ProductService#findById(Long)}. */

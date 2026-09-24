@@ -26,7 +26,7 @@ class MarkdownReportTest {
     @Test
     void rendersOperableRefusedAndTheMostCommonBlocker() {
         EntityOutcome discovered = new EntityOutcome("Product", Status.DISCOVERED, Cause.NONE,
-                "getProduct -> ProductService#findById", List.of());
+                "getProduct -> com.example.ProductService#findById", List.of());
         EntityOutcome adminFailed = new EntityOutcome("Admin", Status.FAILED, Cause.NO_BACKING_METHOD,
                 "no service method backs read capability 'getAdmin' for entity 'Admin'. Looked at services.",
                 List.of());
@@ -45,7 +45,7 @@ class MarkdownReportTest {
         assertThat(md).contains("| Refused (by id) | 2 |");
         assertThat(md).contains("| Files skipped (unparseable) | 1 |");
         assertThat(md).contains("| Wrong bindings (mis-bound) | 0 |");
-        assertThat(md).contains("getProduct -> ProductService#findById");
+        assertThat(md).contains("getProduct -> com.example.ProductService#findById");
         assertThat(md).contains("**Admin** [NO_BACKING_METHOD]");
         assertThat(md).contains("### Files it could not read (1)");
         assertThat(md).contains("Foo.java: (line 1,col 1) Parse error");

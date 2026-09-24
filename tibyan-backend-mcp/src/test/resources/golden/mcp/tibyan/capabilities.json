@@ -5,7 +5,7 @@
     {
       "name": "getProduct",
       "description": "Read Product by id.",
-      "binding": "ProductService#findById",
+      "binding": "com.example.ProductService#findById",
       "output": "ENTITY_REF(Product)",
       "inputs": [
         {

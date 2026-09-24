@@ -44,12 +44,19 @@ public final class ServiceExtractor {
                     continue;
                 }
                 String serviceName = type.getNameAsString();
+                // Binding Identity (Volume 7 section 12, R1): the binding carries the canonical qualified name,
+                // read from the declaration. A local or anonymous class has none and is refused loudly, never
+                // bound by its simple name.
+                String qualifiedName = type.getFullyQualifiedName().orElseThrow(() -> new IllegalStateException(
+                        "@Service '" + serviceName + "' has no qualified name (a local or anonymous class); "
+                                + "Binding Identity refuses to bind it by simple name"));
                 for (MethodDeclaration method : type.getMethods()) {
                     if (!method.hasModifier(Modifier.Keyword.PUBLIC)
                             || method.hasModifier(Modifier.Keyword.STATIC)) {
                         continue;
                     }
-                    sources.add(new ServiceMethodSource(toServiceMethod(serviceName, method), method, type));
+                    sources.add(new ServiceMethodSource(toServiceMethod(serviceName, qualifiedName, method),
+                            method, type));
                 }
             }
         }
@@ -60,12 +67,13 @@ public final class ServiceExtractor {
         return sources;
     }
 
-    private static ServiceMethod toServiceMethod(String serviceName, MethodDeclaration method) {
+    private static ServiceMethod toServiceMethod(String serviceName, String qualifiedName,
+                                                 MethodDeclaration method) {
         String returnType = simpleName(method.getType().asString());
         List<String> parameterTypes = method.getParameters().stream()
                 .map(parameter -> parameter.getType().asString())
                 .toList();
-        return new ServiceMethod(serviceName, method.getNameAsString(), returnType, parameterTypes);
+        return new ServiceMethod(serviceName, qualifiedName, method.getNameAsString(), returnType, parameterTypes);
     }
 
     private static boolean hasAnnotation(NodeWithAnnotations<?> node, String simpleName) {

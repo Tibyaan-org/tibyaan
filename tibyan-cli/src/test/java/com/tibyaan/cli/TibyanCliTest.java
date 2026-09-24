@@ -58,7 +58,7 @@ class TibyanCliTest {
         assertThat(Files.exists(reportFile)).isTrue();
         String md = Files.readString(reportFile);
         assertThat(md).contains("# Tibyaan capability survey: legacy-spring-app");
-        assertThat(md).contains("getProduct -> ProductService#findById");
+        assertThat(md).contains("getProduct -> com.tibyaan.examples.legacy.ProductService#findById");
         assertThat(md).contains("| Wrong bindings (mis-bound) | 0 |");
     }
 
@@ -105,7 +105,7 @@ class TibyanCliTest {
         CapabilityModel broken = new CapabilityModel("broken", "0.1",
                 List.of(),
                 List.of(Capability.read("getGhost", Map.<String, Type>of(), Type.entityRef("Ghost"),
-                        new BindingRef("GhostService#findById"))),
+                        new BindingRef("com.example.GhostService#findById"))),
                 List.of(), Metadata.empty());
         IrJson.write(broken, irFile);
 

@@ -5,7 +5,7 @@
     {
       "name": "getUnit",
       "description": "Read Unit by id. Returns the UnitVTO view of Unit.",
-      "binding": "UnitServiceImpl#findById",
+      "binding": "com.example.UnitServiceImpl#findById",
       "output": "ENTITY_REF(Unit)",
       "view": "UnitVTO",
       "inputs": [

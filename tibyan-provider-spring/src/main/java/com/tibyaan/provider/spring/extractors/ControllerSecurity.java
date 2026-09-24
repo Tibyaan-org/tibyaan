@@ -100,7 +100,7 @@ public final class ControllerSecurity {
             if (fqcn == null || !seenService.add(fqcn)) {
                 continue;
             }
-            ServiceInfo info = new ServiceInfo(service.getNameAsString());
+            ServiceInfo info = new ServiceInfo(service.getNameAsString(), fqcn);
             serviceByTypeFqcn.computeIfAbsent(fqcn, k -> new ArrayList<>()).add(info);
             CompilationUnit serviceCu = service.findCompilationUnit().orElse(null);
             for (ClassOrInterfaceType implemented : service.getImplementedTypes()) {
@@ -296,7 +296,10 @@ public final class ControllerSecurity {
                         .flatMap(cu -> typeScope.resolveFqcn(fieldType, cu)))
                 .map(serviceByTypeFqcn::get)
                 .filter(infos -> infos != null && infos.size() == 1)
-                .map(infos -> infos.get(0).simpleName() + "#" + call.methodName());
+                // Binding Identity (Volume 7 section 12, R1): the tie emits the qualified binding the service
+                // extractor emits, so a controller injecting one of two same-simple-name services ties to
+                // the one its field type resolved to.
+                .map(infos -> infos.get(0).fqcn() + "#" + call.methodName());
     }
 
     // The bound service method's own effective declarations (section 4.14.4 composition, step 1): a
@@ -335,6 +338,6 @@ public final class ControllerSecurity {
     }
 
     // The identity of a resolved @Service class: its simple name, which the binding string uses.
-    private record ServiceInfo(String simpleName) {
+    private record ServiceInfo(String simpleName, String fqcn) {
     }
 }

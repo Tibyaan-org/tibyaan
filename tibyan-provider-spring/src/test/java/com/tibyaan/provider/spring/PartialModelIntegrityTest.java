@@ -47,7 +47,7 @@ class PartialModelIntegrityTest {
     @Test
     void t7_discoveredBindingIsExactlyRightUnderTolerance() {
         // The mis-bound guard: tolerance changed only whether Gizmo reached discovery, not how.
-        assertThat(capability(scan(), "getGizmo").binding().value()).isEqualTo("GizmoService#findById");
+        assertThat(capability(scan(), "getGizmo").binding().value()).isEqualTo("com.example.tolerate.GizmoService#findById");
     }
 
     @Test

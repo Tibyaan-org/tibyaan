@@ -70,7 +70,7 @@ class SpringCapabilityProviderTest {
 
     // The expected IR is the Volume 4 section 6 example, with the module name and binding adapted
     // to the real source: module "legacy-spring-app" (Volume 4 uses "inventory") and binding
-    // "ProductService#findById" (Volume 4 uses "inventory.ProductService#findById"). The entity,
+    // "com.tibyaan.examples.legacy.ProductService#findById" (Volume 4 uses "inventory.ProductService#findById"). The entity,
     // its fields, and the read only capability are identical.
     private static CapabilityModel expectedModel() {
         Entity product = new Entity(
@@ -90,7 +90,7 @@ class SpringCapabilityProviderTest {
                 "getProduct",
                 inputs,
                 Type.entityRef("Product"),
-                new BindingRef("ProductService#findById"));
+                new BindingRef("com.tibyaan.examples.legacy.ProductService#findById"));
 
         return new CapabilityModel(
                 "legacy-spring-app",

@@ -11,7 +11,7 @@
     {
       "name" : "ProductService_findById",
       "target" : "com.tibyaan.examples.legacy.ProductService#findById(Long)",
-      "binding" : "ProductService#findById",
+      "binding" : "com.tibyaan.examples.legacy.ProductService#findById",
       "label" : "VERIFIED",
       "reason" : "the binding of the discovered capability 'getProduct' (discovery rules, sections 4.1 to 4.11)",
       "capability" : "getProduct",
@@ -31,7 +31,7 @@
     {
       "name" : "ProductService_rename",
       "target" : "com.tibyaan.examples.legacy.ProductService#rename(Long, String)",
-      "binding" : "ProductService#rename",
+      "binding" : "com.tibyaan.examples.legacy.ProductService#rename",
       "label" : "WRITE",
       "reason" : "a setter 'setName' on a loaded entity is visible in 'rename'; JPA dirty checking would persist it, so the body is not read-only (read-safety, section 4.15.2)",
       "returnType" : "Product",

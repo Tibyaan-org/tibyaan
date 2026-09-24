@@ -41,7 +41,7 @@ class AttestedManifestCarriageTest {
         Attestation attestation = Attestation.data(AttestationCategory.PREDICATE, RESULT_SEMANTIC, meanings,
                 null, "a.elseginy", AttestationOrigin.HUMAN_AUTHORED, "2026-07-24", "sha256:abc123");
         Capability attested = Capability.attested("attested_searchTenants", inputs, Type.entityRef("Tenant"),
-                true, new BindingRef("TenantServiceImpl#getAllByFilter"), List.of(), attestation);
+                true, new BindingRef("com.example.TenantServiceImpl#getAllByFilter"), List.of(), attestation);
         Entity tenant = new Entity("Tenant", "Tenant",
                 List.of(Field.of("id", Primitive.LONG, false)), List.of(), Metadata.empty());
         return new CapabilityModel("pms", "0.1", List.of(tenant), List.of(attested), List.of(),
@@ -73,7 +73,7 @@ class AttestedManifestCarriageTest {
         Map<String, Type> inputs = new LinkedHashMap<>();
         inputs.put("id", Primitive.LONG);
         Capability verified = Capability.read("getProduct", inputs, Type.entityRef("Product"),
-                new BindingRef("ProductService#findById"));
+                new BindingRef("com.example.ProductService#findById"));
         CapabilityModel model = new CapabilityModel("shop", "0.1", List.of(product), List.of(verified),
                 List.of(), Metadata.empty());
 

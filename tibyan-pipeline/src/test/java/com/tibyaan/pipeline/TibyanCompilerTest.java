@@ -82,7 +82,7 @@ class TibyanCompilerTest {
         Map<String, Type> inputs = new LinkedHashMap<>();
         inputs.put("id", Primitive.LONG);
         Capability getProduct = Capability.read("getProduct", inputs, Type.entityRef("Product"),
-                new BindingRef("ProductService#findById"));
+                new BindingRef("com.example.ProductService#findById"));
         return new CapabilityModel("legacy-spring-app", "0.1",
                 List.of(product), List.of(getProduct), List.of(), Metadata.empty());
     }
@@ -90,7 +90,7 @@ class TibyanCompilerTest {
     // A capability whose output references an entity that does not exist: unresolved reference.
     private static CapabilityModel invalidModel() {
         Capability getGhost = Capability.read("getGhost", Map.of(), Type.entityRef("Ghost"),
-                new BindingRef("GhostService#findById"));
+                new BindingRef("com.example.GhostService#findById"));
         return new CapabilityModel("m", "0.1",
                 List.of(), List.of(getGhost), List.of(), Metadata.empty());
     }

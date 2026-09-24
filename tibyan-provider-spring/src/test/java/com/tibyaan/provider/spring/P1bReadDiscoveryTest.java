@@ -30,7 +30,7 @@ class P1bReadDiscoveryTest {
         ScanReport report = provider.scan(input("p1b-verified"));
 
         Capability alpha = named(report, "getAlpha");
-        assertThat(alpha.binding().value()).isEqualTo("AlphaService#getById");
+        assertThat(alpha.binding().value()).isEqualTo("com.example.p1b.verified.AlphaService#getById");
         assertThat(alpha.output()).isEqualTo(Type.entityRef("Alpha"));
         assertThat(alpha.annotations()).anySatisfy(annotation -> {
             assertThat(annotation.key()).isEqualTo("view");

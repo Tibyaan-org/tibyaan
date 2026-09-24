@@ -37,7 +37,7 @@ class EnvelopeTransparencyTest {
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("E6a-1 must discover listBoxed; capabilities were "
                         + report.model().capabilities().stream().map(Capability::name).toList()));
-        assertThat(listBoxed.binding().value()).isEqualTo("BoxedService#getAllBoxed");
+        assertThat(listBoxed.binding().value()).isEqualTo("com.example.e6a.BoxedService#getAllBoxed");
         assertThat(listBoxed.output()).isEqualTo(Type.entityRef("Boxed"));
         assertThat(listBoxed.outputMultiple()).isTrue();
         assertThat(validator.validate(report.model()).isValid()).isTrue();

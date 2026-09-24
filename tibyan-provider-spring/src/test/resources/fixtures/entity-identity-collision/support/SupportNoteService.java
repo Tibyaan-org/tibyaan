@@ -10,7 +10,7 @@ interface SupportNoteJpaRepository extends JpaRepository<Note, Long> {
  * Test fixture (not compiled), EI-1. A clean by-id read of the support Note, proving its
  * by-primary-key load (section 4.1.1). Its return type and its repository both resolve, same-package,
  * to the support Note key, so it backs getSupportNote and never the crm Note. A distinct service
- * simple name keeps the two bindings distinct (validation rule 7).
+ * simple name kept the two bindings distinct under rule 7 before Binding Identity qualified them (Volume 7 section 12).
  */
 @Service
 public class SupportNoteService {

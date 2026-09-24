@@ -5,7 +5,7 @@
     {
       "name": "listContact",
       "description": "List all Contact. Returns a page of results; the total count and page envelope are not modeled.",
-      "binding": "ContactService#findAll",
+      "binding": "com.example.ContactService#findAll",
       "output": "ENTITY_REF(Contact)",
       "outputMultiple": true,
       "paged": true,
