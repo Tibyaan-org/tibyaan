@@ -277,7 +277,7 @@ Designed in Volume 5, section 4.17.5. A reviewed READ renders as today's GET wit
 WRITE or ACTION renders as a POST operation whose request body carries the inputs, tagged `reviewed`. An
 unresolvable output renders the permissive object of section 4.1.
 
-## 3.10 MCP and OpenAPI: the `binding` value is qualified (phase Binding Identity; designed and RATIFIED 2026-09-24, BUILD PENDING)
+## 3.10 MCP and OpenAPI: the `binding` value is qualified (phase Binding Identity; designed, RATIFIED and BUILT 2026-09-24)
 
 The manifest's `binding` field keeps its name and place; its value becomes the qualified form the provider now
 emits, `a.b.ProductService#findById` instead of `ProductService#findById` (Volume 7 section 12, R1). Neither

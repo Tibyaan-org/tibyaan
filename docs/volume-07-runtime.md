@@ -432,7 +432,7 @@ prefix and the description's first sentence carry the class, a tripwire test wat
 `SyncToolSpecification` path is the recorded option for the Volume 16 session. Startup names every write it did not register with `write-not-allowed`. Not
 built by name: dry-run and an in-runtime confirmation step. Built 2026-09-23 (Volume 5, section 4.17.13), with the hints finding recorded above.
 
-## 12. Binding Identity: the qualified binding, verified at resolution (phase Binding Identity; found 2026-09-24 as F7, designed and RATIFIED 2026-09-24, BUILD PENDING)
+## 12. Binding Identity: the qualified binding, verified at resolution (phase Binding Identity; found 2026-09-24 as F7, designed and RATIFIED 2026-09-24, BUILT 2026-09-24, build record at 12.10)
 
 ### 12.1 The evidence
 
@@ -587,3 +587,64 @@ words "ratified as written, design F7 and push it", on the same day the finding 
 that direction made concrete, committed before any code (rule 12). The build is a separate session: one phase,
 the eleven fixtures, the goldens updated with a visible diff, the three-benchmark forecast of 12.5 checked
 against a pre-build worktree, the as-backend call repeated, and the report ending with its spine (rule 14).
+
+### 12.10 Build record (2026-09-24)
+
+BUILT as ratified, R1 to R3, in one session; F8 taken as the flagged diagnostic amendment section 12.7 allowed.
+
+WHAT CHANGED IN CODE. Provider: `ServiceMethod` carries `serviceQualifiedName` and `toBinding()` emits it;
+`ServiceExtractor` reads it from the declaration and refuses a local or anonymous `@Service` loudly;
+`AttestationIntake.resolveTarget` and `fingerprintOf` build `ResolvedTarget.binding()` from the FQCN;
+`ControllerSecurity.resolveBinding` emits the FQCN its resolver already held (`ServiceInfo` gains `fqcn`).
+Runtime: `SpringExecutionAdapter.resolveBean` selects beans by `ClassUtils.getUserClass(type).getCanonicalName()`
+equality, refuses zero and many with the section 12.2 messages, refuses an unqualified class part, caches a
+success per class name, and (F8) rethrows an `InvocationTargetException` with the cause's class and message
+and a WARN line; `CapabilitiesLoader.requireQualifiedBindings` is R3. Core: no code change; rule 7's comment
+now states what it compares. The IR shape did not move.
+
+FIXTURES. BI-1 and BI-2 in `BindingIdentityProviderTest` over the new `fixtures/binding-identity` (two
+`OfferService` classes in `example.crm.model` and `example.support.model`: both emit, `getCrmOffer` and
+`getSupportOffer`, distinct qualified bindings, the model valid); BI-3's negative half is the unchanged core
+rule 7 test; BI-4 is every Controller-Authority test passing with the binding value changed and nothing else;
+BI-5 to BI-9 in `BindingIdentityRuntimeTest` (`Crm.LookupService` and `Stock.LookupService`, same simple name,
+the crm one under the default bean name the old adapter tried first: the stock binding invokes the stock
+class; no bean, two beans, an unqualified binding and a CGLIB-proxied bean each behave as 12.2 says); BI-8 at
+the loader in `CapabilitiesLoaderTest`; BI-10 in `DraftReviewProviderTest`; BI-11 is the as-backend record
+below. Every existing test that asserted a simple-name binding now asserts the qualified one (48 files), and
+the goldens changed in the `binding` field only: the four MCP goldens, the OpenAPI goldens, the CLI draft
+golden.
+
+THE FORECAST, CHECKED against a worktree at c3f4109 with the same three trees:
+
+| Benchmark | Counts pre = post | `binding` values changed | Any other diff line (ir.json, mcp, openapi) |
+|---|---|---|---|
+| pms | discovered 5, failed 38, mis-bound 0 | 5 of 5 | none |
+| erp | discovered 37, failed 140, partial 14, mis-bound 0 | 37 of 37 | none |
+| as-backend | discovered 5, attested 15, reviewed 9, failed 154, mis-bound 0, attestation-drift 0, review-drift 0, mis-constrained 0 | 29 of 29 | none |
+| as-backend draft census | 990: VERIFIED 5, ATTESTED 15, READ 358, WRITE 372, UNKNOWN 240 | 990 of 990 | none |
+
+Exactly the forecast of 12.5: no capability appeared or disappeared, no count moved, and the diff is the
+binding field alone. (erp reads 37, not the 35 in the CLAUDE.md health line, on both sides: that tree evolved
+since 2026-08-31; the tool did not move it.) BI-11 in earnest: the adopter's fifteen attestations admitted
+unchanged, `attestation-drift 0`, every attested binding qualified.
+
+BI-10 IN EARNEST. `tibyan draft` on the adopter re-qualified all 990 entries of its `tibyan/drafts.json`; the
+nine approved entries kept their name, review, reviewer, description and approved fingerprint; the diff outside
+the `binding` field is zero lines; `tibyan scan` reads `reviewed 9, review-drift 0`.
+
+`mvn clean verify`: green, 12 modules, provider 257 tests, runtime including BI-5 to BI-9, both integration
+tests against the example app's regenerated manifest (its binding is now
+`com.tibyaan.examples.legacy.ProductService#findById`).
+
+RULE 13 AMENDMENT, FLAGGED. F8: a failed invocation now reports `failed to invoke binding '<b>': <cause
+class>: <cause message>` and logs the same at WARN. No matching outcome changed; only what a failure says.
+
+THE SECTION 10.7 CALL, REPEATED (docs/experiments/as-backend-trial.md section 10.8). The pharmacy service,
+repackaged on this build, registered the same 29 tools. `reviewed_LookupServiceImpl_getAllSuppliersLookups`
+answered `no bean of class 'zag.service.stock.core.service.LookupServiceImpl' is hosted by this application`,
+naming the binding and the capability: the pharmacy `LookupServiceImpl` that the old adapter resolved to was
+never considered. `reviewed_LocalPharmacyProxyService_getApprovedPharmacies` returned `{"total":0,"list":[]}`
+as before. `reviewed_CartServiceImpl_getExpectedDeliveryTime {cartId=1}` now answers
+`zag.lib.common.model.exception.BusinessException: [CART-0001] [CART_NOT_FOUND]: cart not found 1`, with the
+same line at WARN in the service log, where section 10.7 had an opaque failure. F7 closed, F8 closed; F9 (six
+of nine beans not hosted here) is unchanged by design and still surfaces at call time.

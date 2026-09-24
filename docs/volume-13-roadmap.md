@@ -580,7 +580,7 @@ The first real approvals happened 2026-09-24 (as-backend-trial.md section 10.6):
 evidence is a reviewed tool called through a real MCP client on the adopter's running services.
 
 
-### Binding Identity: the qualified binding, verified at resolution (UNPLANNED, found by measurement 2026-09-24; designed and RATIFIED 2026-09-24; BUILD PENDING)
+### Binding Identity: the qualified binding, verified at resolution (UNPLANNED, found by measurement 2026-09-24; designed, RATIFIED and BUILT 2026-09-24)
 
 Goal: close F7 of docs/experiments/as-backend-trial.md section 10.7, the runtime mis-bind risk the first
 end-to-end reviewed call exposed on every tier: bindings are `<SimpleName>#<method>` and the runtime resolves

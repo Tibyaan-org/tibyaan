@@ -2503,7 +2503,7 @@ implementations disagree, 5 reflection, 3 read-safety.
 BUILD DECISIONS: none beyond the ratified text.
 
 
-### 4.18 Binding Identity: the qualified binding (phase Binding Identity; designed and RATIFIED 2026-09-24, BUILD PENDING; the rule is Volume 7 section 12)
+### 4.18 Binding Identity: the qualified binding (phase Binding Identity; designed and RATIFIED 2026-09-24, BUILT 2026-09-24; the rule is Volume 7 section 12, build record 12.10)
 
 The follow-on section 4.12.4 named ("it does not RESOLVE the ambiguity by qualifying the binding target") has
 its evidence: docs/experiments/as-backend-trial.md section 10.7, finding F7, where a reviewed tool resolved at

@@ -726,3 +726,32 @@ none of their simple names is reused in this reactor.
 NEXT: ratify, amend or refuse the F7 design (qualified binding, verified at resolution). Real approvals continue
 in parallel; they are safe on this service today only for bindings whose simple name is unique in the reactor,
 which the maintainer can check with the drafts file's `target` field.
+
+### 10.8 Binding Identity built (2026-09-24): the section 10.7 call repeated
+
+THE BUILD. Volume 7 section 12, build record 12.10. Every binding on every tier is now
+`<canonical qualified class name>#<method>`, and the runtime resolves it by class identity only.
+
+THE RE-SCAN. **[tibyaan]** against a worktree at c3f4109: `Totals: discovered 5, attested 15, reviewed 9,
+failed 154, partial 15, mis-bound 0, attestation-drift 0, review-drift 0, mis-constrained 0` on both sides;
+29 of 29 manifest bindings changed and no other line of the IR, the MCP manifest or the OpenAPI document
+moved. The draft census is `990 (VERIFIED 5, ATTESTED 15, READ 358, WRITE 372, UNKNOWN 240)` on both sides.
+
+THE DRAFTS FILE. **[adopter]** `tibyan draft` re-qualified all 990 entries of `tibyan/drafts.json` in place;
+the nine approved entries kept name, review, reviewer, description and approved fingerprint; zero diff lines
+outside `binding`. The attestation record needed no edit. The file is still uncommitted in the adopter repo.
+
+THE CALL. **[reported]** the pharmacy service repackaged on this build, started as in section 10.7, 29 tools:
+
+| Tool, arguments | Section 10.7 | Now |
+|---|---|---|
+| `reviewed_LocalPharmacyProxyService_getApprovedPharmacies {}` | `{"total":0,"list":[]}` | `{"total":0,"list":[]}` |
+| `reviewed_LookupServiceImpl_getAllSuppliersLookups {}` | `no method 'getAllSuppliersLookups' taking 0 argument(s) on zag.zpi.pharmacy.core.service.LookupServiceImpl$$SpringCGLIB$$0` (the WRONG class, F7) | `no bean of class 'zag.service.stock.core.service.LookupServiceImpl' is hosted by this application (binding '...', capability 'reviewed_LookupServiceImpl_getAllSuppliersLookups')` |
+| `reviewed_CartServiceImpl_getExpectedDeliveryTime {cartId=1}` | `failed to invoke binding ...` (cause hidden, F8) | `failed to invoke binding '...': zag.lib.common.model.exception.BusinessException: [CART-0001] [CART_NOT_FOUND]: cart not found 1`, and the same at WARN in the log |
+| `reviewed_RoleServiceImpl_getAllRoles {}` | `no bean found for binding hint 'RoleServiceImpl'` | `no bean of class 'zag.service.user.core.service.RoleServiceImpl' is hosted by this application` (F9, unchanged by design) |
+| `attested_cancellationReasons {}` (control) | `{"total":0,"list":[]}` | `{"total":0,"list":[]}` |
+
+F7 and F8 are closed on the app that found them. F9 stays a candidate: the message now names the class and the
+capability, and a startup check would move it earlier, but that is a registration policy with its own
+ratification. NEXT: the maintainer's call on F9, and real approvals continue; a reviewed binding is now safe on
+any hosting service, whether or not its simple name is reused in the reactor.
