@@ -650,6 +650,13 @@ Volume 7 section 15 (a three-question spike, then S1 to S5), ADR-0017. Exit crit
 answers recorded; fixtures SC-1 to SC-8 green; benchmarks byte-identical; the section 10.7 run repeated on
 as-backend with a real token, the anonymous calls refused and the authenticated ones narrowed as described.
 
+SPIKE SEC-0 RUN 2026-09-24 (Volume 7 section 15.9; as-backend-trial.md section 10.14): three yes. Q1 with a
+finding, Spring AI's whole WebMVC MCP configuration steps aside once any transport provider bean exists, so
+the runtime registers its provider and the router for it; Q2 the caller reaches exactly its own call through
+the per-request transport context; Q3 the host's own method security fires on the invocation. S1 and S2 are
+in effect as built for the spike. The pharmacy leg ran anonymously (the caller captured as none beside the
+adopter's own log line); the token leg waits for a token from the adopter's login. NEXT: build SEC-1.
+
 ## 4. Tier 3: direction only (production readiness and beyond)
 
 This tier is deliberately coarse: one short paragraph per item, no designs, no phase plans, no acceptance criteria. Everything here is conditional on Tier 2 proving the semantic core on real applications, meaning the benchmark discovers a meaningful share of a real app's reads with zero mis-bindings. Writing detailed plans for this tier before that proof would repeat the original roadmap's mistake.

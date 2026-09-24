@@ -889,3 +889,41 @@ file is byte-equal before and after. Without a key, `tibyan describe .` exited 3
 and wrote nothing. The 981 pending entries are describable; the first real run, over the 54 fully mapped write
 candidates of section 10.10, waits for a key on the machine that runs it, and its sentences are read and
 approved or corrected by the maintainer, by name.
+
+### 10.14 Spike SEC-0 on the pharmacy service (2026-09-24): the anonymous caller is captured as none, the token leg waits
+
+**[adopter]** `zpi-pharmacy-mgt` at commit 23db1101cd, repackaged against the spike runtime (the caller
+captured per MCP request through the runtime's own transport provider and router; Volume 7 section 15.9),
+started from the reactor root with the section 10.7 overrides, `zag.lib.security.public-paths` extended by
+`/sse,/mcp/message` and the eight security-unverifiable reviewed names (the seven of section 10.6 plus
+`getAllCities`), no `tibyan.writes.allow`. **[reported]** startup as section 10.12: 31 loaded, 19 registered,
+`createGovernorate` excluded (write-not-allowed), 11 not hosted and named, the 13-tool WARN unchanged.
+
+THE ANONYMOUS PROBE. **[reported]** `tools/list` 19 under the real `context-path=/pharmacy-mgt` and
+`base-url=/pharmacy-mgt` pair, so the runtime's router serves the adopter's configuration as Spring AI's did
+(Q1 on the real app). `reviewed_LocalPharmacyProxyService_getApprovedPharmacies {}` and
+`attested_cancellationReasons {}` both `isError=false`, `{"total":0,"list":[]}`, as in section 10.7. For each,
+the runtime's DEBUG line reads `called by (no authenticated caller)` while the adopter's own
+`InitRequestContextRESTFilter` logs `no token put in the Context` on the same request: the runtime and the
+host agree, and the anonymous token Spring Security puts on a public path did not leak in as a caller. THIS IS
+THE EXPOSURE SECTION 10.7 NAMED, NOW VISIBLE TO THE RUNTIME: the same anonymous read of a tool whose approved
+description says it narrows to the caller's role, with the runtime now knowing there is no caller to narrow
+to. SEC-1's S4 turns that knowledge into a refusal for writes and contract-carrying tools; a description-only
+narrowing like this one stays the application's (Volume 7 section 15.5).
+
+THE GARBAGE BEARER. **[reported]** with `Authorization: Bearer not.a.jwt` the adopter's JWT filter parsed the
+token on `GET /sse` (`MalformedJwtException`), the request ended 403 before any session existed, and the
+client never initialized. The host authenticates; the runtime observes: nothing of Tibyaan was on that path.
+
+THE TOKEN LEG, NOT RUN. **[adopter]** a valid token ends in the adopter's
+`AuthenticationRESTFilterService` setting a `UsernamePasswordAuthenticationToken` on `SecurityContextHolder`
+inside the Spring Security chain (`addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)`),
+the exact shape the example host of Volume 7 section 15.9 exercised, so the capture applies unchanged. Getting
+one needs the user module: the pharmacy service's `ClientUserDetailsSecurityService` loads the user through
+a REST proxy to `zpi-user-mgt`, and a token comes from that service's `POST /users/login` for a user that
+exists. The throwaway database holds no user, and this session fabricated none in the adopter's data. The
+run waits for the maintainer with a token from the adopter's login; the probe takes it as `MCP_BEARER`, and
+the calls to repeat are the section 10.7 pair plus, once SEC-1 exists, the anonymous refusals of section
+15.7. Reported, not worked around.
+
+The service was stopped afterwards; no adopter file changed; the drafts file is untouched.

@@ -879,3 +879,67 @@ says. The 13-tool WARN of section 10.6 is unchanged by this phase and stays the 
 D1 the `requireCaller` default (true, recommended); D2 authority comparison (exact literal, recommended;
 no `ROLE_` normalization, the compiled contract is what the app declared); D3 whether the spike runs on the
 example app alone or also on as-backend (both, recommended: the second is where the loss was seen).
+
+### 15.9 Spike SEC-0, RUN 2026-09-24: three yes, one finding, one leg pending
+
+Run as an executable record, `CallerBoundarySpikeTest` in `tibyan-runtime-spring`: a real servlet host
+(embedded Tomcat, `server.servlet.context-path=/ctx`, `spring.ai.mcp.server.base-url=/ctx`), Spring Security
+with HTTP Basic and every request authenticated, two users (`alice` holding authority `480012`, `bob` holding
+`OTHER`), method security enabled, one bound bean with a plain method and one under
+`@PreAuthorize("hasAuthority('480012')")`, and the MCP Java SDK client the adopter runs use, one session per
+user. Then the pharmacy service of as-backend, below.
+
+**Q1, YES, with the finding of the spike.** The first run authenticated `alice` on `GET /ctx/sse` and then
+answered 404: Spring AI's `McpWebMvcServerAutoConfiguration` is conditional AT CLASS LEVEL on no
+`McpServerTransportProvider` bean existing (read from the 1.0.9 class file), so the moment the runtime supplies
+the provider, the router function Spring AI would have built for it (`mvcMcpRouterFunction`) is gone too, not
+only the provider bean. Section 15.2 read the provider's `@ConditionalOnMissingBean` and missed the class-level
+one. The runtime therefore registers both: `tibyanTransportProvider`, built as Spring AI builds it (the same
+`McpServerProperties` base URL, SSE endpoint, message endpoint and JSON mapper) plus `contextExtractor`, and
+`tibyanMcpRouterFunction` from that provider, both behind the same stdio-disabled condition Spring AI uses,
+ordered `@AutoConfiguration(beforeName = McpWebMvcServerAutoConfiguration)` so Spring AI's conditions see them.
+Asserted by bean name: `tibyanTransportProvider` and `tibyanMcpRouterFunction` present,
+`webMvcSseServerTransportProvider` and `mvcMcpRouterFunction` absent; `tools/list` answers under the context
+path and base URL (the F5 shape of section 9.4), on the example host and on the pharmacy service's real
+`/pharmacy-mgt` pair.
+
+**Q2, YES.** Capture reads `ServerRequest.principal()`, nothing else: Spring Security's request wrapper
+exposes the `Authentication` as the servlet principal and hides its anonymous token, so an anonymous request
+captures nothing, which is the S4 precondition for free. The principal travels under one key in the
+per-request `McpTransportContext` and is read back from the exchange in `call(String, ToolContext)`. Two
+sessions, twenty calls interleaved from two threads: every call answered its own caller, ten `alice` and ten
+`bob`, none crossed. The tool runs on the SDK's `boundedElastic` thread, not the POST thread, which is why the
+transport context is the carrier and a thread-local would have lost it exactly as section 15.2 predicted.
+
+**Q3, YES.** A fresh `SecurityContext` holding the captured `Authentication` is set around the invocation and
+cleared in `finally`: the `@PreAuthorize` method admitted `alice` ("ok for alice") and refused `bob` with
+`AuthorizationDeniedException: Access Denied` carried back as an `isError` tool result, and the invoking
+thread's context is null after the call (asserted directly). Spring Security stays OPTIONAL in the runtime:
+`spring-security-core` is an optional dependency and the class is touched only when present, so a host without
+it starts unchanged.
+
+The anonymous control on the example host: with everything authenticated, an anonymous client never
+initializes (401 at the SSE GET); nothing reaches a tool.
+
+**as-backend, the pharmacy service (as-backend-trial.md section 10.14).** Repackaged against the spike
+runtime and started with the section 10.7 overrides, no write allowed: 19 registered, 11 not hosted, 1 write
+excluded. Anonymously, `tools/list` answered 19 and the two section 10.7 reads ran as before, and for each the
+runtime logged `called by (no authenticated caller)` on the same request the adopter's own filter logged `no
+token put in the Context`: the two agree, and the adopter's anonymous token did not leak in as a caller. A
+garbage bearer was parsed by the adopter's JWT filter (`MalformedJwtException`) and the SSE GET ended 403
+before a session existed. Read statically in the adopter's library: a valid token ends in
+`SecurityContextHolder.getContext().setAuthentication(UsernamePasswordAuthenticationToken)` from a filter
+added to the Spring Security chain before `UsernamePasswordAuthenticationFilter`, the same shape the example
+host exercised, so the capture applies unchanged. THE TOKEN LEG DID NOT RUN: a valid token needs the
+adopter's user module (the pharmacy's `UserDetailsService` loads the user over a REST proxy to `zpi-user-mgt`)
+and a user that can log in at its `POST /users/login`; the throwaway database holds no user and the spike
+fabricates none. It waits for the maintainer with a token from the adopter's login (the probe takes it as
+`MCP_BEARER`). Reported, not worked around: it does not change the three answers, which are about the
+runtime's seam; it is the leg the SEC-1 forecast of section 15.7 is checked against.
+
+**What the spike leaves in the tree.** S1 and S2 are in effect as built for the spike (`CallerContext`,
+`SecuredInvocation`, the provider and router beans, `call(String, ToolContext)` delegating from
+`call(String)`), with the DEBUG line naming the caller of every tool call. S3, S4, S5, `requiredAuthorities`
+on the descriptor and fixtures SC-1 to SC-8 are the SEC-1 build, its own session. The runtime gains
+`spring-security-core` optional and, at test scope only, the web, security and test starters for the servlet
+host. `CallerBoundarySpikeTest` stays as the spike's executable record, five tests, in the reactor.

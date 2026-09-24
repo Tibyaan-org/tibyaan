@@ -16,6 +16,13 @@ not stable before 1.0.0.
 
 ### Added
 
+- **The caller reaches the tool (spike SEC-0; the first half of SEC-1).** The runtime supplies its own WebMVC
+  SSE transport provider and the router for it, captures the caller the host authenticated on each MCP request
+  into the SDK's per-request transport context, and runs every tool invocation with that caller as the
+  thread's `SecurityContext`, cleared afterwards, so a host's own method security fires on the bound bean. It
+  validates no token and reads no header: the host authenticates, the runtime observes. Spring Security is
+  optional; a host without it starts unchanged. Enforcement of the compiled contract and the anonymous-caller
+  refusal (SEC-1, S3 to S5) follow.
 - **`tibyan describe`, the description drafter (phase Describe).** The one command that calls a model: for
   every pending entry of `tibyan/drafts.json` with no description it drafts one from the code the tool
   fingerprints and writes it back under `descriptionOrigin: ai-draft`, recording the model id and the
