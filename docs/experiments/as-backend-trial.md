@@ -609,3 +609,28 @@ Bodiless accessors and overload disambiguation (Volume 5 section 4.17.18, build 
 WRITE 343 to 372, UNKNOWN 281 to 240. The 55 "no single method" cases are gone; 13 return as a named untyped
 argument (a method-call result), the case the rule excludes. Audited sets unchanged. IR, MCP and OpenAPI unchanged
 **[tibyaan]**; the drafts file re-drafted through the merge, all pending, the 11 prepared descriptions intact.
+
+### 10.6 The first real approvals (2026-09-24): reviewed 9, refused 0
+
+THE ACT. The maintainer, Ahmed El-Seginy, approved 9 of the 11 prepared entries of section 10.2 by name, in one
+edit of `as-backend/tibyan/drafts.json` **[adopter]**, and declined the two Feign proxies (`getOfferDetails`,
+`getInternalUserById`) because they call another service with this service's own credential. `descriptionOrigin`
+stays `ai-draft` on all nine: the words are the readers' and the approval is the maintainer's, which is exactly the
+separation the record was built to keep.
+
+THE INTAKE. `tibyan scan` on the same adopter commit (23db1101cd) admitted all nine and refused none: every target
+resolved, every fingerprint held, no label drifted, none was superseded, every input bound (including the in-tree
+enum `OrderDirections` on `getAllSubProductsByFilters`, carried as a closed set `[ASC, DESC]` through the EI-1
+path), every review complete. Totals: `discovered 5, attested 15, reviewed 9, ..., mis-bound 0, attestation-drift 0,
+review-drift 0, mis-constrained 0`. Drafts pending 981. **[tibyaan]**
+
+THE SURFACES. Both backends generated the nine as `reviewed_<name>` with the class as the first sentence. SEVEN of
+the nine are `securityUnverifiable(conflicting-declarations)`, the same verdict as all fifteen attested
+capabilities (section 9.4, F1): their fronting controllers declare authority the tool cannot compile. Under the
+ratified defaults those seven do NOT register until each exact name is listed in
+`tibyan.security.exposeUnverifiable`; the two local proxy reads (`getApprovedPharmacies`,
+`getProductCurrentStocks`) carry no declared contract and register by default. So the first real use of the
+security list is nine minus two names, per hosting service, which is what Volume 7 section 10 was designed for.
+
+NOT DONE: starting the adopter's services with the manifest and the list, and calling a reviewed tool through a
+real MCP client. That needs the adopter's databases running and is the next thing to do on this app.

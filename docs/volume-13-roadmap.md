@@ -576,7 +576,8 @@ are caught, READ 401 to 271, WRITE 204 to 337, and the benchmarks are byte-ident
 closure (Volume 5 section 4.17.16), was ratified and BUILT 2026-09-24 (Volume 5 sections 4.17.16 and 4.17.17): READ 271 to 346, every audited pure
 read READ again, and 55 same-arity overloads recorded as the next candidate. DL-1.3 (Volume 5 section 4.17.18), bodiless accessors
 and overload disambiguation, was ratified and BUILT 2026-09-24 (Volume 5 sections 4.17.18 and 4.17.19): 42 of the 55 decided, UNKNOWN 240 of 990.
-The next evidence is real approvals, not another census.
+The first real approvals happened 2026-09-24 (as-backend-trial.md section 10.6): reviewed 9, refused 0. The next
+evidence is a reviewed tool called through a real MCP client on the adopter's running services.
 
 ## 4. Tier 3: direction only (production readiness and beyond)
 
