@@ -775,3 +775,28 @@ NOT DONE: the real approval. Two READ candidates are hosted by the pharmacy serv
 `#getAllRegions(List<Integer> cityIds)`, both returning `LookupResultSet`. Approving one by name, with a read
 description, and calling it through the MCP client of section 10.7 with a JSON array is the last clause of
 DL-2a's exit criterion, and it is the maintainer's act.
+
+THE APPROVAL AND THE CALL (later on 2026-09-24). **[adopter]** the maintainer approved
+`LookupServiceImpl_getAllCities` by name in `tibyan/drafts.json` (reviewer Ahmed El-Seginy, origin ai-draft; the
+description, read from the code by the tool's operator, says the governorate list narrows the cities, an
+absent or empty list returns every city, and no soft-delete filter is applied). **[tibyaan]** `tibyan scan`:
+`reviewed 10, refused 0, review-drift 0`; the capability is `securityUnverifiable(conflicting-declarations)`
+like the other pharmacy reads, so it was named in `tibyan.security.exposeUnverifiable`. **[reported]** the
+pharmacy service registered 30 tools and the MCP client called it four ways:
+
+| Arguments | Result |
+|---|---|
+| `{"governorateIds": [1, 2]}` | `isError=false`, `{"total":0,"list":[]}`; the log shows the city select and count with `governorate_id in (...)` |
+| `{"governorateIds": []}` | `isError=false`, `{"total":0,"list":[]}`; no governorate condition in the query, as the description says |
+| `{"governorateIds": ["x"]}` | `isError=true`, `input 'governorateIds[0]' has value 'x', which is not a valid 'Integer'` |
+| `{"governorateIds": 7}` | `isError=true`, `input 'governorateIds' is multiple and must be a JSON array, but the value was Integer` |
+
+THE DEFECT THE CALL FOUND. The first attempt answered `input 'governorateIds' is multiple but the bound
+parameter 'java.util.List' names no single element class`: the adapter read the generic signature from the
+CGLIB subclass Spring wraps the bean in, whose override carries none. No fixture had a proxied bean with a
+collection parameter. Fixed the same session (the method is now resolved on the user class; fixture CI-8) and
+the call repeated with the results above. That is the second defect found by a real call in one day, after F7,
+and the reason the exit criterion insists on one.
+
+DL-2a's exit criterion is met in full. NEXT: DL-2b (shapes), in its own session; F9 still awaits the
+maintainer.

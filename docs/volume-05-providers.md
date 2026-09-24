@@ -2678,6 +2678,20 @@ verified tier: a discovered read has, and will have, only primitive inputs.
   2b is the sixth IR growth and carries its own rules.
 
 
+
+THE EXIT CRITERION'S LAST CLAUSE, MET (later on 2026-09-24; as-backend-trial.md section 10.9). The maintainer
+approved `LookupServiceImpl_getAllCities` by name; `tibyan scan` read `reviewed 10, review-drift 0`; the
+pharmacy service registered 30 tools; and `reviewed_LookupServiceImpl_getAllCities {"governorateIds": [1, 2]}`
+executed end to end through the MCP client, the adopter's log showing the city query with
+`governorate_id in (...)` for both the select and the count. The first attempt found a defect the fixtures
+had missed: `SpringExecutionAdapter.findMethod` read the generic signature from the bean's CGLIB subclass,
+whose override carries none, so a `List<Integer>` parameter read as a raw `List` and the adapter refused
+("names no single element class"). Fixed in the same session by resolving the method on the bean's USER
+class, the class Binding Identity already resolves by, and invoking that `Method` on the proxy instance,
+which dispatches through the advice; fixture CI-8 (a CGLIB-proxied bean binds a `List<Long>`) pins it. A
+rule 13 note: this changed which invocations succeed on proxied beans, so it is not a diagnostic amendment
+but a build-time defect fix inside the ratified rule, recorded here as such.
+
 #### 4.19.6 Ratification record (2026-09-24)
 
 Ratified by the maintainer on 2026-09-24, as written, with the instruction "ratified as written, build DL-2a".
