@@ -4,6 +4,8 @@ Status: v1 IMPLEMENTATION COMPLETE (declared 2026-07-02, Volume 13 section 4.2).
 
 Recent changes (most recent first):
 
+- F9 RATIFIED AS WRITTEN (2026-09-24; Volume 7 section 14, record at 14.7). D1 skip and name, D2 a shared list stays valid. Record committed before code (rule 12). NEXT ACTION: build F9.
+
 - F9, HOSTED BINDINGS, DESIGNED PENDING RATIFICATION (2026-09-24; Volume 7 section 14; Volume 13 section 3). DOCS ONLY. H1: the section 12.2 resolution runs once at startup and a tool whose class no bean hosts, or two beans host, is not registered and is named on one line; H2: an exposure-list name the service does not host stays valid and is reported; H3: no new property. Fixtures HB-1 to HB-5; byte-identical benchmarks by construction; the pharmacy registration line drops by at least nine named tools. Two decisions with recommendations (skip and name; a shared list stays valid). NEXT ACTION: ratify, amend or refuse F9; then build it in its own session.
 
 - DL-2b EXIT CRITERION MET IN FULL, THE FIRST REVIEWED WRITE ON A REAL APP (later on 2026-09-24; Volume 5 section 4.19.8; as-backend-trial.md section 10.11). The maintainer approved `GovernorateServiceImpl_createGovernorate` (reviewed 11, review-drift 0). Without `tibyan.writes.allow` the pharmacy service excluded it (`write-not-allowed`); with its name allowed, `{"titleEn": "Cairo", "titleAr": "Al Qahira"}` returned `{"id": 1}`, the row exists in `ph_governorate` and the app's CREATE_GOVERNORATE event was published; a duplicate surfaced the app's business exception, an unknown property was refused naming the shape's fields, a non-object was refused, a partial object inserted with `title_ar` NULL. No defect found by this call. The four DL-2 commits are pushed.

@@ -615,7 +615,7 @@ input shape end to end through an MCP client. Rank: first coverage item after th
 moves as many real methods.
 
 
-### Hosted bindings, the startup check (candidate F9; designed 2026-09-24, PENDING RATIFICATION)
+### Hosted bindings, the startup check (candidate F9; designed and RATIFIED 2026-09-24)
 
 Goal: register only what a service can execute. Evidence: on as-backend's pharmacy service seven of eleven
 reviewed tools and two of fifteen attested tools bind to beans that service does not host, and an agent finds

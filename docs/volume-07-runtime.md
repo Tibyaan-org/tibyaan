@@ -680,7 +680,7 @@ neither.
 Fixtures are CI-1 to CI-7 and SI-1 to SI-12 of Volume 5 section 4.19; the runtime halves of CI-3, CI-7, SI-3
 and SI-11 live in `tibyan-runtime-spring`.
 
-## 14. Hosted bindings: the startup check (candidate F9; designed 2026-09-24, PENDING RATIFICATION)
+## 14. Hosted bindings: the startup check (candidate F9; designed 2026-09-24, RATIFIED 2026-09-24 as written, build in this session; ratification record at 14.7)
 
 ### 14.1 The evidence
 
@@ -740,3 +740,10 @@ name (`RoleServiceImpl`, `ScopeServiceImpl`, `CurrentStockServiceImpl`, `SubProd
   manifest shipped to every service is the adopter's declared practice and a failure would make it unusable.
 - D2, an unhosted name in an exposure list: valid and reported (recommended) or a startup failure. Valid, for
   the same reason: one list, many services.
+
+### 14.7 Ratification record (2026-09-24)
+
+Ratified by the maintainer on 2026-09-24, as written, with the instruction "ratified as written, build F9".
+Both decisions of 14.6 stand at their recommendations: an unhosted tool is skipped and named (D1), and an
+exposure-list name the service does not host stays valid and is reported (D2). This record is committed
+before any code (rule 12).
