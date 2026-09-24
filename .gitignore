@@ -36,3 +36,6 @@ Thumbs.db
 /examples/erp-backend
 /examples/as-backend
 /tibyaan-site
+
+# Local secrets: the ANTHROPIC_API_KEY for tibyan describe, loaded into the environment by the shell, never read by the tool
+.env
