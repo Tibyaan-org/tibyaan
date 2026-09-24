@@ -322,17 +322,21 @@ class DraftReviewProviderTest {
     // ---------- RV-8: every input binds, or the entry names the one that does not ----------
 
     @Test
-    void rv8_aCollectionInputRefusesInputUnmappedNamingTheParameterAndItsType(@TempDir Path root)
-            throws IOException {
+    void rv8_aCollectionInputBindsAsMultipleSinceDl2a(@TempDir Path root) throws IOException {
+        // Before DL-2a this refused INPUT_UNMAPPED by name (decision D6); since DL-2a (section 4.19.2, R1) a
+        // List of a primitive binds as its element carried as an array, and the approval covers it.
         copyFixture(root);
         DraftEntry byIds = entry(provider.draft(new ProviderInput(root)), "InvoiceServiceImpl_byIds");
+        assertThat(byIds.inputs().get(0).carriedAsArray()).isTrue();
         writeDrafts(root, approved(byIds, "Reads the invoices with the given ids."));
 
         ScanReport report = provider.scan(new ProviderInput(root));
 
-        DraftRefusal refusal = onlyRefusal(report, Cause.INPUT_UNMAPPED);
-        assertThat(refusal.detail()).contains("parameter 'ids'").contains("'List<Long>'").contains("DL-2");
-        assertThat(report.reviewedCount()).isZero();
+        Capability reviewed = capability(report, "reviewed_InvoiceServiceImpl_byIds");
+        assertThat(reviewed.inputs()).containsExactly(Map.entry("ids", Primitive.LONG));
+        assertThat(reviewed.multipleInputs()).containsExactly("ids");
+        assertThat(report.draftRefusals()).isEmpty();
+        assertValid(report);
     }
 
     @Test

@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -73,6 +74,46 @@ final class IrTypes {
                             + "' accepts: " + String.join(", ", EnumWireValues.of(target))));
         }
         return convert(value, target, text, inputName);
+    }
+
+    /**
+     * Phase DL-2a (Volume 7 section 13 item 1): a multiple input arrives as a JSON array and is built into the
+     * DECLARED collection type, each element coerced by {@link #coerce} into the parameter's generic element
+     * type. A non-array argument, a raw collection parameter (no generic element type), an unsupported
+     * collection type, or an element that does not coerce refuses loudly naming the input and the index.
+     * An empty array is an empty collection; {@code null} is {@code null}.
+     */
+    static Object coerceMany(Object value, Class<?> declaredType, java.lang.reflect.Type genericType,
+                             String inputName) {
+        if (value == null) {
+            return null;
+        }
+        if (!(value instanceof java.util.Collection<?> elements)) {
+            throw new IllegalArgumentException("input '" + inputName + "' is multiple and must be a JSON array,"
+                    + " but the value was " + value.getClass().getSimpleName());
+        }
+        if (!(genericType instanceof java.lang.reflect.ParameterizedType parameterized)
+                || parameterized.getActualTypeArguments().length != 1
+                || !(parameterized.getActualTypeArguments()[0] instanceof Class<?> elementType)) {
+            throw new IllegalArgumentException("input '" + inputName + "' is multiple but the bound parameter"
+                    + " '" + genericType.getTypeName() + "' names no single element class; the adapter never"
+                    + " guesses what the array carries");
+        }
+        java.util.Collection<Object> built;
+        if (declaredType.isAssignableFrom(ArrayList.class)) {
+            built = new ArrayList<>();
+        } else if (declaredType.isAssignableFrom(java.util.LinkedHashSet.class)) {
+            built = new java.util.LinkedHashSet<>();
+        } else {
+            throw new IllegalArgumentException("input '" + inputName + "' is multiple but the bound parameter"
+                    + " type '" + declaredType.getName() + "' is not a List, Set, Collection or Iterable");
+        }
+        int index = 0;
+        for (Object element : elements) {
+            built.add(coerce(element, elementType, inputName + "[" + index + "]"));
+            index++;
+        }
+        return built;
     }
 
     private static Object convert(Object value, Class<?> target, String text, String inputName) {

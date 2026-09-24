@@ -324,7 +324,7 @@ public final class ControllerSecurity {
         return new Capability(capability.name(), capability.kind(), capability.inputs(),
                 capability.output(), capability.outputMultiple(), capability.readOnly(),
                 capability.binding(), annotations, capability.attestation(), capability.inputValues(),
-                capability.review());
+                capability.review(), capability.multipleInputs());
     }
 
     private static boolean hasParamAnnotation(Parameter parameter, String simpleName) {

@@ -132,6 +132,53 @@
         }
       }
     },
+    "/reviewed/findProductsByIds": {
+      "get": {
+        "operationId": "reviewed_findProductsByIds",
+        "tags": [
+          "reviewed"
+        ],
+        "summary": "Reviewed by a.elseginy (human), not tool-verified; the tool labeled it READ. Lists the products with the given ids.",
+        "parameters": [
+          {
+            "name": "ids",
+            "in": "query",
+            "required": true,
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "format": "int64"
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The result of the reviewed read, as the reviewer described it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Product"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-tibyan-reviewed": true,
+        "x-tibyan-review": {
+          "label": "READ",
+          "reviewedBy": "a.elseginy",
+          "reviewedOn": "2026-09-24",
+          "descriptionOrigin": "human"
+        }
+      }
+    },
     "/reviewed/findProductsByStatus": {
       "get": {
         "operationId": "reviewed_findProductsByStatus",

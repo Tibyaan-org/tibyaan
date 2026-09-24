@@ -8,6 +8,7 @@ import com.tibyaan.core.ir.Capability;
 import com.tibyaan.provider.spring.JavaTypeMapper;
 import com.tibyaan.provider.spring.attest.AttestationIntake;
 import com.tibyaan.provider.spring.attest.ReadSafety;
+import com.tibyaan.provider.spring.extractors.CollectionParameter;
 import com.tibyaan.provider.spring.extractors.ServiceMethodSource;
 
 import java.util.ArrayList;
@@ -273,8 +274,15 @@ public final class DraftLabeler {
         List<DraftInput> inputs = new ArrayList<>();
         for (Parameter parameter : declaration.getParameters()) {
             String javaType = parameter.getType().asString();
-            String mapped = typeMapper.map(javaType).map(type -> type.canonical()).orElse(null);
-            inputs.add(new DraftInput(parameter.getNameAsString(), javaType, mapped));
+            // DL-2a (section 4.19.2): a collection of a mapped type shows its element type and multiple, so the
+            // file a reviewer approves says the wire carries an array. An enum element maps at intake, as a
+            // plain enum parameter does, so its type stays null here exactly as theirs does.
+            Optional<String> element = CollectionParameter.elementOf(javaType);
+            String toMap = element.orElse(javaType);
+            String mapped = typeMapper.map(toMap).map(type -> type.canonical()).orElse(null);
+            inputs.add(element.isPresent()
+                    ? new DraftInput(parameter.getNameAsString(), javaType, mapped, Boolean.TRUE)
+                    : new DraftInput(parameter.getNameAsString(), javaType, mapped));
         }
         return inputs;
     }

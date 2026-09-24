@@ -242,6 +242,7 @@ final class OpenApiDocument {
                 schema = new LinkedHashMap<>(schema);
                 schema.put("enum", List.copyOf(values));
             }
+            schema = arrayIfMultiple(capability, input.getKey(), schema, parameter);
             parameter.put("schema", schema);
             parameter.put("description", attestedInputDescription(capability, input.getKey()));
             parameters.add(parameter);
@@ -350,7 +351,8 @@ final class OpenApiDocument {
             parameter.put("name", input.getKey());
             parameter.put("in", "query");
             parameter.put("required", Boolean.TRUE);
-            parameter.put("schema", inputSchema(capability, input.getKey(), input.getValue()));
+            parameter.put("schema", arrayIfMultiple(capability, input.getKey(),
+                    inputSchema(capability, input.getKey(), input.getValue()), parameter));
             parameters.add(parameter);
         }
         return parameters;
@@ -363,7 +365,8 @@ final class OpenApiDocument {
         Map<String, Object> properties = new LinkedHashMap<>();
         List<Object> required = new ArrayList<>();
         for (Map.Entry<String, Type> input : capability.inputs().entrySet()) {
-            properties.put(input.getKey(), inputSchema(capability, input.getKey(), input.getValue()));
+            properties.put(input.getKey(), arrayIfMultiple(capability, input.getKey(),
+                    inputSchema(capability, input.getKey(), input.getValue()), null));
             required.add(input.getKey());
         }
         Map<String, Object> schema = new LinkedHashMap<>();
@@ -380,6 +383,24 @@ final class OpenApiDocument {
         body.put("required", Boolean.TRUE);
         body.put("content", content);
         return body;
+    }
+
+    // Phase DL-2a (Volume 6 section 4.7): a multiple input renders as an array of its element schema, the
+    // closed set staying on the items; a query parameter carrying it is form-style and exploded, the
+    // OpenAPI default spelled out. An input that is not multiple is returned untouched.
+    private static Map<String, Object> arrayIfMultiple(Capability capability, String name,
+                                                       Map<String, Object> element, Map<String, Object> parameter) {
+        if (!capability.multipleInputs().contains(name)) {
+            return element;
+        }
+        Map<String, Object> array = new LinkedHashMap<>();
+        array.put("type", "array");
+        array.put("items", element);
+        if (parameter != null) {
+            parameter.put("style", "form");
+            parameter.put("explode", Boolean.TRUE);
+        }
+        return array;
     }
 
     private Map<String, Object> inputSchema(Capability capability, String name, Type type) {

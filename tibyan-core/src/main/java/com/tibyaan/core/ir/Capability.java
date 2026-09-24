@@ -4,6 +4,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /**
  * An action the system can perform, named in business terms (Volume 4 section 3.4).
@@ -46,7 +48,8 @@ public record Capability(
         List<Annotation> annotations,
         Attestation attestation,
         Map<String, List<String>> inputValues,
-        Review review) {
+        Review review,
+        Set<String> multipleInputs) {
 
     /**
      * A capability with no input value constraints, which is every capability the structural rules emit.
@@ -57,7 +60,7 @@ public record Capability(
             boolean outputMultiple, boolean readOnly, BindingRef binding, List<Annotation> annotations,
             Attestation attestation) {
         return new Capability(name, kind, inputs, output, outputMultiple, readOnly, binding, annotations,
-                attestation, Map.of(), null);
+                attestation, Map.of(), null, Set.of());
     }
 
     public Capability {
@@ -88,6 +91,17 @@ public record Capability(
             }
             inputValues = Collections.unmodifiableMap(copy);
         }
+        // Phase DL-2a (Volume 4 section 3.11): the input names whose wire form is an array of the input's
+        // type. Never null, copied immutably in declaration order; well-formedness against the inputs is
+        // core rule 14.
+        multipleInputs = multipleInputs == null || multipleInputs.isEmpty()
+                ? Set.of()
+                : Collections.unmodifiableSet(new LinkedHashSet<>(multipleInputs));
+    }
+
+    /** True when at least one input is carried as an array on the wire (Volume 4 section 3.11). */
+    public boolean hasMultipleInputs() {
+        return !multipleInputs.isEmpty();
     }
 
     /** Whether this capability constrains any input to a closed value set (Volume 4 section 3.9). */
@@ -115,9 +129,16 @@ public record Capability(
     public static Capability reviewed(String name, Map<String, Type> inputs, Type output,
             boolean outputMultiple, BindingRef binding, List<Annotation> annotations,
             Map<String, List<String>> inputValues, Review review) {
+        return reviewed(name, inputs, output, outputMultiple, binding, annotations, inputValues, review, Set.of());
+    }
+
+    /** A reviewed capability whose inputs may include multiple (array-carried) inputs (phase DL-2a). */
+    public static Capability reviewed(String name, Map<String, Type> inputs, Type output,
+            boolean outputMultiple, BindingRef binding, List<Annotation> annotations,
+            Map<String, List<String>> inputValues, Review review, Set<String> multipleInputs) {
         CapabilityKind kind = review.label().kind();
         return new Capability(name, kind, inputs, output, outputMultiple, kind == CapabilityKind.READ, binding,
-                annotations, null, inputValues, review);
+                annotations, null, inputValues, review, multipleInputs);
     }
 
     /** A read only capability of kind READ, with no annotations, the MVP singular shape. */

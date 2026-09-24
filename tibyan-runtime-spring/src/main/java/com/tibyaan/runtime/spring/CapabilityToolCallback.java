@@ -88,8 +88,10 @@ final class CapabilityToolCallback implements ToolCallback {
                 properties.append(",");
                 required.append(",");
             }
-            properties.append("\"").append(input.name()).append("\":{\"type\":\"")
-                    .append(IrTypes.jsonSchemaType(input.type())).append("\"}");
+            // DL-2a (Volume 7 section 13 item 3): a multiple input is an array of its element type.
+            String element = "{\"type\":\"" + IrTypes.jsonSchemaType(input.type()) + "\"}";
+            properties.append("\"").append(input.name()).append("\":")
+                    .append(input.multiple() ? "{\"type\":\"array\",\"items\":" + element + "}" : element);
             required.append("\"").append(input.name()).append("\"");
         }
         return "{\"type\":\"object\",\"properties\":{" + properties + "},\"required\":[" + required + "]}";

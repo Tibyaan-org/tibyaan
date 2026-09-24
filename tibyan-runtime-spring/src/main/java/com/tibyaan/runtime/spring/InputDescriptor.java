@@ -3,13 +3,14 @@ package com.tibyaan.runtime.spring;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
- * One named, typed input of a tool, as read from the generated capabilities manifest. The type
- * is the IR canonical string, for example {@code LONG}.
- *
- * <p>Unknown fields are tolerated explicitly (the additive-field discipline), so the backend can add
- * per-input fields the runtime does not act on, for example the attested {@code description} an attested
- * tool carries on each input (Volume 6 section 3.6), without a runtime change.
+ * One input of a generated tool as the runtime reads it from the manifest: the name, the IR type, and
+ * (phase DL-2a, Volume 7 section 13) whether the wire carries an array of that type. Unknown fields are
+ * tolerated, the additive-field discipline of Volume 6 section 3.1.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record InputDescriptor(String name, String type) {
+public record InputDescriptor(String name, String type, boolean multiple) {
+
+    public InputDescriptor(String name, String type) {
+        this(name, type, false);
+    }
 }

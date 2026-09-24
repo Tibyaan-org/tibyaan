@@ -64,6 +64,27 @@
       ]
     },
     {
+      "name": "reviewed_findProductsByIds",
+      "description": "Reviewed by a.elseginy (human), not tool-verified; the tool labeled it READ. Lists the products with the given ids.",
+      "binding": "com.example.ProductService#findByIds",
+      "tier": "reviewed",
+      "review": {
+        "label": "READ",
+        "reviewedBy": "a.elseginy",
+        "reviewedOn": "2026-09-24",
+        "descriptionOrigin": "human"
+      },
+      "output": "ENTITY_REF(Product)",
+      "outputMultiple": true,
+      "inputs": [
+        {
+          "name": "ids",
+          "type": "LONG",
+          "multiple": true
+        }
+      ]
+    },
+    {
       "name": "reviewed_createProduct",
       "description": "Reviewed by a.elseginy (human), not tool-verified; the tool labeled it WRITE. Creates a product with the given name and returns its id.",
       "binding": "com.example.ProductService#create",

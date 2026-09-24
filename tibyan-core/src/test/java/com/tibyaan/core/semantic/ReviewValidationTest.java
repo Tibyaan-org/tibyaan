@@ -82,7 +82,7 @@ class ReviewValidationTest {
     @Test
     void rule12_theKindMustFollowTheLabel() {
         Capability mismatch = new Capability("reviewed_x", CapabilityKind.READ, Map.of(), Primitive.STRING, false,
-                true, new BindingRef("S#x"), List.of(), null, Map.of(), review(ReviewLabel.WRITE));
+                true, new BindingRef("S#x"), List.of(), null, Map.of(), review(ReviewLabel.WRITE), java.util.Set.of());
 
         assertThat(validator.validate(model(mismatch)).errors())
                 .anyMatch(e -> e.contains("reviewed_x") && e.contains("RV-H"));

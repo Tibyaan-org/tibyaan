@@ -87,7 +87,7 @@ class InvoiceServiceImpl {
         return repo.save(invoice);
     }
 
-    // READ with a collection input: INPUT_UNMAPPED, deferred to DL-2 by name (RV-8, decision D6).
+    // READ with a collection input: since DL-2a (section 4.19.2, R1, fixture CI-1) it binds as LONG multiple.
     public List<Invoice> byIds(List<Long> ids) {
         return repo.findByIdIn(ids);
     }

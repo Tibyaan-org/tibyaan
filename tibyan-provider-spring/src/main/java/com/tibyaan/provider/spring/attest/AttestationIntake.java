@@ -23,6 +23,7 @@ import com.tibyaan.core.ir.Type;
 import com.tibyaan.provider.spring.JavaTypeMapper;
 import com.tibyaan.provider.spring.attest.IntakeRefusal.Cause;
 import com.tibyaan.core.ir.CapabilityKind;
+import com.tibyaan.provider.spring.extractors.CollectionParameter;
 import com.tibyaan.provider.spring.extractors.EnumInputValues;
 import com.tibyaan.provider.spring.extractors.RepositoryCatalog;
 import com.tibyaan.provider.spring.extractors.SpringDataRepo;
@@ -251,6 +252,7 @@ public final class AttestationIntake {
         // framework paging types (Pageable, Sort) excluded exactly as E4 excludes a lone Pageable.
         Map<String, Type> inputs = new LinkedHashMap<>();
         Map<String, List<String>> inputValues = new LinkedHashMap<>();
+        Set<String> multipleInputs = new java.util.LinkedHashSet<>();
         Optional<CompilationUnit> targetUnit = resolvedTarget.method().findCompilationUnit();
         for (Parameter parameter : resolvedTarget.method().getParameters()) {
             String typeSimple = lastSegment(parameter.getType().asString());
@@ -259,6 +261,19 @@ public final class AttestationIntake {
             }
             String parameterName = parameter.getNameAsString();
             String declaredType = parameter.getType().asString();
+            // DL-2a, rule R1 (section 4.19.2), the same rule the draft intake applies: a collection of a
+            // primitive or an in-tree enum binds as its element carried as an array; the rest refuse by name.
+            CollectionParameter.Outcome collection = CollectionParameter.classify(declaredType);
+            if (collection.isRefused()) {
+                refusals.add(refusal(target, record.name(), Cause.STRUCTURAL_FRAME,
+                        "parameter '" + parameterName + "' of type '" + declaredType + "': "
+                                + collection.refusal()));
+                return;
+            }
+            if (collection.isCollection()) {
+                multipleInputs.add(parameterName);
+            }
+            String boundType = collection.isCollection() ? collection.element() : declaredType;
 
             // Phase Enum Inputs (Volume 5 section 4.16.4): an in-tree enum parameter maps to STRING and
             // carries the closed set of wire values the tool READ from its declaration. An enum whose
@@ -266,7 +281,7 @@ public final class AttestationIntake {
             // schema that invites an agent to send a value the call will reject is a worse outcome than a
             // named refusal, and it is the same choice E3 made for enum FIELDS.
             EnumInputValues.Outcome enumOutcome = targetUnit
-                    .map(unit -> enumInputValues.resolve(declaredType, unit))
+                    .map(unit -> enumInputValues.resolve(boundType, unit))
                     .orElseGet(EnumInputValues.Outcome::notAnEnum);
             if (enumOutcome.isRefused()) {
                 refusals.add(refusal(target, record.name(), Cause.STRUCTURAL_FRAME,
@@ -281,7 +296,7 @@ public final class AttestationIntake {
                 continue;
             }
 
-            Optional<Type> mapped = typeMapper.map(declaredType);
+            Optional<Type> mapped = typeMapper.map(boundType);
             if (mapped.isEmpty()) {
                 refusals.add(refusal(target, record.name(), Cause.STRUCTURAL_FRAME,
                         "parameter '" + parameterName + "' has type '" + declaredType
@@ -409,7 +424,8 @@ public final class AttestationIntake {
         // ATTESTS meaning, and an attestation can neither supply, extend, nor override a set
         // (Volume 5 section 4.16.5).
         attested.add(new Capability(minted, CapabilityKind.READ, inputs, output, multiple, true,
-                new BindingRef(resolvedTarget.binding()), List.of(), attestation, inputValues, null));
+                new BindingRef(resolvedTarget.binding()), List.of(), attestation, inputValues, null,
+                multipleInputs));
     }
 
     /**

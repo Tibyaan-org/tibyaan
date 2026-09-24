@@ -16,6 +16,14 @@ not stable before 1.0.0.
 
 ### Added
 
+- **Collection inputs (DL-2a).** A service method parameter declared `List`, `Set`, `Collection` or
+  `Iterable` of a modeled primitive or an in-tree enum now binds, in the drafts file, the attestation intake
+  and the reviewed tier, as its element type carried as an array: the IR gains `multipleInputs` on a
+  capability (validation rule 14), the drafts file shows `"multiple": true` on the input, the MCP manifest
+  renders it, OpenAPI renders an array parameter or body property, and the runtime builds the declared
+  collection element by element, refusing an illegal enum element by index with the legal values named. A
+  raw, wildcard, nested or array collection still refuses by name; a collection of a DTO waits for DL-2b.
+  On the adopter benchmark 59 more drafted methods bind on every input.
 - **The binding is qualified on every tier, and the runtime resolves it by class identity (phase Binding
   Identity).** Every capability's `binding` is now `<canonical qualified class name>#<method>`, for example
   `com.acme.inventory.ProductService#findById`, in the IR JSON, both backends' output and the drafts file.

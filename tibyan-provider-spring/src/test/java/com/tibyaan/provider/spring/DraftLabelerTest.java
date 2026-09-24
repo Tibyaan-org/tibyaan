@@ -81,8 +81,9 @@ class DraftLabelerTest {
     void inputsKeepTheJavaTypeAndMapToNullWhenTheMapperCannot() {
         DraftReport report = provider.draft(new ProviderInput(FIXTURE));
 
+        // Since DL-2a (section 4.19.2) a List of a primitive shows its element type and multiple.
         assertThat(find(report, "OrderServiceImpl_count").inputs())
-                .containsExactly(new DraftInput("ids", "List<Long>", null));
+                .containsExactly(new DraftInput("ids", "List<Long>", "LONG", Boolean.TRUE));
         assertThat(find(report, "OrderServiceImpl_count").target())
                 .isEqualTo("com.example.draft.OrderServiceImpl#count(List)");
         assertThat(find(report, "OrderServiceImpl_search_2").inputs())

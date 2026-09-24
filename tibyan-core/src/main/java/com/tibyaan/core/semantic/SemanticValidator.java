@@ -54,6 +54,7 @@ public final class SemanticValidator {
         checkAttestationCompleteness(model, errors);
         checkAttestedPrefix(model, errors);
         checkInputValueConstraints(model, errors);
+        checkInputMultiplicity(model, errors);
         checkBoundaryAttestations(model, errors);
         checkReviewCompleteness(model, errors);
         checkReviewedPrefix(model, errors);
@@ -364,6 +365,25 @@ public final class SemanticValidator {
                 if (distinct.size() != values.size()) {
                     errors.add(where + " with duplicated values " + values + "; a closed set's values are"
                             + " distinct (rule 10)");
+                }
+            }
+        }
+    }
+
+    // Rule 14 (Volume 4 section 5, rule 14; phase DL-2a, section 3.11): input multiplicity is well formed.
+    // Every name in multipleInputs names an existing input, and that input is primitive-typed: an array of
+    // entity references is a shape the model never claims. Enforced in core so a backend never renders an
+    // array schema over nothing.
+    private static void checkInputMultiplicity(CapabilityModel model, List<String> errors) {
+        for (Capability capability : model.capabilities()) {
+            for (String input : capability.multipleInputs()) {
+                String where = "capability '" + capability.name() + "' marks input '" + input + "' multiple";
+                Type type = capability.inputs().get(input);
+                if (type == null) {
+                    errors.add(where + ", which is not an input of that capability (rule 14)");
+                } else if (!(type instanceof Primitive)) {
+                    errors.add(where + ", whose type is " + type.canonical() + "; a multiple input is an array"
+                            + " of a primitive, never of an entity reference (rule 14)");
                 }
             }
         }

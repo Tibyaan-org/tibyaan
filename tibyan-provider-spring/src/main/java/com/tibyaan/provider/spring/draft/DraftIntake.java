@@ -16,6 +16,7 @@ import com.tibyaan.provider.spring.JavaTypeMapper;
 import com.tibyaan.provider.spring.attest.AttestationIntake;
 import com.tibyaan.provider.spring.attest.ReadSafety;
 import com.tibyaan.provider.spring.draft.DraftRefusal.Cause;
+import com.tibyaan.provider.spring.extractors.CollectionParameter;
 import com.tibyaan.provider.spring.extractors.EnumInputValues;
 import com.tibyaan.provider.spring.extractors.RepositoryCatalog;
 import com.tibyaan.provider.spring.extractors.ServiceMethodSource;
@@ -25,6 +26,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -213,7 +215,9 @@ public final class DraftIntake {
         // framework paging parameter the runtime already binds. Anything else refuses, naming the parameter.
         Map<String, Type> inputs = new LinkedHashMap<>();
         Map<String, List<String>> inputValues = new LinkedHashMap<>();
-        Optional<DraftRefusal> unmapped = bindInputs(entry, resolved.get().method(), inputs, inputValues);
+        Set<String> multipleInputs = new LinkedHashSet<>();
+        Optional<DraftRefusal> unmapped = bindInputs(entry, resolved.get().method(), inputs, inputValues,
+                multipleInputs);
         if (unmapped.isPresent()) {
             admittedBindings.remove(binding);
             refusals.add(unmapped.get());
@@ -243,7 +247,7 @@ public final class DraftIntake {
         Review review = new Review(ReviewLabel.valueOf(entry.label().name()), entry.reviewedBy(),
                 entry.reviewedOn(), entry.descriptionOrigin(), entry.fingerprint());
         reviewed.add(Capability.reviewed(minted, inputs, output.type(), output.multiple(), new BindingRef(binding),
-                annotations, inputValues, review));
+                annotations, inputValues, review, multipleInputs));
     }
 
     // The extractor's catalog entry whose declaration IS the resolved one (same AST node), which is what
@@ -263,7 +267,7 @@ public final class DraftIntake {
     // cannot read refuses rather than shipping unconstrained, and a primitive maps. A collection, a DTO, or an
     // unresolvable type refuses naming the parameter and its type (decision D6: collections are DL-2's).
     private Optional<DraftRefusal> bindInputs(DraftEntry entry, MethodDeclaration method, Map<String, Type> inputs,
-                                              Map<String, List<String>> inputValues) {
+                                              Map<String, List<String>> inputValues, Set<String> multipleInputs) {
         Optional<CompilationUnit> unit = method.findCompilationUnit();
         for (Parameter parameter : method.getParameters()) {
             String declaredType = parameter.getType().asString();
@@ -271,8 +275,20 @@ public final class DraftIntake {
                 continue;
             }
             String parameterName = parameter.getNameAsString();
+            // DL-2a, rule R1 (section 4.19.2): a List, Set, Collection or Iterable of a primitive or an in-tree
+            // enum binds as its element type carried as an array; the element then goes through exactly the
+            // plain-parameter rule below. A raw, wildcard, nested or array collection refuses by name.
+            CollectionParameter.Outcome collection = CollectionParameter.classify(declaredType);
+            if (collection.isRefused()) {
+                return Optional.of(refusal(entry, Cause.INPUT_UNMAPPED, "parameter '" + parameterName
+                        + "' of type '" + declaredType + "': " + collection.refusal()));
+            }
+            if (collection.isCollection()) {
+                multipleInputs.add(parameterName);
+            }
+            String boundType = collection.isCollection() ? collection.element() : declaredType;
             EnumInputValues.Outcome enumOutcome = unit
-                    .map(cu -> enumInputValues.resolve(declaredType, cu))
+                    .map(cu -> enumInputValues.resolve(boundType, cu))
                     .orElseGet(EnumInputValues.Outcome::notAnEnum);
             if (enumOutcome.isRefused()) {
                 return Optional.of(refusal(entry, Cause.INPUT_UNMAPPED, "parameter '" + parameterName
@@ -285,12 +301,12 @@ public final class DraftIntake {
                 inputValues.put(parameterName, enumOutcome.values());
                 continue;
             }
-            Optional<Type> mapped = typeMapper.map(declaredType);
+            Optional<Type> mapped = typeMapper.map(boundType);
             if (mapped.isEmpty()) {
                 return Optional.of(refusal(entry, Cause.INPUT_UNMAPPED, "parameter '" + parameterName
                         + "' has type '" + declaredType + "', which is neither a modeled primitive, nor an "
-                        + "in-tree enum, nor a paging parameter; collection and DTO inputs are deferred to DL-2 "
-                        + "by name (section 4.17.3, RV-E, decision D6)"));
+                        + "in-tree enum, nor a paging parameter; a DTO input is DL-2b's (section 4.17.3, RV-E; "
+                        + "section 4.19)"));
             }
             inputs.put(parameterName, mapped.get());
         }

@@ -74,10 +74,15 @@ public final class SpringExecutionAdapter implements ExecutionAdapter {
         // parameter, so the lookup threw and the capability was uninvokable.
         Method method = findMethod(bean, methodName, inputs.size(), binding);
         Class<?>[] declaredTypes = method.getParameterTypes();
+        java.lang.reflect.Type[] genericTypes = method.getGenericParameterTypes();
         Object[] callArgs = new Object[inputs.size()];
         for (int i = 0; i < inputs.size(); i++) {
             InputDescriptor input = inputs.get(i);
-            callArgs[i] = IrTypes.coerce(safeArgs.get(input.name()), declaredTypes[i], input.name());
+            // DL-2a (Volume 7 section 13 item 1): a multiple input arrives as an array and is built into the
+            // declared collection, each element coerced by the EI-R rule to the generic element type.
+            callArgs[i] = input.multiple()
+                    ? IrTypes.coerceMany(safeArgs.get(input.name()), declaredTypes[i], genericTypes[i], input.name())
+                    : IrTypes.coerce(safeArgs.get(input.name()), declaredTypes[i], input.name());
         }
 
         try {

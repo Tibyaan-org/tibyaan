@@ -258,6 +258,15 @@ class OpenApiBackendGoldenTest {
                 Map.of("status", List.of("ACTIVE", "DISCONTINUED")),
                 new Review(ReviewLabel.READ, "a.elseginy", "2026-09-23", Review.ORIGIN_HUMAN, "sha256:r1"));
 
+        // Phase DL-2a (Volume 6 sections 3.11 and 4.7): a reviewed read whose input is carried as an array.
+        Capability findByIds = Capability.reviewed("reviewed_findProductsByIds",
+                inputs("ids", Primitive.LONG), Type.entityRef("Product"), true,
+                new BindingRef("com.example.ProductService#findByIds"),
+                List.of(new Annotation("description", List.of("Lists the products with the given ids."))),
+                Map.of(),
+                new Review(ReviewLabel.READ, "a.elseginy", "2026-09-24", Review.ORIGIN_HUMAN, "sha256:r5"),
+                java.util.Set.of("ids"));
+
         Capability createProduct = Capability.reviewed("reviewed_createProduct",
                 inputs("name", Primitive.STRING), Primitive.LONG, false,
                 new BindingRef("com.example.ProductService#create"),
@@ -284,7 +293,7 @@ class OpenApiBackendGoldenTest {
                 new Review(ReviewLabel.READ, "b.reviewer", "2026-09-22", Review.ORIGIN_HUMAN, "sha256:r4"));
 
         return new CapabilityModel("shop", "0.1", List.of(product, tenant),
-                List.of(getProduct, searchTenants, findByStatus, createProduct, reindexProducts, productStats),
+                List.of(getProduct, searchTenants, findByStatus, findByIds, createProduct, reindexProducts, productStats),
                 List.of(), Metadata.empty());
     }
 

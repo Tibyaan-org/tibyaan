@@ -154,6 +154,11 @@ final class ManifestWriter {
                 out.append("        {\n");
                 out.append("          \"name\": ").append(quote(input.getKey())).append(",\n");
                 out.append("          \"type\": ").append(quote(input.getValue().canonical()));
+                // Phase DL-2a (Volume 6 section 3.11): a multiple input keeps its element type and says the
+                // wire carries an array of it; an input that is not multiple renders exactly as before.
+                if (capability.multipleInputs().contains(input.getKey())) {
+                    out.append(",\n          \"multiple\": true");
+                }
                 // An attested tool carries a per-input description, verbatim: the meaning sentence for a
                 // domain filter, the fixed paging description for a paging-marked input, or a structural
                 // description for the proven id. No input ever stands in an attested schema with its meaning

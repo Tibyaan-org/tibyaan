@@ -95,6 +95,8 @@ public final class IrJson {
         // one property through a mixin rather than applied to Capability as a whole, because a type-wide
         // NON_EMPTY would also drop the empty `annotations` list that every unannotated capability
         // currently serializes, which would change existing output.
+        // The same scoping for the optional multipleInputs component (Volume 4 section 3.11, phase DL-2a):
+        // omitted when empty, so a model with no multiple input serializes byte-identically.
         mapper.addMixIn(Capability.class, CapabilityInputValuesMixin.class);
         return mapper;
     }
@@ -104,6 +106,9 @@ public final class IrJson {
 
         @JsonInclude(JsonInclude.Include.NON_EMPTY)
         abstract Map<String, List<String>> inputValues();
+
+        @JsonInclude(JsonInclude.Include.NON_EMPTY)
+        abstract java.util.Set<String> multipleInputs();
     }
 
     private static final class TypeSerializer extends JsonSerializer<Type> {
