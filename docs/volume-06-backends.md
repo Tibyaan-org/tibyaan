@@ -285,7 +285,7 @@ backend reads the binding; both copy it, so the change is one field's content on
 a deliberate visible diff under rule 10, with nothing else moving. The OpenAPI document carries the same value
 wherever it carried the old one. The runtime side, R2 and R3, is Volume 7 section 12.2.
 
-## 3.11 MCP: multiple inputs and shapes (phase DL-2; designed and RATIFIED 2026-09-24; the multiple half BUILT 2026-09-24 as DL-2a)
+## 3.11 MCP: multiple inputs and shapes (phase DL-2; designed and RATIFIED 2026-09-24; BUILT 2026-09-24 as DL-2a and DL-2b)
 
 A MULTIPLE input (DL-2a) renders in the manifest as `"multiple": true` on the input, keeping its element type
 and its `values` when it has a closed set; the runtime turns that into an array schema. A `SHAPE_REF` input
@@ -295,7 +295,7 @@ naming the skipped fields with their declared types. The description of a review
 input gains one sentence naming the shape and its skipped count, so the honesty the reviewer approved reaches
 the agent. A manifest without a multiple or shape input is byte-identical to today.
 
-## 4.7 OpenAPI: multiple inputs and shapes (phase DL-2; designed and RATIFIED 2026-09-24; the multiple half BUILT 2026-09-24 as DL-2a)
+## 4.7 OpenAPI: multiple inputs and shapes (phase DL-2; designed and RATIFIED 2026-09-24; BUILT 2026-09-24 as DL-2a and DL-2b)
 
 A MULTIPLE input renders as an array-typed parameter (`style: form, explode: true` on a query parameter, an
 array property in a body). Each shape renders as a component schema under its display name, fields optional

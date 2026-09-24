@@ -800,3 +800,31 @@ and the reason the exit criterion insists on one.
 
 DL-2a's exit criterion is met in full. NEXT: DL-2b (shapes), in its own session; F9 still awaits the
 maintainer.
+
+### 10.10 DL-2b built (2026-09-24): structured inputs bind, 532 to 778
+
+THE RE-CENSUS. **[tibyaan]** `tibyan draft` against a worktree at d45a131: the census unchanged (990: 5 / 15 /
+358 / 372 / 240); entries the tool binds on every input 532 to 778 (READ 313 to 326, WRITE 82 to 252, UNKNOWN
+117 to 180). The forecast said 852; the 74 are 59 `WorkflowContext` inputs whose every field is an entity or
+a `Map` (refused `SHAPE_EMPTY`, exactly as D8 and R3 require) and 15 generated DTOs whose only field is a list
+of a polymorphic interface (R2 never guesses an implementation). The tool read 129 distinct shapes, 119
+complete and 10 partial, every skipped field disclosed with its reason. Discovered, attested and reviewed
+output on this app is byte-identical in the IR and the MCP manifest; the OpenAPI document moved on one
+operation, `reviewed_LookupServiceImpl_getAllCities` from GET to POST, the D6 correction of the DL-2a
+rendering (Volume 5 section 4.19.8).
+
+WHAT A REVIEWER SEES NOW. **[adopter]** the file re-run in place: 297 entries show their object inline, for
+example `CityServiceImpl_createCity` reads `cityDTO: SHAPE_REF(CityDTO)` with fields `titleAr: STRING,
+titleEn: STRING, governorateId: INTEGER` and no skipped field; 120 entries name why a class is not a shape
+(47 an entity, 77 empty); the ten approvals and their fingerprints are unchanged, `reviewed 10,
+review-drift 0`.
+
+NOT DONE: the real approval. The pharmacy service hosts one READ with a shape input and it is partial
+(`CurrentCartServiceImpl#getCartVTO(List<RecordAttribute>)`, `attributeValue` an `Object`), so the honest
+first shape call on this app is a WRITE, named in `tibyan.writes.allow` and in the security list, against the
+throwaway database. Fully mapped candidates the pharmacy service hosts: `CityServiceImpl#createCity(CityDTO)`,
+`GovernorateServiceImpl#createGovernorate(GovernorateDTO)`,
+`CancellationReasonServiceImpl#createCancellationReason(CancellationReasonDTO)`, among 54. Approving one by
+name, with a write description, and calling it with a JSON object through the MCP client of section 10.7 is
+the last clause of DL-2b's exit criterion, and the first reviewed WRITE ever executed on a real app. It is
+the maintainer's act.

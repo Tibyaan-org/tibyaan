@@ -209,7 +209,7 @@ adopter benchmark blocking 60 drafted methods (Volume 5 section 4.19.1); (2) tru
 exactly what the wire carries; (3) no coercion, `Type` untouched, `inputs` untouched, a flag-free model
 serializes byte-identically.
 
-### 3.12 Shapes: structured inputs (phase DL-2b; designed and RATIFIED 2026-09-24, build in its own session)
+### 3.12 Shapes: structured inputs (phase DL-2b; designed and RATIFIED 2026-09-24, BUILT 2026-09-24)
 
 A Shape is the wire form of an in-tree class the runtime constructs from a JSON object: a DTO. It is the
 sixth deliberate growth and the second that adds an element rather than a value, so it carries its own
@@ -300,9 +300,9 @@ Structural rules, checked in `tibyan-core`:
 13. THE REVIEWED PREFIX IS RESERVED IN BOTH DIRECTIONS (phase DL-1, section 3.10; same status). A capability carrying a `Review` is named `reviewed_<name>`, and a capability without one must not be. As with rule 9, the epistemic class is readable from the name alone on every surface, and a truncated description cannot hide it.
 
 
-14. INPUT MULTIPLICITY IS WELL FORMED (phase DL-2a, section 3.11; RATIFIED and BUILT 2026-09-24). Every name in `multipleInputs` names an existing input of the capability, and that input's type is a primitive.
+14. INPUT MULTIPLICITY IS WELL FORMED (phase DL-2a, section 3.11; RATIFIED and BUILT 2026-09-24; AMENDED by the DL-2b build, Volume 5 section 4.19.8). Every name in `multipleInputs` names an existing input of the capability, and that input is typed by a primitive or a `SHAPE_REF` (a `List` of a qualifying DTO), never an `ENTITY_REF`.
 
-15. SHAPE IDENTITY AND REFERENCE (phase DL-2b, section 3.12; RATIFIED 2026-09-24). Shape keys are unique within the model, shape display names are unique within the model, every `SHAPE_REF` on a capability input or a shape field resolves to a shape in the model, no `SHAPE_REF` appears on an output or an entity field, and the reference graph among shapes is acyclic.
+15. SHAPE IDENTITY AND REFERENCE (phase DL-2b, section 3.12; RATIFIED and BUILT 2026-09-24). Shape keys are unique within the model, shape display names are unique within the model, every `SHAPE_REF` on a capability input or a shape field resolves to a shape in the model, no `SHAPE_REF` appears on an output or an entity field, and the reference graph among shapes is acyclic.
 
 16. SHAPE COMPLETENESS (phase DL-2b, section 3.12; same status). Every shape has at least one field; its fields are typed by a primitive or a `SHAPE_REF`, never an `ENTITY_REF`; `multipleFields` names existing fields typed by a primitive; `fieldValues` names existing STRING-typed fields with non-empty, distinct values; the `partial` annotation's values name fields that are not among the shape's fields.
 

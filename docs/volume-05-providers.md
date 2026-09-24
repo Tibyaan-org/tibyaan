@@ -2521,7 +2521,7 @@ merge, with every review kept. Core rule 7 keeps its check over the now-qualifie
 is a diff confined to `binding` values on all three benchmarks with every count unchanged.
 
 
-### 4.19 DL-2: collection inputs and structured inputs (designed 2026-09-24, RATIFIED 2026-09-24 as written; DL-2a BUILT 2026-09-24, build record at 4.19.7; DL-2b pending its own session; ratification record at 4.19.6)
+### 4.19 DL-2: collection inputs and structured inputs (designed 2026-09-24, RATIFIED 2026-09-24 as written; DL-2a BUILT 2026-09-24, record at 4.19.7; DL-2b BUILT 2026-09-24, record at 4.19.8; ratification record at 4.19.6)
 
 DL-1 deferred collection inputs to DL-2 by name (decision D6, section 4.17.11) with the trigger recorded: 66
 READ entries on as-backend carried `List<Long>` or `List<Integer>`. Binding Identity built, the trigger was
@@ -2589,7 +2589,7 @@ as EI-R already does.
 **Forecast.** Byte-identical on all three benchmarks' discovered and attested output. Drafts file: 60 more
 entries on as-backend carry a type on every input (473 to 533); every label and every census count unchanged.
 
-#### 4.19.3 DL-2b: structured inputs (shapes)
+#### 4.19.3 DL-2b: structured inputs (shapes) (BUILT 2026-09-24, record at 4.19.8)
 
 **What a shape is.** A Shape (Volume 4 section 3.12) is the wire form of an in-tree class the runtime can
 construct from a JSON object: a qualified `key`, a display `name` (section 4.12.3's disambiguation rule,
@@ -2752,6 +2752,78 @@ service the section 10.7 run used, both `LookupServiceImpl` in `zag.zpi.pharmacy
 
 NOT IN THIS BUILD, BY DESIGN: DL-2b (shapes); a `List` of a DTO shows `"multiple": true` with a null type in
 the drafts file today and binds only when DL-2b lands.
+
+
+#### 4.19.8 DL-2b build record (BUILT 2026-09-24)
+
+BUILT as ratified: rules R2 and R3, the Shape element and `SHAPE_REF`, disclosed partiality, shapes in the
+fingerprint, the drafts surface, both backends and the runtime binding with unknown properties refused.
+
+WHAT CHANGED IN CODE. Core: `Shape` (key, name, fields, multipleFields, fieldValues, annotations with
+`partial`), `ShapeRef` as the third member of `Type` (`SHAPE_REF(name)`), `CapabilityModel.shapes` (omitted
+from the IR JSON when empty), rules 15 and 16 in `SemanticValidator`. Provider: `ShapeExtractor` (R2 and R3:
+resolution by key, the never-input annotations, constructibility by structure with Lombok read by simple
+name, fields of the class and its in-tree superclasses, nested shapes, cycles, `SHAPE_EMPTY`, every skip
+named with its reason); `TypeReferenceResolver` now indexes records; `DraftIntake` binds a DTO parameter as
+`SHAPE_REF`, collects every reachable shape, assigns display names over the whole set by the section 4.12.3
+rule and builds the IR shapes; `AttestationIntake.sliceMembers` adds every shape a parameter reaches (D5);
+`DraftLabeler` renders the whole object into the drafts file (`DraftInput.shape`, nested, and
+`DraftInput.unmapped` naming a refusal). Backends: the MCP manifest carries a `shapes` section and one
+sentence per structured input; OpenAPI renders each shape as a component schema (suffixed `Shape` only when
+an entity owns the name), a `SHAPE_REF` as a `$ref`, and a reviewed READ with a shape or a multiple input as a
+POST with a body (D6). Runtime: `ShapeDescriptor` in the manifest, the nested object schema with no
+`required` list (D4), and `ShapeBinding` (the walk against the shape, unknown properties refused by name
+with the skipped fields listed, closed sets enforced by path, nested shapes, lists of shapes, then Jackson
+with `FAIL_ON_UNKNOWN_PROPERTIES`).
+
+TWO AMENDMENTS, FLAGGED. (1) Rule 14 as ratified said a multiple input is typed by a primitive; section
+4.19.3 as ratified said a `List` of a qualifying DTO binds as `SHAPE_REF` with multiple. The two texts
+disagreed and the build follows the explicit design sentence: rule 14 now reads "a primitive or a shape
+reference", and rule 16's `multipleFields` the same. (2) The DL-2a build rendered a reviewed READ with a
+multiple input as a GET with an array query parameter; decision D6 as ratified says such a read is a POST
+with a body. Corrected in this build; the reviewed OpenAPI golden and the one such operation on as-backend
+(`reviewed_LookupServiceImpl_getAllCities`) moved from GET to POST. Neither is a diagnostic amendment; both
+are recorded here as build-time corrections toward the ratified text.
+
+FIXTURES. SI-1 to SI-9 and SI-12 in `ShapeInputProviderTest` over `fixtures/shape-inputs` (a `@Data` DTO
+with a primitive, an enum with its closed set, a nested DTO, a list, an entity field and a `Map` field, the
+last two disclosed as skipped; a record; a `List` of the DTO as the shape multiple; `SHAPE_EMPTY`;
+`SHAPE_NOT_CONSTRUCTIBLE`; an `@Entity` parameter refused by D8; `SHAPE_CYCLE`; a DTO field change flipping
+the approved entry to `STALE_DRAFT`); SI-10 over `fixtures/shape-inputs-collision` (two `Filter` classes
+become `CrmFilter` and `SupportFilter`); the drafts file round trip with nested shapes; SI-3 and SI-11 at the
+runtime in `ShapeInputRuntimeTest` (a JSON object bound to the declared class, an unknown property refused
+naming the fields and the skipped ones, an illegal enum value by path, a nested unknown property by path, a
+non-object, a list of shapes, the tool schema); rules 15 and 16 and the amended rule 14 in
+`ShapeValidationTest`; the JSON round trip and omission in `ShapesIrJsonTest`; a reviewed write with a shape
+input added to both reviewed goldens.
+
+THE FORECAST, CHECKED against a worktree at d45a131 with the same three trees. pms and erp: byte-identical
+(IR, MCP, OpenAPI). as-backend: IR and MCP byte-identical; OpenAPI moved on exactly one operation, the D6
+correction above; every count unchanged (5 / 15 / 10, every zero invariant). The drafts census is unchanged
+(990: 5 / 15 / 358 / 372 / 240). Entries the tool binds on every input: 532 to 778 against a forecast of 852.
+THE 74-ENTRY GAP IS THE FORECAST'S, NOT THE TOOL'S, and it is two classes: 59 inputs of
+`zag.lib.workflow.engine.model.dto.WorkflowContext`, whose every field is an entity or a `Map` and which
+therefore refuses `SHAPE_EMPTY` exactly as D8 and R3 say it must (these are workflow-engine handlers, not
+tools); and 15 inputs of generated DTOs whose only field is a `List` of a polymorphic `@JsonSubTypes`
+interface, which R2 refuses by name because the tool never guesses an implementation. The forecast script of
+4.19.1 counted a class as "bindable" without reading its fields. The other direction was also wrong: it
+predicted 92 of 116 DTOs partial, and the tool read 129 distinct shapes of which 119 are complete and 10
+partial, because it models nested DTOs, lists of DTOs and dates the script had counted as unmappable. Every
+skipped field is disclosed with its reason (an entity, an interface, not in the tree, no setter). The
+adopter's `tibyan/drafts.json`, re-run in place: 297 entries show their shape inline, 120 name why a class is
+not one, the ten approvals and their fingerprints are byte-for-byte unchanged, `tibyan scan` reads
+`reviewed 10, review-drift 0`.
+
+`mvn clean verify`: green, 12 modules, provider 274 tests, both integration tests.
+
+THE EXIT CRITERION'S LAST CLAUSE, one real approval on as-backend exercising a shape input end to end, WAITS
+FOR THE MAINTAINER'S NAMED ACT. The only READ candidate the pharmacy service hosts,
+`CurrentCartServiceImpl#getCartVTO(List<RecordAttribute>)`, carries a partial shape (`attributeValue` is an
+`Object`), so the honest first call is a WRITE behind `tibyan.writes.allow`: 54 write and action candidates
+hosted by that service carry fully mapped shapes, among them `CityServiceImpl#createCity(CityDTO{titleAr,
+titleEn, governorateId})`, `GovernorateServiceImpl#createGovernorate(GovernorateDTO{titleAr, titleEn})` and
+`CancellationReasonServiceImpl#createCancellationReason(CancellationReasonDTO{titleEn, titleAr})`, all
+returning `void` or a `NewRecordVTO`. Recorded in as-backend-trial.md section 10.10.
 
 ## 5. Future providers
 
