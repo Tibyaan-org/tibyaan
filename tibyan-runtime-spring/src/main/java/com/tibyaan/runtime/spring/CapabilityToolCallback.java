@@ -5,10 +5,15 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tibyaan.plugin.CapabilityRef;
 import com.tibyaan.plugin.ExecutionAdapter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.definition.ToolDefinition;
 
+import java.security.Principal;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Bridges one generated tool to the MCP server. It carries the tool's definition (name,
@@ -17,6 +22,8 @@ import java.util.Map;
  * of the generated tool: identical contract, hosted dynamically rather than compiled.
  */
 final class CapabilityToolCallback implements ToolCallback {
+
+    private static final Logger log = LoggerFactory.getLogger(CapabilityToolCallback.class);
 
     private static final TypeReference<Map<String, Object>> ARGS_TYPE = new TypeReference<>() {
     };
@@ -72,11 +79,27 @@ final class CapabilityToolCallback implements ToolCallback {
 
     @Override
     public String call(String toolInput) {
+        return call(toolInput, null);
+    }
+
+    /**
+     * Spike SEC-0 and phase SEC-1 (Volume 7 section 15): the call the MCP server actually makes, with the tool
+     * context that carries the exchange. The caller the host authenticated is read from the exchange's transport
+     * context (S1) and, when Spring Security is present, put in scope around the invocation and cleared after (S2).
+     */
+    @Override
+    public String call(String toolInput, ToolContext toolContext) {
         try {
             Map<String, Object> args = (toolInput == null || toolInput.isBlank())
                     ? Map.of()
                     : objectMapper.readValue(toolInput, ARGS_TYPE);
-            Object result = executionAdapter.invoke(new CapabilityRef(descriptor.name()), args);
+            Optional<Principal> caller = CallerContext.callerOf(toolContext);
+            log.debug("Tibyaan: tool {} called by {}", descriptor.name(),
+                    caller.map(Principal::getName).orElse("(no authenticated caller)"));
+            Object result = caller.isPresent() && SecuredInvocation.available()
+                    ? SecuredInvocation.withCaller(caller.get(),
+                            () -> executionAdapter.invoke(new CapabilityRef(descriptor.name()), args))
+                    : executionAdapter.invoke(new CapabilityRef(descriptor.name()), args);
             return objectMapper.writeValueAsString(result);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("failed to process tool '" + descriptor.name() + "'", e);

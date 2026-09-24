@@ -6,7 +6,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
@@ -34,10 +36,44 @@ import org.springframework.core.io.ResourceLoader;
  * derived from the IR. Health, observability, and lifecycle hardening are deliberately out of
  * scope for the MVP (Volume 7 lists them as later).
  */
-@AutoConfiguration
+@AutoConfiguration(beforeName = "org.springframework.ai.mcp.server.autoconfigure.McpWebMvcServerAutoConfiguration")
 public class TibyanAutoConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(TibyanAutoConfiguration.class);
+
+    /**
+     * Spike SEC-0 and phase SEC-1, rule S1 (Volume 7 section 15): the WebMVC SSE transport provider, built as
+     * Spring AI builds it (same endpoints, same base URL, same JSON mapper) plus the one thing Spring AI's does not
+     * carry, an extractor that captures the caller the host authenticated into the per-request transport context.
+     * Ordered before Spring AI's auto-configuration so its @ConditionalOnMissingBean yields to this one.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnClass(name = "io.modelcontextprotocol.server.transport.WebMvcSseServerTransportProvider")
+    @ConditionalOnProperty(prefix = "spring.ai.mcp.server", name = "stdio", havingValue = "false", matchIfMissing = true)
+    public io.modelcontextprotocol.server.transport.WebMvcSseServerTransportProvider tibyanTransportProvider(
+            ObjectMapper objectMapper, org.springframework.ai.mcp.server.autoconfigure.McpServerProperties properties) {
+        return io.modelcontextprotocol.server.transport.WebMvcSseServerTransportProvider.builder()
+                .jsonMapper(new io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper(objectMapper))
+                .baseUrl(properties.getBaseUrl())
+                .messageEndpoint(properties.getSseMessageEndpoint())
+                .sseEndpoint(properties.getSseEndpoint())
+                .contextExtractor(CallerContext::capture)
+                .build();
+    }
+
+    /**
+     * The router that serves the SSE and message endpoints. Spike SEC-0 finding Q1: Spring AI's WHOLE WebMVC
+     * configuration is conditional on no transport provider bean existing, so once the runtime supplies the
+     * provider, the router that Spring AI would have built for it is gone too, and the runtime registers it.
+     */
+    @Bean
+    @ConditionalOnClass(name = "io.modelcontextprotocol.server.transport.WebMvcSseServerTransportProvider")
+    @ConditionalOnProperty(prefix = "spring.ai.mcp.server", name = "stdio", havingValue = "false", matchIfMissing = true)
+    public org.springframework.web.servlet.function.RouterFunction<org.springframework.web.servlet.function.ServerResponse> tibyanMcpRouterFunction(
+            io.modelcontextprotocol.server.transport.WebMvcSseServerTransportProvider provider) {
+        return provider.getRouterFunction();
+    }
 
     @Bean
     @ConditionalOnMissingBean
