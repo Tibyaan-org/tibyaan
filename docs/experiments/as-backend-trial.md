@@ -879,3 +879,13 @@ manifest into every service; that is the adopter's practice and F9 makes it hone
 
 The reviewed tier on this app now stands at 11 approvals (10 reads, 1 write), all executed or refused as their
 descriptions say, on a throwaway database.
+
+### 10.13 Describe built (2026-09-24): the prompts, dry
+
+**[tibyaan]** `tibyan describe . --dry-run --limit 2 --only CityServiceImpl_createCity,GovernorateServiceImpl_getAllGovernoratesByFilters`
+on this app printed two prompts built from the real slices (75 members across them: each method, its
+imports, the repository declarations it calls, the return type declaration) and wrote nothing; the drafts
+file is byte-equal before and after. Without a key, `tibyan describe .` exited 3 naming `ANTHROPIC_API_KEY`
+and wrote nothing. The 981 pending entries are describable; the first real run, over the 54 fully mapped write
+candidates of section 10.10, waits for a key on the machine that runs it, and its sentences are read and
+approved or corrected by the maintainer, by name.

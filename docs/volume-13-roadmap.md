@@ -634,7 +634,7 @@ Identity, DL-2a and DL-2b, F9), all measured, and it is not published: the maint
 waits for two things, the description drafter decision and the caller at the tool boundary. Both are
 designed below, pending ratification. Nothing else is queued ahead of them.
 
-### Describe: the AT-4 assist as one quarantined command (designed and RATIFIED 2026-09-24)
+### Describe: the AT-4 assist as one quarantined command (designed, RATIFIED and BUILT 2026-09-24)
 
 Goal: end the hand-written description. Evidence: eleven approvals on as-backend, every sentence written by
 a person from the slice the tool fingerprints. Design: Volume 5 section 4.15.5.2, Volume 11 section 3.6,

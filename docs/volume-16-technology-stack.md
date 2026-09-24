@@ -90,7 +90,7 @@ Where the comparison flips, later: a `.NET` or PHP provider that runs out of pro
 A reminder that this volume must not contradict: `tibyan-core` depends on none of the above. Not Spring, not JavaParser, not the MCP library, not the template engine. Those belong to providers, backends, and runtimes. If any of them appears in core's dependency list, a concept has leaked and must move out (ADR-0001, ADR-0013, Volume 12 section 4).
 
 
-## 7. The description drafter: the first network call, quarantined (designed and RATIFIED 2026-09-24)
+## 7. The description drafter: the first network call, quarantined (designed, RATIFIED and BUILT 2026-09-24)
 
 The stack of section 2 contains no model client, and Volume 5 section 4.15.5.1 recorded that adding one is
 this volume's decision. The decision proposed: ONE command, `tibyan describe` (Volume 5 section 4.15.5.2;

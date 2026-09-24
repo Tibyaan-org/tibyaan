@@ -1505,7 +1505,7 @@ WHAT THIS MEANS FOR AN ADOPTER TODAY: any producer of drafts can be used, includ
 MEASURED (2026-09-01): all three benchmarks BYTE-IDENTICAL across the serialized IR, the generated MCP output, the generated OpenAPI document, AND the survey text, verified by `diff -r` against a worktree at the pre-build commit. None carries a record file, so no draft queue can appear and the phase is provably additive.
 
 
-#### 4.15.5.2 The assist itself: `tibyan describe` (phase Describe; designed and RATIFIED 2026-09-24 as written, build in this session; stack decision Volume 16 section 7, ADR-0016)
+#### 4.15.5.2 The assist itself: `tibyan describe` (phase Describe; designed and RATIFIED 2026-09-24, BUILT 2026-09-24, build record at 4.15.5.3; stack decision Volume 16 section 7, ADR-0016)
 
 The split of 4.15.5.1 is closed on the maintainer's decision of 2026-09-24 that publication waits for this
 design and for the security design (Volume 7 section 15). The evidence is the reviewed tier's first month on
@@ -1567,6 +1567,47 @@ DECISIONS FOR THE MAINTAINER: D1 the default model (`claude-sonnet-5`, recommend
 reads code well; `--model` overrides); D2 the key source (environment only, recommended); D3 the per-run
 limit (50, recommended); D4 whether a stale ai-draft is replaced silently or only with `--refresh`
 (replaced by `describe` only, never by `draft`; recommended).
+
+
+#### 4.15.5.3 Describe build record (BUILT 2026-09-24)
+
+BUILT as ratified, DS-1 to DS-5, the four answers of 4.15.5.2 and the quarantine of Volume 16 section 7.
+
+WHAT CHANGED IN CODE. Provider: `DraftEntry` gains three provenance components, `describedBy`, `describedFrom`
+and `descriptionStale`, each omitted from the file when absent (the pre-Describe constructor stays, so every
+existing caller and every existing file is unchanged), plus `described(words, model)` (DS-3) and
+`descriptionOutdated()`; `DraftMerge.carry` carries the provenance through and, when an `ai-draft`
+description was written from a fingerprint the entry no longer carries, marks it stale rather than deleting
+it (DS-4); `AttestationIntake.sliceSourceOf` returns the fingerprinted members as source text, label by label,
+exactly the members the fingerprint hashes (DS-2); `SpringCapabilityProvider.sliceReader` resolves a target
+to its fingerprint and slice. CLI: the package `com.tibyaan.cli.describe` holds `DescriptionModel` (one seam),
+`AnthropicMessagesModel` (the Messages API over the JDK `HttpClient` with the CLI's Jackson: one request
+shape, one response shape, no SDK, no new dependency) and `Describer` (DS-1 selection, DS-2 prompt, DS-3
+bounds: verbatim, at most 600 characters, one line, else refused by reason); `tibyan describe` is registered
+with `--model` (default `claude-sonnet-5`), `--limit` (default 50), `--only`, `--label`, `--drafts` and
+`--dry-run`; the key is read from `ANTHROPIC_API_KEY` only and its absence exits 3 with a located message and
+nothing written.
+
+FIXTURES. DS-1 to DS-6 in `DescriberTest` over a copy of the example app against a fake model: the pending
+empty entry is described with origin, model and fingerprint recorded and the model saw the rename's slice and
+not the other method's; an approved entry and a human's words are skipped by name and the file is byte-equal
+after the run; the missing key exits 3 and writes nothing; a source change flips the draft to stale on the
+next `tibyan draft` and a second run replaces it with the new fingerprint recorded; a dry run prints the
+prompt, calls nothing and writes nothing; the limit holds and an over-long, multi-line or failed answer is
+refused by reason with the entry untouched. `NetworkQuarantineTest` walks every module's main sources and
+asserts no HTTP client type is referenced outside the describe package.
+
+THE FORECAST, CHECKED. No scan, draft or generate path changed: the CLI draft golden is byte-identical (the
+three new fields are omitted when null) and the diff outside the describe package is five files of
+provenance and slice plumbing. On as-backend, `tibyan describe . --dry-run --only <two entries>` produced the
+two prompts from the real slices (75 members across them: the methods, their imports, the repository
+declarations they call, the return types) and left the file untouched; `tibyan describe .` without a key
+refused as designed.
+
+THE EXIT CRITERION'S LAST CLAUSE, one real run on as-backend whose drafted sentences the maintainer reads,
+WAITS FOR A KEY: `ANTHROPIC_API_KEY` is not set on the build machine. The first measured run is
+`tibyan describe <as-backend> --label WRITE --limit 54` over the fully mapped write candidates of section
+10.10, and the maintainer approves or corrects by name (DS-5).
 
 #### 4.15.6 Name-and-signature honesty: how attested capabilities satisfy the E6b verdict
 

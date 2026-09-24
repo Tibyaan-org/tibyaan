@@ -62,6 +62,7 @@ Note on the version: the latest released artifact is `0.3.0`, and a local build 
 | `generate` | Generate a backend (MCP or OpenAPI) from an IR file, or by scanning a path (strict). |
 | `attest` | Stamp fingerprints into the attestations file, and confirm one drafted entry. |
 | `draft` | Draft a labeled candidate tool for every public service method, reads and writes, into `tibyan/drafts.json` (DL-0 and DL-1). |
+| `describe` | Draft a description for every pending entry of `tibyan/drafts.json` from the fingerprinted code; the only command that calls a model (phase Describe). |
 | `validate` | Validate an IR JSON file without generating. |
 | `version` | Print the tool and IR schema versions. |
 
@@ -376,3 +377,55 @@ For most adopters the Maven plugin performs steps 1 to 4 automatically during th
 build, writing the manifest onto the classpath, so the running app serves the MCP tools with no
 manual step. The CLI is for manual runs, surveys, and inspection. See the root `README.md` for the
 adoption path and `docs/CONNECTING-AN-MCP-CLIENT.md` for connecting a client to the running server.
+
+
+## `tibyan describe`
+
+Drafts a description for every pending entry of `tibyan/drafts.json` from the code the tool fingerprints, and
+writes it back under `descriptionOrigin: ai-draft` with the model id (`describedBy`) and the fingerprint it
+was drafted from (`describedFrom`). Nothing it writes reaches a tool surface: the entry stays `pending`
+until a named human approves it (phase Describe, Volume 5 section 4.15.5.2; Volume 11 section 3.6).
+
+This is the ONLY command that makes a network call. `scan`, `draft`, `generate`, `attest`, `validate` and
+the Maven plugin never do.
+
+### Synopsis
+
+```
+tibyan describe <path> [--model <id>] [--limit <n>] [--only <name>,...] [--label READ|WRITE|UNKNOWN]
+                [--drafts <drafts.json>] [--dry-run]
+```
+
+### Arguments and options
+
+| Option | Effect |
+|---|---|
+| `<path>` | The system whose drafts file to describe. |
+| `--model <id>` | The model id, recorded on every entry it touches (default `claude-sonnet-5`). |
+| `--limit <n>` | At most this many entries per run (default 50). |
+| `--only <name>,...` | Describe only these entry names. |
+| `--label READ\|WRITE\|UNKNOWN` | Describe only entries with this label. |
+| `--drafts <file>` | The drafts file (default `<path>/tibyan/drafts.json`). |
+| `--dry-run` | Print every prompt and write nothing; needs no key. |
+
+The key is read from the environment variable `ANTHROPIC_API_KEY` only, never from a flag or a file.
+
+### What is described
+
+A `pending` entry whose description is empty, or whose `ai-draft` description was written from a fingerprint
+the entry no longer carries (`descriptionStale: true` after a `tibyan draft` re-run). Never an approved or
+rejected entry, never words a person wrote, never a stale entry. The model sees the fingerprinted slice (the
+method, its imports, the repository declarations it calls, its return type, its parameter shapes), the label
+and its reason, and the house rules; the words come back verbatim, at most 600 characters on one line, or
+the entry is refused with the reason. A drafted sentence is never printed by any command.
+
+### Exit codes
+
+`0` on success (refusals are listed, not fatal); `3` when the drafts file is missing or the key is absent,
+with nothing written.
+
+### Example
+
+```bash
+tibyan describe . --label WRITE --limit 54
+```
