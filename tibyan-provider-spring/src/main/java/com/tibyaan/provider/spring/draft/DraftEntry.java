@@ -35,6 +35,9 @@ import java.util.List;
  *                          approval is pinned to the code it approved; null when the target did not resolve
  * @param stale             true when a re-run of {@code tibyan draft} no longer finds the target among the
  *                          candidates; the entry is kept in place with its old fingerprint, never deleted
+ * @param describedBy       the model that drafted the description (phase Describe), else null
+ * @param describedFrom     the fingerprint the description was drafted from, else null
+ * @param descriptionStale  true when a drafted description predates the current fingerprint (DS-4), else null
  * @param previousLabel     the label the entry carried before a re-run recomputed a different one, else null; a
  *                          changed label resets {@code review} to {@code pending}
  */
@@ -55,7 +58,19 @@ public record DraftEntry(
         String descriptionOrigin,
         String fingerprint,
         @JsonInclude(JsonInclude.Include.NON_DEFAULT) boolean stale,
-        @JsonInclude(JsonInclude.Include.NON_NULL) DraftLabel previousLabel) {
+        @JsonInclude(JsonInclude.Include.NON_NULL) DraftLabel previousLabel,
+        @JsonInclude(JsonInclude.Include.NON_NULL) String describedBy,
+        @JsonInclude(JsonInclude.Include.NON_NULL) String describedFrom,
+        @JsonInclude(JsonInclude.Include.NON_NULL) Boolean descriptionStale) {
+
+    /** The pre-Describe shape (phase Describe, Volume 5 section 4.15.5.2): no drafter provenance. */
+    public DraftEntry(String name, String target, String binding, DraftLabel label, String reason, String capability,
+                      String returnType, List<DraftInput> inputs, String description, String review,
+                      String reviewedBy, String reviewedOn, String descriptionOrigin, String fingerprint,
+                      boolean stale, DraftLabel previousLabel) {
+        this(name, target, binding, label, reason, capability, returnType, inputs, description, review, reviewedBy,
+                reviewedOn, descriptionOrigin, fingerprint, stale, previousLabel, null, null, null);
+    }
 
     /** The review state the tool writes; approval and rejection are a reviewer's words, never the tool's. */
     public static final String PENDING = "pending";
@@ -85,6 +100,21 @@ public record DraftEntry(
                                    String fingerprint) {
         return new DraftEntry(name, target, binding, label, reason, capability, returnType, inputs, "", PENDING,
                 null, null, ORIGIN_HUMAN, fingerprint, false, null);
+    }
+
+    /**
+     * Phase Describe (Volume 5 section 4.15.5.2, DS-3): the same entry carrying a drafted description verbatim,
+     * its origin ai-draft, the model that drafted it and the fingerprint it was drafted from. The review state
+     * is untouched: a draft is a third thing until a named human approves it.
+     */
+    public DraftEntry described(String words, String model) {
+        return new DraftEntry(name, target, binding, label, reason, capability, returnType, inputs, words, review,
+                reviewedBy, reviewedOn, ORIGIN_AI_DRAFT, fingerprint, stale, previousLabel, model, fingerprint, null);
+    }
+
+    /** True when a drafted description was written from a fingerprint the entry no longer carries (DS-4). */
+    public boolean descriptionOutdated() {
+        return Boolean.TRUE.equals(descriptionStale);
     }
 
     // No is-prefixed convenience accessor here on purpose: Jackson would auto-detect it as a serialized

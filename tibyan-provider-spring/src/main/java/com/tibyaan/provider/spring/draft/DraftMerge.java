@@ -104,21 +104,28 @@ public final class DraftMerge {
                 // only a pending or rejected entry is re-pinned by a re-run.
                 sameLabel && DraftEntry.APPROVED.equals(old.review()) ? old.fingerprint() : fresh.fingerprint(),
                 false,
-                sameLabel ? old.previousLabel() : old.label());
+                sameLabel ? old.previousLabel() : old.label(),
+                old.describedBy(),
+                old.describedFrom(),
+                // Phase Describe, DS-4 (Volume 5 section 4.15.5.2): an ai-draft description written from a fingerprint
+                // the entry no longer carries is kept and marked stale, never deleted; only describe replaces it.
+                DraftEntry.ORIGIN_AI_DRAFT.equals(old.descriptionOrigin()) && old.describedFrom() != null
+                        && !old.describedFrom().equals(fresh.fingerprint()) ? Boolean.TRUE : null);
     }
 
     private static DraftEntry markStale(DraftEntry entry) {
         return new DraftEntry(entry.name(), entry.target(), entry.binding(), entry.label(), entry.reason(),
                 entry.capability(), entry.returnType(), entry.inputs(), entry.description(), entry.review(),
                 entry.reviewedBy(), entry.reviewedOn(), entry.descriptionOrigin(), entry.fingerprint(), true,
-                entry.previousLabel());
+                entry.previousLabel(), entry.describedBy(), entry.describedFrom(), entry.descriptionStale());
     }
 
     private static DraftEntry withName(DraftEntry entry, String name) {
         return new DraftEntry(name, entry.target(), entry.binding(), entry.label(), entry.reason(),
                 entry.capability(), entry.returnType(), entry.inputs(), entry.description(), entry.review(),
                 entry.reviewedBy(), entry.reviewedOn(), entry.descriptionOrigin(), entry.fingerprint(),
-                entry.stale(), entry.previousLabel());
+                entry.stale(), entry.previousLabel(), entry.describedBy(), entry.describedFrom(),
+                entry.descriptionStale());
     }
 
     private static String uniqueName(String minted, Set<String> reserved) {

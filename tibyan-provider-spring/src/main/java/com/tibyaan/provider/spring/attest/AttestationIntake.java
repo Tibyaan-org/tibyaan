@@ -776,6 +776,16 @@ public final class AttestationIntake {
     // would silently re-stamp it, and the CLI's fingerprintFor(target) contract assumes a target has one
     // slice. The return type is frame-load-bearing for a predicate entry too, since the output tie reads
     // it, so pinning it strengthens AT-1 rather than perturbing it.
+    /**
+     * Phase Describe (Volume 5 section 4.15.5.2, DS-2): the fingerprinted slice as SOURCE TEXT, label to member,
+     * exactly the members fingerprintOf hashes, so what a drafter reads is what a fingerprint covers.
+     */
+    public Map<String, String> sliceSourceOf(ResolvedTarget resolvedTarget) {
+        Map<String, String> source = new TreeMap<>();
+        sliceMembers(resolvedTarget).forEach((label, node) -> source.put(label, node.toString()));
+        return source;
+    }
+
     private Map<String, Node> sliceMembers(ResolvedTarget resolvedTarget) {
         Map<String, Node> members = new TreeMap<>();
         String fqcn = resolvedTarget.declaringType().getFullyQualifiedName().orElse(resolvedTarget.binding());

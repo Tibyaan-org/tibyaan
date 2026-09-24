@@ -16,6 +16,13 @@ not stable before 1.0.0.
 
 ### Added
 
+- **`tibyan describe`, the description drafter (phase Describe).** The one command that calls a model: for
+  every pending entry of `tibyan/drafts.json` with no description it drafts one from the code the tool
+  fingerprints and writes it back under `descriptionOrigin: ai-draft`, recording the model id and the
+  fingerprint; the entry stays pending until a named human approves it, and a source change marks the draft
+  stale on the next `tibyan draft`. Anthropic Messages API over the JDK HTTP client, no SDK, key from
+  `ANTHROPIC_API_KEY` only; `--dry-run` prints the prompts without a key. Every other command stays offline,
+  and a test guards it.
 - **A service registers only the tools it can execute (F9).** At startup, after the exposure policy has
   decided, the runtime resolves every remaining tool's bound class against the application context and
   registers only those exactly one bean hosts; the rest are named on one log line with the reason (no bean

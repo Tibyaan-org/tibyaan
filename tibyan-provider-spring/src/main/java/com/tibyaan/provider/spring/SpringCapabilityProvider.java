@@ -972,6 +972,35 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
      * <p>The labels are computed against the discovered and attested capabilities only: a reviewed capability
      * is a human's decision, not a proof, so it never labels a method VERIFIED.
      */
+    /**
+     * Phase Describe (Volume 5 section 4.15.5.2): a reader of fingerprinted slices as source text, for the one
+     * command that drafts descriptions. It produces no IR and no output; it reads what the fingerprint covers.
+     */
+    public SliceReader sliceReader(ProviderInput input) {
+        ParseResults parsed = parseJavaSources(input.sourceRoot());
+        TypeReferenceResolver resolver = TypeReferenceResolver.from(parsed.units());
+        RepositoryCatalog repositories = RepositoryCatalog.from(parsed.units(), resolver);
+        return new SliceReader(new AttestationIntake(parsed.units(), resolver, repositories, typeMapper, Map.of()));
+    }
+
+    /** One target's fingerprinted slice: the fingerprint and the members as source text, by label. */
+    public record Slice(String fingerprint, Map<String, String> members) {
+    }
+
+    /** Resolves targets in the tree it was built from; empty when a target does not resolve to one declaration. */
+    public static final class SliceReader {
+        private final AttestationIntake intake;
+
+        SliceReader(AttestationIntake intake) {
+            this.intake = intake;
+        }
+
+        public Optional<Slice> slice(String target) {
+            return intake.resolveTarget(target)
+                    .map(resolved -> new Slice(intake.fingerprintOf(resolved), intake.sliceSourceOf(resolved)));
+        }
+    }
+
     public DraftReport draft(ProviderInput input, List<DraftEntry> existing) {
         ScanReport report = scan(input);
         ParseResults parsed = parseJavaSources(input.sourceRoot());

@@ -19,6 +19,7 @@ import picocli.CommandLine.Command;
                 ValidateCommand.class,
                 AttestCommand.class,
                 DraftCommand.class,
+                DescribeCommand.class,
                 VersionCommand.class
         },
         exitCodeOnInvalidInput = 1,
