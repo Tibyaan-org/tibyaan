@@ -2692,6 +2692,16 @@ which dispatches through the advice; fixture CI-8 (a CGLIB-proxied bean binds a 
 rule 13 note: this changed which invocations succeed on proxied beans, so it is not a diagnostic amendment
 but a build-time defect fix inside the ratified rule, recorded here as such.
 
+
+THE EXIT CRITERION'S LAST CLAUSE, MET (later on 2026-09-24; as-backend-trial.md section 10.11). The maintainer
+approved `GovernorateServiceImpl_createGovernorate` (reviewed 11, review-drift 0). Without `tibyan.writes.allow`
+the pharmacy service excluded it (`write-not-allowed`); with its name allowed, the MCP client sent
+`{"titleEn": "Cairo", "titleAr": "Al Qahira"}` and received `{"id": 1}`, the row exists in `ph_governorate`,
+the app's CREATE_GOVERNORATE event was published; a duplicate surfaced the app's own business exception, an
+unknown property (`code`) was refused naming the shape's fields, a non-object was refused, and an object with
+only `titleEn` inserted a row with `title_ar` NULL (D4). The first reviewed WRITE executed on a real
+application. No defect was found by this call.
+
 #### 4.19.6 Ratification record (2026-09-24)
 
 Ratified by the maintainer on 2026-09-24, as written, with the instruction "ratified as written, build DL-2a".

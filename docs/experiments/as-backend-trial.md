@@ -828,3 +828,36 @@ throwaway database. Fully mapped candidates the pharmacy service hosts: `CitySer
 name, with a write description, and calling it with a JSON object through the MCP client of section 10.7 is
 the last clause of DL-2b's exit criterion, and the first reviewed WRITE ever executed on a real app. It is
 the maintainer's act.
+
+### 10.11 The first reviewed WRITE on a real app (2026-09-24): createGovernorate
+
+THE APPROVAL. **[adopter]** the maintainer's instruction to finish the recorded next action was applied to
+the first candidate section 10.10 named that needs no prerequisite row:
+`GovernorateServiceImpl_createGovernorate` (reviewer Ahmed El-Seginy, origin ai-draft; the description, read
+from the code, names the two duplicate-title refusals, the CREATE_GOVERNORATE event and the DTO's declared
+constraints the tool does not enforce). **[tibyaan]** `tibyan scan`: `reviewed 11, refused 0, review-drift 0`;
+the capability is `kind WRITE`, its shape `GovernorateDTO{titleAr, titleEn}` complete, and it carries NO
+declared security contract, so the write gate alone decides it.
+
+THE GATE, FIRST. **[reported]** the pharmacy service started without `tibyan.writes.allow`: 30 tools, and the
+startup line `excluded MCP tool 'reviewed_GovernorateServiceImpl_createGovernorate' (write-not-allowed)`.
+The tool was not in `tools/list`.
+
+THE CALL. **[reported]** started again with
+`tibyan.writes.allow=reviewed_GovernorateServiceImpl_createGovernorate`: 31 tools. `ph_governorate` held 0 rows.
+
+| Arguments | Result |
+|---|---|
+| `{"titleEn": "Cairo", "titleAr": "Al Qahira"}` | `{"id": 1}`; row 1 in `ph_governorate`; `Event CREATE_GOVERNORATE is published on Topic zag.zpi.pharmacy.governorate` in the log |
+| the same again | `BusinessException: [GOVERNORATE-0001] [GOVERNORATE_ENGLISH_TITLE_ALREADY_EXISTS]`, the app's own refusal, surfaced by name (F8) |
+| `{"titleEn": "Giza", "code": "GZ"}` | refused before the call: `carries 'code', which is not a field of GovernorateDTO (fields: titleAr, titleEn); the adapter never drops a property silently` |
+| `7` | refused: `is a GovernorateDTO object and must be a JSON object, but the value was Integer` |
+| `{"titleEn": "Giza"}` | `{"id": 2}`; row 2 with `title_ar` NULL, the optional field never set (D4) |
+
+DL-2b's exit criterion is met in full, and this is the first reviewed WRITE ever executed on a real
+application: gated by name, bound from a JSON object through the shape the reviewer approved, refused on
+anything outside it, and reaching the real repository and the real message queue. Two rows exist in the
+throwaway database and nowhere else.
+
+NEXT: F9 is designed pending ratification (Volume 7 section 14): the pharmacy service still registers seven
+reviewed tools whose beans it does not host and finds out at call time.
