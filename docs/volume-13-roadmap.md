@@ -664,6 +664,11 @@ to end; benchmarks byte-identical by construction; on the pharmacy service the s
 anonymously before the service is entered and the reads run. EXIT CRITERION: three of four clauses met; the
 authenticated as-backend leg waits for the maintainer's token. NEXT: that token run, then cut 0.4.0.
 
+THE TOKEN LEG RAN 2026-09-24 (as-backend-trial.md section 10.16; Volume 7 section 15.11): the exit criterion is NOT met
+in full. The calls run as the caller and a real contract refuses a caller lacking it, but the narrowing clause
+fails on F11, the host's thread-bound request context not reaching the tool thread. Two candidates, not ratified:
+F11 (spike running sync tools on the request thread) and F10 (refuse an absent or unknown top-level argument).
+
 ## 4. Tier 3: direction only (production readiness and beyond)
 
 This tier is deliberately coarse: one short paragraph per item, no designs, no phase plans, no acceptance criteria. Everything here is conditional on Tier 2 proving the semantic core on real applications, meaning the benchmark discovers a meaningful share of a real app's reads with zero mis-bindings. Writing detailed plans for this tier before that proof would repeat the original roadmap's mistake.

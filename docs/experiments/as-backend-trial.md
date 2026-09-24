@@ -964,3 +964,76 @@ the adopter's login, expecting the write to run, `getApprovedPharmacies` to narr
 the runtime's line to name the caller. It waits on the token leg of section 10.14, the maintainer's: start
 `zpi-user-mgt`, log a user in at `POST /users/login`, run the probe with `MCP_BEARER=<token>`. The service
 was stopped afterwards; no adopter file changed; the drafts file is untouched.
+
+### 10.16 The token leg (2026-09-24): the caller reaches the tool, two findings, and Describe made ready
+
+THE SETUP. **[adopter]** the maintainer logged in and supplied a bearer token for user 26 (`+201100000026`,
+role 7, Tele Sales Manager in the adopter's own test data). The local `zpi_user` schema had never been created,
+so the pharmacy service's user lookup (`ClientUserDetailsSecurityService`, a REST call to `zpi-user-mgt`) failed
+with `Table 'zpi_user.usr_user' doesn't exist` and the SSE GET ended 403. Fixed with the adopter's own tools
+against the throwaway local MySQL only: its user-module Liquibase (`z-pharma-inv/ms/user/_liquibase`, profile
+`local`, 540 change sets) and its `z-pharma-inv/test-data/zpi_user.sql` (47 users, user 26 with role 7). No
+adopter file changed and no row was invented. Nine of the ten other service manifests in `target/` were still
+the 2026-09-04 unqualified ones, which is why the maintainer's IntelliJ run of the workflow engine failed at
+startup with R3's message (Volume 7 section 12); they were regenerated with the current plugin, and `zpi-backend-mgt`
+and `zpi-complaint-mgt` are outside the `package,default` reactor. The token stays out of every file.
+
+THE CALLS, pharmacy service (section 10.15's start line, the write allowed), with the token. **[reported]**
+
+| Tool, arguments | Result |
+|---|---|
+| `reviewed_LocalPharmacyProxyService_getApprovedPharmacies {}` | `isError=false`, `{"total":0,"list":[]}`; runtime: `called by +201100000026` |
+| `reviewed_GovernorateServiceImpl_createGovernorate {"governorateDTO":{"titleEn":"Luxor","titleAr":"Al Uqsur"}}` | `isError=false`, `{"id":3}`, row 3 in `ph_governorate`: THE ANONYMOUS REFUSAL OF SECTION 10.15 ADMITS THE AUTHENTICATED CALLER |
+| `attested_cancellationReasons {}` | `isError=false`, as before, `called by +201100000026` |
+| user service `getDepartment {id=1}`, contract `["200019"]` | `isError=true`: `the caller holds none of the compiled authorities [200019] (any of, compared exactly)` |
+
+The last row is S3 on a REAL compiled contract: in the adopter's data only role 1 (Super Admin) holds scope
+200019, and user 26 has role 7, so the refusal is the declared contract applied exactly. The admission half
+(SC-1 on this app) needs a token for a role-1 user, the maintainer's login.
+
+**F10. A missing declared input is bound as null, and an unknown top-level argument is dropped silently.**
+**[tibyaan]** The first write attempt named the input `governorate` instead of `governorateDTO`. The adapter
+(`SpringExecutionAdapter`, the loop over `descriptor.inputs()`) read `args.get("governorateDTO")`, got nothing,
+and invoked `createGovernorate(null)`; the service threw `NullPointerException` on its first line, before any
+write. The advertised schema marks every input required and the shape rule of DL-2b (D7) already refuses an
+unknown property INSIDE an object, but the top level has neither check, so a reviewed WRITE was entered with
+an argument the caller never meant. Nothing was written here only because this service dereferences its input
+first. Candidate rule, NOT ratified: before invoking, refuse an argument that names no declared input, and
+refuse an absent declared input, naming the tool and the inputs. The decision it needs: whether an absent
+input may ever mean null (today every input is advertised as required, so refusing is consistent with the
+contract the client already sees).
+
+**F11. The host's thread-bound request context does not reach the tool thread.** **[adopter]**
+`PharmacyServiceImpl#getAllApprovedPharmacies` narrows with `context.getAll(ROLES_IDS)` and
+`context.get(USER_ID)` (a Tele Sales Employee, role 8, sees only the pharmacies assigned to them), and that
+`RequestContext` is `ThreadContextRequestContext`: log4j's `ThreadContext` plus a thread-bound list, filled by
+the adopter's filter on the servlet thread. **[reported]** the adopter's own log columns `[USER_ID] [USERNAME]`
+read `[26] [+201100000026]` on the servlet thread and are empty on the `boundedElastic` thread that ran the tool
+for the same call. So on the MCP path the roles list is empty and a role-8 caller gets the UNNARROWED list the
+REST path would narrow. SEC-1 carries Spring Security's context by design (Volume 7 section 15.5 left row-level
+narrowing to the application), but this application narrows from a context that never crosses to the tool
+thread, so it cannot narrow. Not yet shown with data (it needs a role-8 token and approved pharmacies assigned
+to someone else; `test-data/zpi_pharmacy.sql` may carry them); shown by the code and the log. Options, none
+ratified: (a) run a sync tool on the request thread, which the pinned SDK offers
+(`McpServer.SyncSpecification.immediateExecution(boolean)` in mcp-core 0.18.3) but Spring AI 1.0.9 never sets,
+and its `mcpSyncServer` bean is conditional on `type=SYNC` only, not on a missing bean, so the runtime would
+have to own the server's construction; (b) a host-supplied carrier, captured by the runtime's extractor on the
+request thread and restored around the invocation; (c) leave it to the adopter (read `SecurityContextHolder`).
+Recommendation: spike (a), because it makes the tool call run where every thread-bound context of the host
+already is, without the runtime knowing any of them.
+
+WHAT THIS MEANS FOR SEC-1's EXIT CRITERION (Volume 13). The anonymous half is met (section 10.15). The
+authenticated half is met for "the calls run as the caller" and for the contract refusal; the contract
+admission waits for a role-1 token; "`getApprovedPharmacies` narrows to the caller's role" is NOT MET and cannot
+be met by SEC-1 as built, because of F11.
+
+DESCRIBE, MADE READY (Volume 5 section 4.15.5.4). **[tibyaan]** three request defects the first real call would
+have hit were corrected and proven against a local fake endpoint: `temperature: 0` (a 400 on the current
+models), a 400-token cap that default-on thinking could consume, and no `stop_reason` check. The recorded "54"
+is not reproducible from the current file; the run set is the 31 pending write and action candidates whose
+every input binds, every shape is complete, and whose class the pharmacy boot jar carries: `AdminCartServiceImpl_createAdminCart`, `AdminCartServiceImpl_rescheduleAdminDeliveryTime`, `CancellationReasonServiceImpl_createCancellationReason`, `CancellationReasonServiceImpl_updateCancellationReason`, `CartServiceImpl_createCart`, `CityServiceImpl_createCity`, `CityServiceImpl_updateCity`, `GovernorateServiceImpl_updatePharmacyGovernorate`, `PartiallyDeliveredReasonServiceImpl_createPartiallyDeliveredReason`, `PartiallyDeliveredReasonServiceImpl_updatePartiallyDeliveredReason`, `PartiallyPackageReasonServiceImpl_createPartiallyPackage`, `PartiallyPackageReasonServiceImpl_updatePartiallyPackage`, `PharmacyCartServiceImpl_createCart`, `PharmacyCartServiceImpl_rescheduleDeliveryTime`, `PharmacyManagerServiceImpl_assignPharmacyManager`, `PharmacyMgtCreatePharmacyHandler_handleEvent`, `PharmacyOrderServiceImpl_processCreateOrder`, `PharmacySegmentServiceImpl_createPharmacySegment`, `PharmacySegmentServiceImpl_updatePharmacySegment`, `RedisProductVTOCacheService_put`, `RegionServiceImpl_createRegion`, `RegionServiceImpl_updateRegion`, `RejectionReasonServiceImpl_createRejectionReason`, `RejectionReasonServiceImpl_updateRejectionReason`, `RouteServiceImpl_addRoute`, `RouteServiceImpl_updateRoute`, `SyncedUserDataServiceImpl_createUser`, `SyncedUserDataServiceImpl_updateUser`, `UndeliveredReasonServiceImpl_createUndeliveredReason`, `UndeliveredReasonServiceImpl_updateUndeliveredReason`, `UserMgtListenerServiceImpl_listenOnUserTopic`. A dry run
+of `tibyan describe <as-backend> --only <those 31>` built 31 prompts and left the drafts file byte-identical; a
+copy of the file is kept outside the repository for the real run. It waits for the maintainer's key.
+
+The two services were left running for the maintainer's next token; the pharmacy database gained row 3 in
+`ph_governorate` and the user database the adopter's own schema and test users.

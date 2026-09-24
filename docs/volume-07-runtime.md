@@ -1006,3 +1006,32 @@ adopter's login succeeding and `getApprovedPharmacies` narrowing to the caller's
 maintainer's token (section 15.9, the token leg); the probe takes it as `MCP_BEARER`. Publication of 0.4.0
 was postponed behind Describe and this phase; both are built, and the token leg is the last measurement
 owed before the cut.
+
+### 15.11 The token leg on as-backend (2026-09-24): the exit criterion, and two findings
+
+Recorded in full in as-backend-trial.md section 10.16. With a real token from the adopter's own login: the
+runtime logged `called by +201100000026` on every call; the section 10.11 write, refused anonymously in 10.15,
+ran for the authenticated caller (row 3); and on the user service a real compiled contract, `getDepartment`
+requiring `200019`, refused user 26, whose role does not hold it in the adopter's data. Admission on that
+contract waits for a token of a role that holds it.
+
+THE EXIT CRITERION IS NOT MET IN FULL. Met: the spike's answers, SC-1 to SC-8, byte-identical benchmarks, the
+anonymous refusals, the calls running as the caller, the contract refusal on a real app. NOT met:
+"`getApprovedPharmacies` narrows to the caller's role". It cannot be met by SEC-1 as built, because of F11.
+
+**F11, the host's thread-bound context.** This application narrows from its own `RequestContext` (log4j
+`ThreadContext` plus a thread-bound list), filled by its filter on the servlet thread; the SDK runs the tool on
+`boundedElastic`, where that context is empty (the adopter's own log columns show it). Section 15.5 left
+row-level narrowing to the application; F11 shows an application whose narrowing cannot see the caller on this
+path. The pinned SDK offers `McpServer.SyncSpecification.immediateExecution(boolean)`, which runs a sync tool on
+the calling (request) thread; Spring AI 1.0.9 does not set it and its `mcpSyncServer` bean is not replaceable by
+condition. Candidate, not ratified: spike running tools on the request thread.
+
+**F10, argument hygiene at the top level.** An absent declared input is bound as null and an argument naming
+no input is ignored; a reviewed write was entered with a null DTO. Candidate, not ratified: refuse both before
+invoking.
+
+Both touch the write and security path, which is what publication of 0.4.0 was postponed for. Whether either
+blocks 0.4.0 is the maintainer's decision; the recommendation is that F11 does (it is a narrowing bypass on the
+MCP path for any host that narrows from a thread-bound context) and F10 does (it is a small fail-loud rule on
+the write path).

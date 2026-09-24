@@ -1609,6 +1609,37 @@ WAITS FOR A KEY: `ANTHROPIC_API_KEY` is not set on the build machine. The first 
 `tibyan describe <as-backend> --label WRITE --limit 54` over the fully mapped write candidates of section
 10.10, and the maintainer approves or corrects by name (DS-5).
 
+#### 4.15.5.4 Describe readiness record: three request corrections and the run set (2026-09-24)
+
+Checked before the first real run against the current Messages API reference, and proven against a local fake
+endpoint (`AnthropicMessagesModelTest`, seven fixtures) rather than by the first paid call. The ratified design
+(4.15.5.2, Volume 16 section 7) fixes the provider, the transport, the key source and the output rules; it names
+no request parameter, so these are build defects corrected, not design changes. They change an outcome: as
+built, every real request would have failed. FLAGGED here so built behavior and recorded text do not diverge.
+
+1. NO SAMPLING PARAMETER. The build sent `temperature: 0`. Sampling parameters are rejected with HTTP 400 on the
+   current models, including the default `claude-sonnet-5`, so every call would have failed. The request now
+   carries `model`, `max_tokens` and the one user message only; a test asserts `temperature`, `top_p`, `top_k`
+   and `thinking` are absent.
+2. THINKING HEADROOM. Thinking is on by default on the current models and its tokens count against
+   `max_tokens`; at the built cap of 400 a thinking block could consume the budget. The request sends no thinking
+   configuration (each model runs its own default, and an explicit setting is rejected on some of them) and the
+   cap is 4096. A thinking block in the response is skipped; every text block is taken verbatim, in order.
+3. A TURN THE MODEL DID NOT END IS REFUSED. The build read the first text block whatever the `stop_reason`, so a
+   `max_tokens` cut under 600 characters would have passed DS-3 and been written as a draft. Now any
+   `stop_reason` other than `end_turn` refuses the entry, naming the reason and, for a refusal, its category.
+   A 429, 500, 502, 503, 504 or 529 is retried at most twice, honoring `retry-after` (capped at 30 seconds), else
+   2 then 4 seconds; a 400 is never retried. The describer still skips a refused entry and continues (DS-1).
+
+THE RUN SET, a recorded-number correction. Sections 4.15.5.2 and 4.15.5.3 name the first run as
+`--label WRITE --limit 54` over "the 54 fully mapped write candidates" of 4.19.8. That command takes the FIRST
+54 of 371 WRITE entries in file order (the first is a JMS event handler), not that set, and the 54 is not
+reproducible from the current drafts file: counting write and action candidates whose every input binds and
+every shape is complete, bound to a class the pharmacy service's boot jar carries, gives 32 (30 WRITE, 2
+UNKNOWN), and 173 WRITE across the reactor. The first run is therefore the 31 of those 32 still pending, named
+with `--only` (the 32nd, `createGovernorate`, is approved). The list is in as-backend-trial.md section 10.16.
+A dry run of exactly that command built 31 prompts and left the drafts file byte-identical.
+
 #### 4.15.6 Name-and-signature honesty: how attested capabilities satisfy the E6b verdict
 
 The E6b rejection says a description is not enough, so the attested distinction must live where the agent acts: the name and the schema.

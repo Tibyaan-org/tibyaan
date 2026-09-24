@@ -29,6 +29,12 @@ not stable before 1.0.0.
   no header: the host authenticates, the runtime observes. Spring Security is optional; a host without it
   starts unchanged.
 
+### Fixed
+
+- **`tibyan describe` sends a request the current models accept.** It no longer sends `temperature` (rejected
+  with a 400), leaves room for default-on thinking (`max_tokens` 4096), refuses a response that did not end its
+  turn instead of writing a truncated sentence, and retries a rate-limited or overloaded response at most twice.
+
 ### Changed
 
 - **An allowed reviewed write no longer runs for an anonymous caller by default.** Through 0.3.0 and the

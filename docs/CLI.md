@@ -427,5 +427,6 @@ with nothing written.
 ### Example
 
 ```bash
-tibyan describe . --label WRITE --limit 54
+tibyan describe . --label WRITE --limit 50
+tibyan describe . --only CityServiceImpl_createCity,CityServiceImpl_updateCity --dry-run
 ```
