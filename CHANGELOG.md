@@ -16,6 +16,12 @@ not stable before 1.0.0.
 
 ### Added
 
+- **A service registers only the tools it can execute (F9).** At startup, after the exposure policy has
+  decided, the runtime resolves every remaining tool's bound class against the application context and
+  registers only those exactly one bean hosts; the rest are named on one log line with the reason (no bean
+  of the class, or more than one). A manifest generated for a whole reactor and shipped into every service
+  therefore advertises, on each service, only what that service hosts. A name in `tibyan.writes.allow` or
+  `tibyan.security.exposeUnverifiable` that the service does not host stays a valid entry and is reported.
 - **Structured inputs (DL-2b).** A service method parameter typed by an in-tree DTO the runtime can
   construct (a record, or a class with a no-argument constructor, Lombok `@NoArgsConstructor` or `@Data`)
   now binds as a shape: the IR gains `Shape` and `SHAPE_REF` (validation rules 15 and 16), the drafts file

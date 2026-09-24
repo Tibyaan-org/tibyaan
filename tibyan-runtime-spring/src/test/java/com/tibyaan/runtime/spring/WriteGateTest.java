@@ -34,8 +34,15 @@ class WriteGateTest {
     private static final ReviewDescriptor REVIEW_WRITE = new ReviewDescriptor("WRITE", "a.reviewer", "2026-09-23", "human");
     private static final ReviewDescriptor REVIEW_UNKNOWN = new ReviewDescriptor("UNKNOWN", "a.reviewer", "2026-09-23", "ai-draft");
 
+    /** F9: bound to a class the two real-adapter tests host, so the verified tool still registers there. */
+    public static class ProductService {
+        public String findById(Long id) {
+            return "product";
+        }
+    }
+
     private static CapabilityDescriptor verified() {
-        return new CapabilityDescriptor(VERIFIED, "Read Product.", "com.example.ProductService#findById", "Product",
+        return new CapabilityDescriptor(VERIFIED, "Read Product.", ProductService.class.getCanonicalName() + "#findById", "Product",
                 List.of(new InputDescriptor("id", "LONG")));
     }
 
@@ -232,6 +239,7 @@ class WriteGateTest {
     void rv2_anAllowedWriteInvokesTheRealBeanThroughTheRegisteredCallback() throws Exception {
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
             context.registerBean("ledgerService", LedgerService.class);
+            context.registerBean("productService", ProductService.class);
             context.refresh();
             CapabilitiesManifest manifest = new CapabilitiesManifest("m", "0.1", List.of(verified(), reviewedWrite(false)));
             SpringExecutionAdapter adapter = new SpringExecutionAdapter(context, manifest);
@@ -255,6 +263,7 @@ class WriteGateTest {
     void rv2_theSameWriteIsNotReachableWhenTheGateIsClosed() {
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
             context.registerBean("ledgerService", LedgerService.class);
+            context.registerBean("productService", ProductService.class);
             context.refresh();
             CapabilitiesManifest manifest = new CapabilitiesManifest("m", "0.1", List.of(verified(), reviewedWrite(false)));
             SpringExecutionAdapter adapter = new SpringExecutionAdapter(context, manifest);

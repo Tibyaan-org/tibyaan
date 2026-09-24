@@ -36,6 +36,35 @@ class StartupHonestyTest {
     private static final String READ = "reviewed_findOverdue";
     private static final String WRITE = "reviewed_recordPayment";
 
+    /** F9 (Volume 7 section 14): the manifest binds to classes this test context hosts, so every tool the policy
+     * opens registers; an unhosted binding would be named and skipped instead. */
+    public static class ProductService {
+        public String findById(Long id) {
+            return "product";
+        }
+    }
+
+    public static class Svc {
+        public String cities() {
+            return "cities";
+        }
+
+        public String tenants() {
+            return "tenants";
+        }
+
+        public String overdue() {
+            return "overdue";
+        }
+
+        public String record() {
+            return "record";
+        }
+    }
+
+    private static final String PRODUCT_SERVICE = ProductService.class.getCanonicalName();
+    private static final String SVC = Svc.class.getCanonicalName();
+
     private final ObjectMapper mapper = new ObjectMapper();
     private final Logger logger = (Logger) LoggerFactory.getLogger(TibyanAutoConfiguration.class);
     private final ListAppender<ILoggingEvent> events = new ListAppender<>();
@@ -54,14 +83,14 @@ class StartupHonestyTest {
 
     private static CapabilitiesManifest manifest() {
         return new CapabilitiesManifest("m", "0.1", List.of(
-                new CapabilityDescriptor(VERIFIED, "Read Product.", "com.example.ProductService#findById", "Product", List.of()),
-                new CapabilityDescriptor(CITIES, "Human-attested.", "Svc#cities", "City", List.of(), true, true, false),
-                new CapabilityDescriptor(TENANTS, "Human-attested.", "Svc#tenants", "Tenant", List.of(), true, true, false),
+                new CapabilityDescriptor(VERIFIED, "Read Product.", PRODUCT_SERVICE + "#findById", "Product", List.of()),
+                new CapabilityDescriptor(CITIES, "Human-attested.", SVC + "#cities", "City", List.of(), true, true, false),
+                new CapabilityDescriptor(TENANTS, "Human-attested.", SVC + "#tenants", "Tenant", List.of(), true, true, false),
                 CapabilityDescriptor.reviewed(READ, "Reviewed by r (human), not tool-verified; the tool labeled it READ. X.",
-                        "Svc#overdue", "Invoice", List.of(), CapabilityDescriptor.KIND_READ, false,
+                        SVC + "#overdue", "Invoice", List.of(), CapabilityDescriptor.KIND_READ, false,
                         new ReviewDescriptor("READ", "r", "2026-09-23", "human")),
                 CapabilityDescriptor.reviewed(WRITE, "Reviewed by r (human), not tool-verified; the tool labeled it WRITE. Y.",
-                        "Svc#record", "Receipt", List.of(), CapabilityDescriptor.KIND_WRITE, false,
+                        SVC + "#record", "Receipt", List.of(), CapabilityDescriptor.KIND_WRITE, false,
                         new ReviewDescriptor("WRITE", "r", "2026-09-23", "human"))));
     }
 
@@ -69,6 +98,8 @@ class StartupHonestyTest {
         StandardEnvironment environment = new StandardEnvironment();
         environment.getPropertySources().addFirst(new MapPropertySource("test", properties));
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.registerBean("productService", ProductService.class);
+            context.registerBean("svc", Svc.class);
             context.refresh();
             SpringExecutionAdapter adapter = new SpringExecutionAdapter(context, manifest());
             return new TibyanAutoConfiguration().tibyanToolProvider(manifest(), adapter, mapper, environment);

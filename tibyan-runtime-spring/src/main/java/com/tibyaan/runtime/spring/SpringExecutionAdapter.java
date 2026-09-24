@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.stream.Collectors.joining;
@@ -29,7 +30,7 @@ import static java.util.stream.Collectors.joining;
  * by simple name: a real host held a class of the same simple name as a reviewed target, and the
  * simple-name walk resolved to it (docs/experiments/as-backend-trial.md section 10.7, F7).
  */
-public final class SpringExecutionAdapter implements ExecutionAdapter {
+public final class SpringExecutionAdapter implements ExecutionAdapter, BindingHost {
 
     private static final Logger log = LoggerFactory.getLogger(SpringExecutionAdapter.class);
 
@@ -130,6 +131,42 @@ public final class SpringExecutionAdapter implements ExecutionAdapter {
      * more than one match both refuse loudly; the adapter never picks a bean by its name or by its simple
      * class name, because a fallback to the simple name is the F7 defect itself.
      */
+    /**
+     * F9, rule H1 (Volume 7 section 14): the same resolution, asked once at startup by the registrar. The
+     * answer names the class and the problem in the words the startup line prints; it never throws.
+     */
+    @Override
+    public Optional<String> unhostedReason(String binding) {
+        int hash = binding == null ? -1 : binding.indexOf('#');
+        if (hash < 0) {
+            return Optional.of("malformed binding '" + binding + "'");
+        }
+        String className = binding.substring(0, hash);
+        if (className.indexOf('.') < 0) {
+            return Optional.of("binding '" + binding + "' is not qualified");
+        }
+        List<String> matches = beansOfClass(className);
+        if (matches.isEmpty()) {
+            return Optional.of("no bean of class " + className);
+        }
+        if (matches.size() > 1) {
+            return Optional.of(matches.size() + " beans of class " + className + ": " + String.join(", ", matches));
+        }
+        return Optional.empty();
+    }
+
+    // The beans whose USER class has the canonical name, in definition order.
+    private List<String> beansOfClass(String className) {
+        List<String> matches = new ArrayList<>();
+        for (String name : applicationContext.getBeanDefinitionNames()) {
+            Class<?> type = applicationContext.getType(name, false);
+            if (type != null && className.equals(ClassUtils.getUserClass(type).getCanonicalName())) {
+                matches.add(name);
+            }
+        }
+        return matches;
+    }
+
     private Object resolveBean(String className, String binding, String capabilityName) {
         if (className.indexOf('.') < 0) {
             // R3 (section 12.2): an unqualified class part was produced by a tool older than Binding Identity;
@@ -143,13 +180,7 @@ public final class SpringExecutionAdapter implements ExecutionAdapter {
         if (cached != null) {
             return cached;
         }
-        List<String> matches = new ArrayList<>();
-        for (String name : applicationContext.getBeanDefinitionNames()) {
-            Class<?> type = applicationContext.getType(name, false);
-            if (type != null && className.equals(ClassUtils.getUserClass(type).getCanonicalName())) {
-                matches.add(name);
-            }
-        }
+        List<String> matches = beansOfClass(className);
         if (matches.isEmpty()) {
             throw new IllegalStateException("no bean of class '" + className + "' is hosted by this application"
                     + " (binding '" + binding + "' of capability '" + capabilityName + "'); the bean is either not"

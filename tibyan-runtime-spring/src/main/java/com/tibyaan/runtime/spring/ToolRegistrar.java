@@ -45,12 +45,21 @@ public final class ToolRegistrar {
     public record Registration(
             List<ToolCallback> callbacks,
             Map<String, String> excluded,
-            List<String> openedByGlobalSwitchOnly) {
+            List<String> openedByGlobalSwitchOnly,
+            Map<String, String> unhosted) {
 
         public Registration {
             callbacks = List.copyOf(callbacks);
             excluded = Collections.unmodifiableMap(new LinkedHashMap<>(excluded));
             openedByGlobalSwitchOnly = List.copyOf(openedByGlobalSwitchOnly);
+            // F9 (Volume 7 section 14): the tools the policy would have registered but this application
+            // cannot execute, each with the reason, in manifest order.
+            unhosted = Collections.unmodifiableMap(new LinkedHashMap<>(unhosted == null ? Map.of() : unhosted));
+        }
+
+        public Registration(List<ToolCallback> callbacks, Map<String, String> excluded,
+                            List<String> openedByGlobalSwitchOnly) {
+            this(callbacks, excluded, openedByGlobalSwitchOnly, Map.of());
         }
 
         /** The names of the tools actually registered, in manifest order. */
@@ -116,11 +125,22 @@ public final class ToolRegistrar {
         List<ToolCallback> callbacks = new ArrayList<>();
         Map<String, String> excluded = new LinkedHashMap<>();
         List<String> openedByGlobalOnly = new ArrayList<>();
+        Map<String, String> unhosted = new LinkedHashMap<>();
         for (CapabilityDescriptor descriptor : manifest.tools()) {
             String reason = exclusionReason(descriptor);
             if (reason != null) {
                 excluded.put(descriptor.name(), reason);
                 continue;
+            }
+            // F9, rule H1 (Volume 7 section 14): after the policy has decided, only a binding this application
+            // hosts registers; the rest are named on one startup line instead of failing at the first call.
+            // H2: an exposure-list name the policy validated above stays valid whether or not it is hosted.
+            if (executionAdapter instanceof BindingHost host) {
+                java.util.Optional<String> problem = host.unhostedReason(descriptor.binding());
+                if (problem.isPresent()) {
+                    unhosted.put(descriptor.name(), problem.get());
+                    continue;
+                }
             }
             callbacks.add(new CapabilityToolCallback(descriptor, executionAdapter, objectMapper,
                     manifest.shapesByName()));
@@ -130,7 +150,7 @@ public final class ToolRegistrar {
                 openedByGlobalOnly.add(descriptor.name());
             }
         }
-        return new Registration(callbacks, excluded, openedByGlobalOnly);
+        return new Registration(callbacks, excluded, openedByGlobalOnly, unhosted);
     }
 
     /**

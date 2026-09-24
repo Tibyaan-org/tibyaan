@@ -91,6 +91,15 @@ public class TibyanAutoConfiguration {
                 registration.callbacks().size(), registration.registeredNames());
         registration.excluded().forEach((name, reason) ->
                 log.info("Tibyaan: excluded MCP tool '{}' ({})", name, reason));
+        // F9 (Volume 7 section 14, H1): one line naming every tool the policy would have registered but this
+        // application cannot execute, with the reason, so the registered line above claims only what runs here.
+        if (!registration.unhosted().isEmpty()) {
+            log.info("Tibyaan: {} tool(s) not hosted by this application and not registered: {}",
+                    registration.unhosted().size(),
+                    registration.unhosted().entrySet().stream()
+                            .map(entry -> entry.getKey() + " (" + entry.getValue() + ")")
+                            .toList());
+        }
         if (!registration.openedByGlobalSwitchOnly().isEmpty()) {
             log.warn("Tibyaan: {} security-unverifiable tool(s) registered ONLY because {}=true; nobody named "
                             + "them in {}: {}",
