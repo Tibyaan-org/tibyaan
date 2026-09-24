@@ -16,13 +16,24 @@ not stable before 1.0.0.
 
 ### Added
 
-- **The caller reaches the tool (spike SEC-0; the first half of SEC-1).** The runtime supplies its own WebMVC
-  SSE transport provider and the router for it, captures the caller the host authenticated on each MCP request
+- **The caller at the tool boundary (spike SEC-0 and phase SEC-1).** The runtime supplies its own WebMVC SSE
+  transport provider and the router for it, captures the caller the host authenticated on each MCP request
   into the SDK's per-request transport context, and runs every tool invocation with that caller as the
-  thread's `SecurityContext`, cleared afterwards, so a host's own method security fires on the bound bean. It
-  validates no token and reads no header: the host authenticates, the runtime observes. Spring Security is
-  optional; a host without it starts unchanged. Enforcement of the compiled contract and the anonymous-caller
-  refusal (SEC-1, S3 to S5) follow.
+  thread's `SecurityContext`, cleared afterwards, so a host's own method security fires on the bound bean. A
+  tool whose manifest entry carries `requiredAuthorities` now refuses, before invoking, any caller that is not
+  authenticated or holds none of them, compared exactly; the refusal names the tool and the contract, never
+  the caller's authorities, and no switch lowers it. Under the new `tibyan.security.requireCaller` (default
+  true) an anonymous call to a reviewed WRITE or ACTION is refused; set it false only for a host with no
+  caller to capture. One startup line reports the gate, and a host without Spring Security that keeps the
+  default is warned that every write and contract tool will refuse. The runtime validates no token and reads
+  no header: the host authenticates, the runtime observes. Spring Security is optional; a host without it
+  starts unchanged.
+
+### Changed
+
+- **An allowed reviewed write no longer runs for an anonymous caller by default.** Through 0.3.0 and the
+  unreleased DL-1 build, a WRITE named in `tibyan.writes.allow` ran for whoever reached the endpoint. It now
+  refuses unless the host authenticated a caller, or `tibyan.security.requireCaller=false` is set knowingly.
 - **`tibyan describe`, the description drafter (phase Describe).** The one command that calls a model: for
   every pending entry of `tibyan/drafts.json` with no description it drafts one from the code the tool
   fingerprints and writes it back under `descriptionOrigin: ai-draft`, recording the model id and the

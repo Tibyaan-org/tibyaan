@@ -306,7 +306,7 @@ Maven plugin.
 Consequences. Rule 10 stays a property of generation; the assist's non-determinism is confined to reviewer
 input. Adopters without a key lose only convenience. The drafts file gains two provenance fields.
 
-## ADR-0017: The caller reaches the tool boundary through the host's own authentication, and the runtime enforces the compiled contract (proposed and RATIFIED 2026-09-24)
+## ADR-0017: The caller reaches the tool boundary through the host's own authentication, and the runtime enforces the compiled contract (proposed and RATIFIED 2026-09-24; BUILT 2026-09-24, Volume 7 sections 15.9 and 15.10)
 
 Context. The runtime invokes service beans directly, below the controllers where the surveyed applications
 declare their security; the first real runs executed reads and a write with no caller at all.

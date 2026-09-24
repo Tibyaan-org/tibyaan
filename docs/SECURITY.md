@@ -40,12 +40,51 @@ What the tool guarantees for a reviewed capability is carriage, the fingerprint 
 It does not guarantee the description is true; the named reviewer does, exactly as an attester does. There is
 no dry run and no in-runtime confirmation in DL-1: a client that honors tool hints is the confirmation, and the
 pinned Spring AI bridge cannot yet carry those hints (recorded as a gap in Volume 7, section 11), so today the
-name prefix and the first sentence of the description are what a client sees. Treat an allowed write as an
-unauthenticated admin action reachable by anyone who can reach the endpoint, and gate the endpoint accordingly.
+name prefix and the first sentence of the description are what a client sees. Through SEC-1 (the section below) an
+allowed write refuses an anonymous caller by default; treat it as an admin action reachable by anyone your
+authentication admits to the endpoint, and gate the endpoint accordingly.
+## The caller at the tool boundary (phase SEC-1, built 2026-09-24)
+
+From SEC-1 on (Volume 7 section 15; ADR-0017) the generated layer knows WHO is calling, and it learns it from
+you, never on its own. The runtime supplies the MCP transport provider and, per request, captures the
+principal YOUR security filter chain authenticated (Spring Security's `Authentication`, read through the
+servlet request; an anonymous request captures nothing). It validates no token, reads no header and keeps no
+session: the host authenticates, the runtime observes. Four things follow, in this order:
+
+1. THE CALLER RUNS THE CALL. Every tool invocation runs with the captured `Authentication` as the executing
+   thread's `SecurityContext`, cleared afterwards, so method security you declare on a SERVICE bean fires on
+   the invocation path exactly as it does on your own. Spring Security is optional in the runtime; a host
+   without it starts unchanged and captures nobody.
+2. THE COMPILED CONTRACT IS ENFORCED. A tool whose manifest entry carries `requiredAuthorities` refuses
+   before invoking unless the caller is authenticated and holds at least one of them as a granted authority,
+   compared exactly, literal for literal (no `ROLE_` normalization: the contract is what your application
+   declared). The refusal names the tool and the contract, never the caller's authorities. This is not
+   optional and no switch lowers it: a contract admits nobody it cannot check, so a principal that is not a
+   Spring Security `Authentication` is refused on a contract-carrying tool too.
+3. ANONYMOUS WRITES ARE REFUSED BY DEFAULT. Under `tibyan.security.requireCaller` (default `true`) an
+   unauthenticated call to any reviewed WRITE or ACTION is refused with a located message, whatever
+   `tibyan.writes.allow` says: the allowlist decides what registers, the caller gate decides who may call it.
+   A verified or reviewed READ with no contract keeps the behavior of the sections above. Set the property
+   `false` only knowingly, for a host with no caller to capture; the startup line reports the choice, and a
+   host that keeps the default without Spring Security is warned at startup that every write and every
+   contract-carrying tool will refuse.
+4. THE STARTUP LINE SAYS SO. One `caller gate` line reports the property, whether Spring Security is on the
+   class path, how many registered tools carry a compiled contract, and how many are security-unverifiable
+   and open only by list or switch.
+
+What this does NOT do, so the boundary is not misread: it does not validate or issue tokens; it never widens
+what a list or switch opens; it never lowers a compiled contract to a hint; and it does not decide what a
+caller may see INSIDE a result. A read whose approved description says it narrows to the caller's role is
+narrowed by your application, not by the runtime; the runtime only makes sure the application sees the real
+caller when it does. A `securityUnverifiable` tool carries no contract to enforce, so the exact-name list
+stays its only gate. Gating the endpoint on the network (the section below) remains your responsibility; the
+caller gate makes the endpoint behind your authentication behave like the rest of your application.
+
 ## What the generated layer inherits, and what you must gate
 
 The layer inherits your application's process, its database connections, and its data access. It does not
-add an authentication or authorization layer of its own. There is no auth in v1.
+add an authentication layer of its own: from SEC-1 on it reads the caller YOUR authentication established and
+enforces the contract your application declared (the section above); it still authenticates nobody itself.
 
 That makes network exposure of the MCP endpoint your decision, and the most important one:
 
@@ -78,8 +117,9 @@ Read the three states precisely, because their honesty depends on it:
   `SecurityFilterChain`, request matchers, filters) are invisible to this analysis, and the tool never
   reads them.
 
-What does not change: the runtime still enforces nothing. The generated layer still bypasses your HTTP
-security entirely (the adapter calls the service bean, not your controller), which is exactly why the
+What changed with SEC-1 (built 2026-09-24, the section above): the runtime now ENFORCES `requiredAuthorities`
+against the caller your security chain authenticated, and runs every invocation as that caller. What does not
+change: the generated layer still bypasses your HTTP security (the adapter calls the service bean, not your controller), which is exactly why the
 declared contract is carried at all: so YOUR enforcement layer, the orchestration or gateway in front of
 the MCP endpoint, can apply the declared requirements before invoking a capability. Gating the endpoint
 (the section above) remains your responsibility either way.

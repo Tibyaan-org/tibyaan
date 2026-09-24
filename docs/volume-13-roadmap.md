@@ -657,6 +657,13 @@ the per-request transport context; Q3 the host's own method security fires on th
 in effect as built for the spike. The pharmacy leg ran anonymously (the caller captured as none beside the
 adopter's own log line); the token leg waits for a token from the adopter's login. NEXT: build SEC-1.
 
+SEC-1 BUILT 2026-09-24 (Volume 7 section 15.10; as-backend-trial.md section 10.15; docs/SECURITY.md): S3 the
+compiled contract enforced exactly before invoking, S4 `tibyan.security.requireCaller` default true refusing
+anonymous reviewed writes and actions, S5 the caller-gate startup line; SC-1 to SC-8 green at the gate and end
+to end; benchmarks byte-identical by construction; on the pharmacy service the section 10.11 write is refused
+anonymously before the service is entered and the reads run. EXIT CRITERION: three of four clauses met; the
+authenticated as-backend leg waits for the maintainer's token. NEXT: that token run, then cut 0.4.0.
+
 ## 4. Tier 3: direction only (production readiness and beyond)
 
 This tier is deliberately coarse: one short paragraph per item, no designs, no phase plans, no acceptance criteria. Everything here is conditional on Tier 2 proving the semantic core on real applications, meaning the benchmark discovers a meaningful share of a real app's reads with zero mis-bindings. Writing detailed plans for this tier before that proof would repeat the original roadmap's mistake.

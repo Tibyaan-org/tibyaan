@@ -927,3 +927,40 @@ the calls to repeat are the section 10.7 pair plus, once SEC-1 exists, the anony
 15.7. Reported, not worked around.
 
 The service was stopped afterwards; no adopter file changed; the drafts file is untouched.
+
+### 10.15 SEC-1 on the pharmacy service (2026-09-24): the anonymous write is refused, the reads run
+
+**[adopter]** the same jar as section 10.14 repackaged against the SEC-1 runtime (Volume 7 section 15.10),
+started from the reactor root with the section 10.14 overrides plus
+`tibyan.writes.allow=reviewed_GovernorateServiceImpl_createGovernorate`, the section 10.11 write. FORECAST,
+written before the run: registered 20 (the 19 of section 10.14 plus the write), the caller-gate line saying
+`requireCaller=true`, Spring Security present, 0 contract-carrying tools among the registered (the manifest's
+three, `getWFRequest`, `getSSConfig` and `getDepartment`, are among the eleven this service does not host)
+and 15 security-unverifiable, the two anonymous reads unchanged, the anonymous write refused before the
+service is entered.
+
+**[reported]** measured exactly that. Startup: `registered 20 MCP tool(s)`, `11 tool(s) not hosted`, the
+13-tool WARN unchanged, and the new line `Tibyaan: caller gate: tibyan.security.requireCaller=true, Spring
+Security present; 0 registered tool(s) carry a compiled authority contract and refuse a caller holding none:
+[]; 15 registered security-unverifiable tool(s) open only by list or switch: [...]`. The anonymous probe,
+three calls:
+
+| Tool, arguments | Result |
+|---|---|
+| `reviewed_LocalPharmacyProxyService_getApprovedPharmacies {}` | `isError=false`, `{"total":0,"list":[]}`, as in sections 10.7 and 10.14 |
+| `reviewed_GovernorateServiceImpl_createGovernorate {"governorate":{"titleEn":"Luxor","titleAr":"Al Uqsur"}}` | `isError=true`: `Tibyaan: tool 'reviewed_GovernorateServiceImpl_createGovernorate' refused: no authenticated caller, and the tool is a reviewed WRITE (tibyan.security.requireCaller=true; set it false only for a host with no caller to capture)` |
+| `attested_cancellationReasons {}` (control) | `isError=false`, `{"total":0,"list":[]}` |
+
+The write of section 10.11, which inserted a row with no caller at all, now stops at the boundary: the log
+shows the runtime's `called by (no authenticated caller)` followed by the refusal, no `GovernorateServiceImpl`
+entry, no event, no insert; `ph_governorate` is untouched. The same well-formed object that created row 1 in
+section 10.11 was sent, so the refusal is the gate's, not a binding failure, and it happens before argument
+binding. The two reads keep running because S4 names writes and contract-carrying tools only; the exposure
+`getApprovedPharmacies` names (section 10.7) is unchanged for an anonymous caller and is, by design, the
+application's narrowing to make once it sees a real caller (Volume 7 section 15.5).
+
+WHAT IS STILL OWED. The authenticated half of the SEC-1 exit criterion: the same three calls with a token from
+the adopter's login, expecting the write to run, `getApprovedPharmacies` to narrow to the caller's role, and
+the runtime's line to name the caller. It waits on the token leg of section 10.14, the maintainer's: start
+`zpi-user-mgt`, log a user in at `POST /users/login`, run the probe with `MCP_BEARER=<token>`. The service
+was stopped afterwards; no adopter file changed; the drafts file is untouched.

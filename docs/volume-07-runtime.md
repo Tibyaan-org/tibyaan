@@ -118,7 +118,7 @@ The manifest is also no longer copied by hand. The `tibyan-maven-plugin` runs th
 
 8. Runtime invocation of a paged list read (opened by the phase E4 design, Volume 5, section 4.10; Volume 6, section 3.3). A list-all read whose bound method is the no-argument `findAll()` is fully executable today: the adapter invokes it and serializes the returned collection. A list-all read whose bound method takes a `Pageable` (the paged shape) needs the adapter to supply one, and what `Pageable` to supply (an unpaged default, or a first page) is a runtime paging decision the E4 design deliberately leaves out of scope. Until it is designed, the paged list capability is discovered, modeled with `outputMultiple` plus a `paged` disclosure, and rendered by both backends, but its live invocation is deferred. The honest interim, when the build lands, is that the adapter passes an unpaged or default `Pageable` and serializes the page content (never the envelope), recorded here so the boundary is explicit and not mistaken for a completed behavior.
 
-9. Security enforcement of the declared authority contract (opened by phase Controller-Authority, Volume 5, section 4.14; Volume 6, sections 3.5 and 4.3; built 2026-07-19). The manifest may carry `requiredAuthorities` (a compiled any-of authority sequence the application declares for a read) or `securityUnverifiable` (a declared contract exists that could not be compiled). The runtime this phase DOES NOTHING with either field: it loads them tolerantly (the additive-field discipline, proven by a loader test) and does not authenticate callers, validate tokens, or check authorities. Enforcement is deliberately the consumer's layer, which is the requesting adopter's own architecture (an orchestration layer that enforces the declared contract before invoking the capability). Two facts are recorded so this boundary is not misread. First, the bypass fact that motivates the whole phase: in the surveyed real apps the declared security sits on the CONTROLLER methods, and the execution adapter invokes the SERVICE bean directly, so the application's own enforcement point is not on the invocation path the tool generates; carrying the declared contract in the manifest is what lets an external layer re-impose it. Second, the inverse case: a host application that declares method security ON ITS SERVICE beans (none of the three benchmarks does) would have Spring's method-security interceptor fire on the adapter's invocation too, and with no `Authentication` in the security context the call would be denied at runtime; if a real adopter hits this, the behavior is the app's own security working as declared, and the resolution (supplying an authenticated context to the adapter) is part of this same named deferral. The optional future enforcement hook, when evidence asks for it, is a runtime plugin that validates a supplied principal's granted authorities against `requiredAuthorities` before invoking, refusing unverifiable capabilities by default; it enters through its own designed phase, never silently.
+9. Security enforcement of the declared authority contract (opened by phase Controller-Authority, Volume 5, section 4.14; Volume 6, sections 3.5 and 4.3; built 2026-07-19). The manifest may carry `requiredAuthorities` (a compiled any-of authority sequence the application declares for a read) or `securityUnverifiable` (a declared contract exists that could not be compiled). The runtime this phase DOES NOTHING with either field: it loads them tolerantly (the additive-field discipline, proven by a loader test) and does not authenticate callers, validate tokens, or check authorities. Enforcement is deliberately the consumer's layer, which is the requesting adopter's own architecture (an orchestration layer that enforces the declared contract before invoking the capability). Two facts are recorded so this boundary is not misread. First, the bypass fact that motivates the whole phase: in the surveyed real apps the declared security sits on the CONTROLLER methods, and the execution adapter invokes the SERVICE bean directly, so the application's own enforcement point is not on the invocation path the tool generates; carrying the declared contract in the manifest is what lets an external layer re-impose it. Second, the inverse case: a host application that declares method security ON ITS SERVICE beans (none of the three benchmarks does) would have Spring's method-security interceptor fire on the adapter's invocation too, and with no `Authentication` in the security context the call would be denied at runtime; if a real adopter hits this, the behavior is the app's own security working as declared, and the resolution (supplying an authenticated context to the adapter) is part of this same named deferral. The optional future enforcement hook, when evidence asks for it, is a runtime plugin that validates a supplied principal's granted authorities against `requiredAuthorities` before invoking, refusing unverifiable capabilities by default; it enters through its own designed phase, never silently. CLOSED BY SEC-1 (2026-09-24; section 15, build record 15.10, spike record 15.9): the runtime captures the caller the host authenticated per MCP request, runs the invocation as that caller (the inverse case above closes as the host's own security working as declared), enforces `requiredAuthorities` exactly before invoking, and refuses an anonymous reviewed write by default. `securityUnverifiable` stays what it was, a name-listed stake with no contract to enforce, and the consumer's layer stays legitimate but is no longer the only one.
 
 10. Attested capabilities at the runtime (opened by phase Attestation, Volume 5, section 4.15; designed 2026-07-20, pending ratification). Invocation of an attested capability is IDENTICAL to a verified one, argued rather than assumed: the binding is a structurally resolved `<Bean>#<method>` like any other (attestation fills semantic holes, never structural ones, so there is nothing different to invoke), and a runtime that behaved differently would imply the tool doubts what its labels state exactly. What the runtime adds is one consumer control and one tolerance: the loader tolerates the additive `attested`/`attestation` manifest fields (the standing additive-field discipline, with a loader test at build), and a property, `tibyan.attested.expose` (default `true`), lets a consumer exclude attested capabilities from registration wholesale, for surfaces that must be verified-only. Default true because committing `tibyan/attestations.json` through review IS the adopter's deliberate opt-in; the property serves the consumer who did not make that choice. Two named non-goals this phase: no per-call runtime warning (the labeling is the honesty mechanism, and it is complete), and no principal-passing for the context-dependent reads (the me-scoped `RequestContext` reads stay excluded from attestation entirely until a principal design exists; that future design is invocation architecture and would be its own ratified phase).
 
@@ -781,7 +781,7 @@ one. `tools/list` returned 20 and a hosted reviewed read still answered. The 13-
 
 `mvn clean verify`: green, 12 modules.
 
-## 15. The caller at the tool boundary (spike SEC-0 and phase SEC-1; designed and RATIFIED 2026-09-24 as written, the spike next after Describe; ADR-0017)
+## 15. The caller at the tool boundary (spike SEC-0 and phase SEC-1; designed and RATIFIED 2026-09-24 as written; spike RUN and phase BUILT 2026-09-24, records 15.9 and 15.10; ADR-0017)
 
 ### 15.1 The evidence
 
@@ -943,3 +943,66 @@ runtime's seam; it is the leg the SEC-1 forecast of section 15.7 is checked agai
 on the descriptor and fixtures SC-1 to SC-8 are the SEC-1 build, its own session. The runtime gains
 `spring-security-core` optional and, at test scope only, the web, security and test starters for the servlet
 host. `CallerBoundarySpikeTest` stays as the spike's executable record, five tests, in the reactor.
+
+### 15.10 Build record: SEC-1 BUILT 2026-09-24
+
+Built as ratified in section 15.4, on the spike's S1 and S2 of section 15.9, runtime only.
+
+**S3, the compiled contract.** `CapabilityDescriptor` gains `requiredAuthorities`, the array the MCP manifest
+has carried since Controller-Authority and the loader tolerated without reading; absent means no contract.
+`CallerGate.refusal` decides before any invocation: a contract-carrying tool refuses an anonymous caller,
+refuses a caller whose authorities cannot be read (a principal that is not a Spring Security
+`Authentication` holds no granted authority, so it cannot satisfy a contract), and refuses a caller holding
+none of the literals, compared exactly (D2: `ROLE_480012`, `480012 ` and `4800120` are all not `480012`).
+Every refusal names the tool and the contract and never the caller's authorities or name; it reaches the
+client as an `isError` result, exactly as an adapter failure does. No switch lowers a contract.
+
+**S4, anonymous.** `ExposurePolicy` gains `requireCaller`, bound from `tibyan.security.requireCaller` in
+both spellings, default true: an anonymous call to a reviewed WRITE or ACTION is refused with a located
+message naming the property. A verified or reviewed READ with no contract keeps its behavior; a principal
+the host authenticated counts as a caller whatever its type. The allowlist still decides what registers;
+the gate decides who may call it.
+
+**S5, the startup line.** After the registration lines: `caller gate: tibyan.security.requireCaller=<v>,
+Spring Security <present|absent>; N registered tool(s) carry a compiled authority contract ...: [names]; M
+registered security-unverifiable tool(s) open only by list or switch: [names]`, counted among the REGISTERED
+tools only (an excluded or unhosted contract tool is not counted). A WARN when the caller is required but
+Spring Security is absent, because then no caller can ever be captured and every write and contract tool
+will refuse; an INFO when the property is off. `Registration` carries the two lists.
+
+**Fixtures, all green.** SC-1, SC-2, SC-3, SC-4 and SC-8 at the gate (`CallerGateTest`), with D2 exactness,
+the foreign-principal case and the loader reading the manifest field; SC-1 and SC-2 end to end through the
+MCP client on the authenticated host (`CallerBoundarySpikeTest`, a `contracted` tool with no method
+security of its own: alice admitted, bob refused with the contract named and `OTHER` absent); SC-5 and SC-6
+are the spike's Q3 and Q2 tests; SC-3 and SC-8 end to end on a host whose MCP endpoints are public
+(`AnonymousCallerTest`: the write and the contract tool refuse the anonymous caller before anything runs, a
+plain read and a listed unverifiable read still run, and the same tools admit alice); SC-4 end to end with
+the property off (`AnonymousCallerAdmittedTest`); SC-7 and the S5 line (`CallerGateStartupLineTest`,
+including a `FilteredClassLoader` hiding Spring Security and both property spellings). Runtime module: 121
+tests. The integration test on the example host gained the default case: the allowed write refuses the
+anonymous caller and the log warns that Spring Security is absent.
+
+**The one behavior change on existing fixtures, recorded.** RV-2 (`WriteGateTest`) and the integration
+test `theAllowedWriteRunsAndTheVerifiedReadObservesIt` invoked an allowed write with no caller at all; under
+S4 that is now refused by default, which is the phase's point, not a regression. Both run as the host the
+design names for that case, one that sets `requireCaller=false` knowingly, and each gained the
+default-refusal assertion beside it. Not a rule-13 amendment: an outcome changed, exactly the ratified one.
+
+**Forecast checked.** Runtime only: the provider, both backends and the CLI are untouched, so every
+benchmark is byte-identical by construction (the diff is confined to `tibyan-runtime-spring`, `tibyan-it`
+and docs). On the pharmacy service (as-backend-trial.md section 10.15) the forecast was: registered
+unchanged, contract-carrying registered 0 (the three contract tools of that manifest, `getWFRequest`,
+`getSSConfig`, `getDepartment`, are among the eleven not hosted there), the anonymous reads unchanged, the
+anonymous write refused before invocation. Measured exactly that: 20 registered with the write allowed, the
+gate line `requireCaller=true, Spring Security present; 0 ... contract ...; 15 registered
+security-unverifiable`, `getApprovedPharmacies` and `attested_cancellationReasons` ran, and
+`createGovernorate` with a well-formed object was refused as `no authenticated caller ... reviewed WRITE`,
+with no service entry and no insert in the log.
+
+**The exit criterion (Volume 13).** Three of its four clauses are met: the spike's answers recorded (15.9),
+SC-1 to SC-8 green, benchmarks byte-identical, and the anonymous half of the as-backend clause (the section
+10.7 calls refuse or run exactly as S4 says). The authenticated half, the same calls with a token from the
+adopter's login succeeding and `getApprovedPharmacies` narrowing to the caller's role, waits for the
+maintainer's token (section 15.9, the token leg); the probe takes it as `MCP_BEARER`. Publication of 0.4.0
+was postponed behind Describe and this phase; both are built, and the token leg is the last measurement
+owed before the cut.
