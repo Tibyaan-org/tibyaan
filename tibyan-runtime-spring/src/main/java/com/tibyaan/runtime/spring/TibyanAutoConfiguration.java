@@ -110,7 +110,7 @@ public class TibyanAutoConfiguration {
         ExposurePolicy policy = ExposurePolicy.bind(environment);
         ToolRegistrar.Registration registration =
                 new ToolRegistrar(objectMapper, policy).registration(manifest, executionAdapter);
-        logStartup(registration);
+        logStartup(registration, policy, SecuredInvocation.available());
         return ToolCallbackProvider.from(registration.callbacks());
     }
 
@@ -122,7 +122,40 @@ public class TibyanAutoConfiguration {
      * its reason token, and a WARN naming every security-unverifiable tool the global switch opened that
      * nobody listed by name.
      */
+    /** The registration lines alone, the pre-SEC-1 arity kept for existing callers. */
     static void logStartup(ToolRegistrar.Registration registration) {
+        logStartupRegistration(registration);
+    }
+
+    /**
+     * SEC-1, rule S5 (Volume 7 section 15.4): after the registration lines, one caller-gate line saying whether
+     * a caller is required, whether Spring Security is on the class path (the only way a caller can be captured),
+     * how many registered tools carry a compiled contract, and how many are unverifiable and open only by list
+     * or switch; a WARN when a caller is required but none can ever be captured.
+     */
+    static void logStartup(ToolRegistrar.Registration registration, ExposurePolicy policy, boolean securityPresent) {
+        logStartupRegistration(registration);
+        log.info("Tibyaan: caller gate: {}={}, Spring Security {}; {} registered tool(s) carry a compiled authority "
+                        + "contract and refuse a caller holding none: {}; {} registered security-unverifiable tool(s) "
+                        + "open only by list or switch: {}",
+                ExposurePolicy.SECURITY_REQUIRE_CALLER, policy.requireCaller(),
+                securityPresent ? "present" : "absent",
+                registration.contractCarrying().size(), registration.contractCarrying(),
+                registration.unverifiableRegistered().size(), registration.unverifiableRegistered());
+        if (policy.requireCaller() && !securityPresent) {
+            log.warn("Tibyaan: {}=true but Spring Security is not on the class path, so no caller can be captured: "
+                            + "every reviewed WRITE or ACTION and every contract-carrying tool will refuse. Set it false "
+                            + "only knowingly, for a host with no caller to capture.",
+                    ExposurePolicy.SECURITY_REQUIRE_CALLER);
+        }
+        if (!policy.requireCaller()) {
+            log.info("Tibyaan: {}=false: an anonymous caller may invoke a reviewed WRITE or ACTION; a tool carrying a "
+                            + "compiled contract still refuses a caller it cannot check",
+                    ExposurePolicy.SECURITY_REQUIRE_CALLER);
+        }
+    }
+
+    private static void logStartupRegistration(ToolRegistrar.Registration registration) {
         log.info("Tibyaan: registered {} MCP tool(s): {}",
                 registration.callbacks().size(), registration.registeredNames());
         registration.excluded().forEach((name, reason) ->

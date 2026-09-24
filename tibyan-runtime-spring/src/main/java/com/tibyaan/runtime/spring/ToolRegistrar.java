@@ -46,7 +46,9 @@ public final class ToolRegistrar {
             List<ToolCallback> callbacks,
             Map<String, String> excluded,
             List<String> openedByGlobalSwitchOnly,
-            Map<String, String> unhosted) {
+            Map<String, String> unhosted,
+            List<String> contractCarrying,
+            List<String> unverifiableRegistered) {
 
         public Registration {
             callbacks = List.copyOf(callbacks);
@@ -55,11 +57,20 @@ public final class ToolRegistrar {
             // F9 (Volume 7 section 14): the tools the policy would have registered but this application
             // cannot execute, each with the reason, in manifest order.
             unhosted = Collections.unmodifiableMap(new LinkedHashMap<>(unhosted == null ? Map.of() : unhosted));
+            // SEC-1, S5 (Volume 7 section 15.4): the registered tools that carry a compiled authority contract, and
+            // the registered security-unverifiable tools, in manifest order, for the startup line.
+            contractCarrying = contractCarrying == null ? List.of() : List.copyOf(contractCarrying);
+            unverifiableRegistered = unverifiableRegistered == null ? List.of() : List.copyOf(unverifiableRegistered);
         }
 
         public Registration(List<ToolCallback> callbacks, Map<String, String> excluded,
                             List<String> openedByGlobalSwitchOnly) {
             this(callbacks, excluded, openedByGlobalSwitchOnly, Map.of());
+        }
+
+        public Registration(List<ToolCallback> callbacks, Map<String, String> excluded,
+                            List<String> openedByGlobalSwitchOnly, Map<String, String> unhosted) {
+            this(callbacks, excluded, openedByGlobalSwitchOnly, unhosted, List.of(), List.of());
         }
 
         /** The names of the tools actually registered, in manifest order. */
@@ -126,6 +137,8 @@ public final class ToolRegistrar {
         Map<String, String> excluded = new LinkedHashMap<>();
         List<String> openedByGlobalOnly = new ArrayList<>();
         Map<String, String> unhosted = new LinkedHashMap<>();
+        List<String> contractCarrying = new ArrayList<>();
+        List<String> unverifiableRegistered = new ArrayList<>();
         for (CapabilityDescriptor descriptor : manifest.tools()) {
             String reason = exclusionReason(descriptor);
             if (reason != null) {
@@ -143,14 +156,21 @@ public final class ToolRegistrar {
                 }
             }
             callbacks.add(new CapabilityToolCallback(descriptor, executionAdapter, objectMapper,
-                    manifest.shapesByName()));
+                    manifest.shapesByName(), policy.requireCaller()));
+            if (descriptor.hasContract()) {
+                contractCarrying.add(descriptor.name());
+            }
+            if (descriptor.securityUnverifiable() && !descriptor.verified()) {
+                unverifiableRegistered.add(descriptor.name());
+            }
             if (descriptor.securityUnverifiable() && !descriptor.verified()
                     && !policy.listsUnverifiable(descriptor.name())) {
                 // It registered, it is unverifiable, and it is not on the list: the global switch alone opened it.
                 openedByGlobalOnly.add(descriptor.name());
             }
         }
-        return new Registration(callbacks, excluded, openedByGlobalOnly, unhosted);
+        return new Registration(callbacks, excluded, openedByGlobalOnly, unhosted, contractCarrying,
+                unverifiableRegistered);
     }
 
     /**

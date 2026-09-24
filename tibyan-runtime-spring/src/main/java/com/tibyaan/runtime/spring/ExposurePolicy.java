@@ -39,7 +39,8 @@ public record ExposurePolicy(
         boolean exposeBoundary,
         boolean exposeReviewed,
         List<String> writesAllow,
-        List<String> exposeUnverifiable) {
+        List<String> exposeUnverifiable,
+        boolean requireCaller) {
 
     public static final String ATTESTED_EXPOSE = "tibyan.attested.expose";
     public static final String ATTESTED_EXPOSE_SECURITY_UNVERIFIABLE = "tibyan.attested.exposeSecurityUnverifiable";
@@ -47,11 +48,20 @@ public record ExposurePolicy(
     public static final String REVIEWED_EXPOSE = "tibyan.reviewed.expose";
     public static final String WRITES_ALLOW = "tibyan.writes.allow";
     public static final String SECURITY_EXPOSE_UNVERIFIABLE = "tibyan.security.exposeUnverifiable";
+    /** SEC-1, rule S4 (Volume 7 section 15.4): whether an anonymous call to a reviewed WRITE or ACTION is refused. */
+    public static final String SECURITY_REQUIRE_CALLER = "tibyan.security.requireCaller";
 
     public ExposurePolicy {
         // The raw entries are kept, blanks and repeats included, because validate() must see them.
         writesAllow = writesAllow == null ? List.of() : List.copyOf(writesAllow);
         exposeUnverifiable = exposeUnverifiable == null ? List.of() : List.copyOf(exposeUnverifiable);
+    }
+
+    /** The six-control arity, kept for existing callers: the caller is required (S4 default true). */
+    public ExposurePolicy(boolean exposeAttested, boolean exposeSecurityUnverifiable, boolean exposeBoundary,
+            boolean exposeReviewed, List<String> writesAllow, List<String> exposeUnverifiable) {
+        this(exposeAttested, exposeSecurityUnverifiable, exposeBoundary, exposeReviewed, writesAllow,
+                exposeUnverifiable, true);
     }
 
     /** The defaults: attested open, security-unverifiable closed, boundary closed, reviewed open, both lists empty. */
@@ -72,7 +82,8 @@ public record ExposurePolicy(
                 binder.bind("tibyan.attested.expose-boundary", Boolean.class).orElse(false),
                 binder.bind("tibyan.reviewed.expose", Boolean.class).orElse(true),
                 binder.bind("tibyan.writes.allow", Bindable.listOf(String.class)).orElse(List.of()),
-                binder.bind("tibyan.security.expose-unverifiable", Bindable.listOf(String.class)).orElse(List.of()));
+                binder.bind("tibyan.security.expose-unverifiable", Bindable.listOf(String.class)).orElse(List.of()),
+                binder.bind("tibyan.security.require-caller", Boolean.class).orElse(true));
     }
 
     /** Whether the write gate names this exact capability. */

@@ -32,6 +32,7 @@ final class CapabilityToolCallback implements ToolCallback {
     private final ExecutionAdapter executionAdapter;
     private final ObjectMapper objectMapper;
     private final String inputSchema;
+    private final boolean requireCaller;
 
     CapabilityToolCallback(CapabilityDescriptor descriptor, ExecutionAdapter executionAdapter,
                            ObjectMapper objectMapper) {
@@ -40,6 +41,13 @@ final class CapabilityToolCallback implements ToolCallback {
 
     CapabilityToolCallback(CapabilityDescriptor descriptor, ExecutionAdapter executionAdapter,
                            ObjectMapper objectMapper, Map<String, ShapeDescriptor> shapesByName) {
+        this(descriptor, executionAdapter, objectMapper, shapesByName, true);
+    }
+
+    /** @param requireCaller SEC-1 rule S4, {@code tibyan.security.requireCaller}: refuse an anonymous reviewed write */
+    CapabilityToolCallback(CapabilityDescriptor descriptor, ExecutionAdapter executionAdapter,
+                           ObjectMapper objectMapper, Map<String, ShapeDescriptor> shapesByName, boolean requireCaller) {
+        this.requireCaller = requireCaller;
         this.descriptor = descriptor;
         this.executionAdapter = executionAdapter;
         this.objectMapper = objectMapper;
@@ -96,6 +104,14 @@ final class CapabilityToolCallback implements ToolCallback {
             Optional<Principal> caller = CallerContext.callerOf(toolContext);
             log.debug("Tibyaan: tool {} called by {}", descriptor.name(),
                     caller.map(Principal::getName).orElse("(no authenticated caller)"));
+            // SEC-1, S3 and S4: the gate decides before anything is invoked; a refusal names the tool and the
+            // contract, never the caller's authorities, and reaches the client as an error result.
+            Optional<String> refusal = CallerGate.refusal(descriptor, caller, requireCaller);
+            if (refusal.isPresent()) {
+                log.info("{} [caller: {}]", refusal.get(),
+                        caller.map(Principal::getName).orElse("(no authenticated caller)"));
+                throw new IllegalStateException(refusal.get());
+            }
             Object result = caller.isPresent() && SecuredInvocation.available()
                     ? SecuredInvocation.withCaller(caller.get(),
                             () -> executionAdapter.invoke(new CapabilityRef(descriptor.name()), args))

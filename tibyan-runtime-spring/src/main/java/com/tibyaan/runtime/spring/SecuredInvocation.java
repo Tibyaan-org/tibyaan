@@ -26,6 +26,24 @@ final class SecuredInvocation {
         return PRESENT;
     }
 
+    /**
+     * Phase SEC-1, rule S3: the authorities the caller holds, read from a Spring Security {@link Authentication}
+     * as the exact granted-authority strings; empty when the principal is not one, because the gate never guesses
+     * what a foreign principal may do.
+     */
+    static java.util.Optional<java.util.Set<String>> authoritiesOf(Principal caller) {
+        if (!(caller instanceof Authentication authentication) || authentication.getAuthorities() == null) {
+            return java.util.Optional.empty();
+        }
+        java.util.Set<String> held = new java.util.LinkedHashSet<>();
+        authentication.getAuthorities().forEach(granted -> {
+            if (granted != null && granted.getAuthority() != null) {
+                held.add(granted.getAuthority());
+            }
+        });
+        return java.util.Optional.of(held);
+    }
+
     /** Runs the work with the caller in scope when it is a Spring Security {@link Authentication}; else plainly. */
     static <T> T withCaller(Principal caller, Supplier<T> work) {
         if (!(caller instanceof Authentication authentication)) {

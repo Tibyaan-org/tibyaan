@@ -34,7 +34,8 @@ public record CapabilityDescriptor(
         boolean attestedBoundary,
         String kind,
         String tier,
-        ReviewDescriptor review) {
+        ReviewDescriptor review,
+        List<String> requiredAuthorities) {
 
     /** The kind every discovered and every attested capability has, and the manifest's default. */
     public static final String KIND_READ = "READ";
@@ -51,6 +52,9 @@ public record CapabilityDescriptor(
         // Absent means READ (Volume 6 section 3.9). The value is kept as written otherwise: the registrar
         // refuses an unknown kind loudly rather than guessing it is a read.
         kind = (kind == null || kind.isBlank()) ? KIND_READ : kind;
+        // SEC-1 (Volume 7 section 15.4, S3): the compiled any-of contract of Volume 5 section 4.14, as the backend
+        // writes it; absent on every tool that declared none, so every existing manifest deserializes as before.
+        requiredAuthorities = requiredAuthorities == null ? List.of() : List.copyOf(requiredAuthorities);
     }
 
     /**
@@ -70,6 +74,14 @@ public record CapabilityDescriptor(
                 KIND_READ, null, null);
     }
 
+    /** The DL-1 arity, kept for existing callers: no compiled contract. */
+    public CapabilityDescriptor(String name, String description, String binding, String output,
+            List<InputDescriptor> inputs, boolean attested, boolean securityUnverifiable, boolean attestedBoundary,
+            String kind, String tier, ReviewDescriptor review) {
+        this(name, description, binding, output, inputs, attested, securityUnverifiable, attestedBoundary, kind, tier,
+                review, List.of());
+    }
+
     /**
      * A reviewed tool (tier {@code reviewed}), as the backend writes it: the kind comes from the tool's
      * label, the review carries the named human, and the security marker composes exactly as for an
@@ -79,6 +91,17 @@ public record CapabilityDescriptor(
             List<InputDescriptor> inputs, String kind, boolean securityUnverifiable, ReviewDescriptor review) {
         return new CapabilityDescriptor(name, description, binding, output, inputs, false, securityUnverifiable,
                 false, kind, TIER_REVIEWED, review);
+    }
+
+    /** The same tool carrying a compiled authority contract (SEC-1, S3). */
+    public CapabilityDescriptor withRequiredAuthorities(List<String> authorities) {
+        return new CapabilityDescriptor(name, description, binding, output, inputs, attested, securityUnverifiable,
+                attestedBoundary, kind, tier, review, authorities);
+    }
+
+    /** Whether the tool carries a compiled authority contract the runtime must enforce (SEC-1, S3). */
+    public boolean hasContract() {
+        return !requiredAuthorities.isEmpty();
     }
 
     /** Whether this tool is of the reviewed tier: the manifest says so by tier, by review, or by both. */

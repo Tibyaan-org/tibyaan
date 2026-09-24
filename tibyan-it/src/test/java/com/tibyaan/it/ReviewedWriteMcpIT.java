@@ -111,10 +111,42 @@ class ReviewedWriteMcpIT {
         }
     }
 
+    /**
+     * SEC-1, rule S4 (Volume 7 section 15.4) on the example host, which has no Spring Security: under the default
+     * the allowed write refuses the anonymous caller before anything runs, and the startup log warns that no
+     * caller can ever be captured here. The test below runs the write as the host the design names for that
+     * case, one that sets {@code tibyan.security.requireCaller=false} knowingly.
+     */
+    @Test
+    void theAllowedWriteRefusesTheAnonymousCallerByDefaultOnAHostWithNoSecurity() throws Exception {
+        String toolName = "reviewed_ProductService_rename";
+        AppProcess app = startApp(manifest.toUri().toString(), toolName);
+        try (McpSyncClient client = client(app.baseUrl)) {
+            client.initialize();
+            McpSchema.CallToolResult refused = client.callTool(new McpSchema.CallToolRequest(toolName,
+                    Map.of("id", 5, "name", "Renamed Mouse")));
+            assertThat(refused.isError()).as("an anonymous reviewed write is refused by default").isTrue();
+            String text = ((McpSchema.TextContent) refused.content().get(0)).text();
+            assertThat(text).contains("'" + toolName + "' refused").contains("no authenticated caller")
+                    .contains("reviewed WRITE").contains("tibyan.security.requireCaller=true");
+
+            McpSchema.CallToolResult read = client.callTool(new McpSchema.CallToolRequest("getProduct", Map.of("id", 5)));
+            String product = ((McpSchema.TextContent) read.content().get(0)).text();
+            assertThat(product).as("the refused write changed nothing").doesNotContain("Renamed Mouse");
+            assertThat(Files.readString(app.log))
+                    .contains("Tibyaan: caller gate: tibyan.security.requireCaller=true, Spring Security absent;")
+                    .contains("Spring Security is not on the class path");
+        } finally {
+            stopApp(app);
+        }
+    }
+
     @Test
     void theAllowedWriteRunsAndTheVerifiedReadObservesIt() throws Exception {
         String toolName = "reviewed_ProductService_rename";
-        AppProcess app = startApp(manifest.toUri().toString(), toolName);
+        // The example host has no Spring Security and so no caller to capture: it sets requireCaller=false
+        // knowingly (SEC-1, S4), which the test above shows is the only way the anonymous write runs.
+        AppProcess app = startApp(manifest.toUri().toString(), toolName, false);
         try (McpSyncClient client = client(app.baseUrl)) {
             client.initialize();
             List<McpSchema.Tool> tools = client.listTools().tools();
@@ -160,6 +192,11 @@ class ReviewedWriteMcpIT {
     }
 
     private static AppProcess startApp(String manifestUri, String writesAllow) throws Exception {
+        return startApp(manifestUri, writesAllow, null);
+    }
+
+    /** @param requireCaller SEC-1 rule S4 (Volume 7 section 15.4); null keeps the runtime's default, true */
+    private static AppProcess startApp(String manifestUri, String writesAllow, Boolean requireCaller) throws Exception {
         int port = freePort();
         String baseUrl = "http://localhost:" + port;
         Path log = Files.createTempFile(workDir, "example-app-", ".log");
@@ -168,6 +205,9 @@ class ReviewedWriteMcpIT {
         command.add("-Dtibyan.capabilities=" + manifestUri);
         if (writesAllow != null) {
             command.add("-Dtibyan.writes.allow=" + writesAllow);
+        }
+        if (requireCaller != null) {
+            command.add("-Dtibyan.security.requireCaller=" + requireCaller);
         }
         command.add("-jar");
         command.add(bootJar.toString());

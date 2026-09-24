@@ -244,8 +244,14 @@ class WriteGateTest {
             CapabilitiesManifest manifest = new CapabilitiesManifest("m", "0.1", List.of(verified(), reviewedWrite(false)));
             SpringExecutionAdapter adapter = new SpringExecutionAdapter(context, manifest);
 
-            List<ToolCallback> callbacks = new ToolRegistrar(mapper, policy(true, List.of(WRITE)))
-                    .register(manifest, adapter);
+            // SEC-1, S4 (Volume 7 section 15.4): this fixture calls the callback with no caller at all, which the
+            // default policy now refuses (fixture SC-3). It runs as the host the design names for that case, one
+            // that sets requireCaller=false knowingly; the refusal under the default is asserted right after.
+            ExposurePolicy allowed = policy(true, List.of(WRITE));
+            ExposurePolicy noCallerToCapture = new ExposurePolicy(allowed.exposeAttested(),
+                    allowed.exposeSecurityUnverifiable(), allowed.exposeBoundary(), allowed.exposeReviewed(),
+                    allowed.writesAllow(), allowed.exposeUnverifiable(), false);
+            List<ToolCallback> callbacks = new ToolRegistrar(mapper, noCallerToCapture).register(manifest, adapter);
             ToolCallback write = callbacks.stream()
                     .filter(callback -> callback.getToolDefinition().name().equals(WRITE))
                     .findFirst()
@@ -253,6 +259,15 @@ class WriteGateTest {
 
             // The MCP client sends amount as a JSON number; the adapter binds it to the declared Long.
             String result = write.call("{\"note\":\"rent\",\"amount\":5}");
+
+            ToolCallback gated = new ToolRegistrar(mapper, allowed).register(manifest, adapter).stream()
+                    .filter(callback -> callback.getToolDefinition().name().equals(WRITE))
+                    .findFirst()
+                    .orElseThrow();
+            assertThatThrownBy(() -> gated.call("{\"note\":\"rent\",\"amount\":5}"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("no authenticated caller")
+                    .hasMessageContaining("reviewed WRITE");
 
             assertThat(mapper.readValue(result, Receipt.class)).isEqualTo(new Receipt("rent", 5L));
             assertThat(context.getBean(LedgerService.class).recorded).containsExactly(new Receipt("rent", 5L));

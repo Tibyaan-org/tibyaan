@@ -82,7 +82,9 @@ class CallerBoundarySpikeTest {
             String service = WhoService.class.getCanonicalName();
             return new CapabilitiesManifest("spike", "0.1", List.of(
                     new CapabilityDescriptor("whoAmI", "Who is calling.", service + "#whoAmI", "STRING", List.of()),
-                    new CapabilityDescriptor("secured", "Needs 480012.", service + "#secured", "STRING", List.of())));
+                    new CapabilityDescriptor("secured", "Needs 480012.", service + "#secured", "STRING", List.of()),
+                    new CapabilityDescriptor("contracted", "Compiled contract.", service + "#contracted", "STRING", List.of())
+                            .withRequiredAuthorities(List.of("480012", "480099"))));
         }
     }
 
@@ -99,6 +101,11 @@ class CallerBoundarySpikeTest {
         @PreAuthorize("hasAuthority('480012')")
         public String secured() {
             return "ok for " + SecurityContextHolder.getContext().getAuthentication().getName();
+        }
+
+        /** No method security of its own: the manifest carries the compiled contract the runtime enforces (S3). */
+        public String contracted() {
+            return "contracted for " + SecurityContextHolder.getContext().getAuthentication().getName();
         }
     }
 
@@ -185,6 +192,25 @@ class CallerBoundarySpikeTest {
             McpSchema.CallToolResult denied = bob.callTool(new McpSchema.CallToolRequest("secured", Map.of()));
             assertThat(denied.isError()).isTrue();
             assertThat(text(denied)).contains("AuthorizationDeniedException: Access Denied");
+        } finally {
+            alice.closeGracefully();
+            bob.closeGracefully();
+        }
+    }
+
+    @Test
+    void sc1_sc2_theCompiledContractIsEnforcedAtTheBoundaryNamingTheContractNeverTheCallersAuthorities() {
+        McpSyncClient alice = client("alice");
+        McpSyncClient bob = client("bob");
+        try {
+            McpSchema.CallToolResult ok = alice.callTool(new McpSchema.CallToolRequest("contracted", Map.of()));
+            assertThat(ok.isError()).isFalse();
+            assertThat(text(ok)).isEqualTo("\"contracted for alice\"");
+
+            McpSchema.CallToolResult denied = bob.callTool(new McpSchema.CallToolRequest("contracted", Map.of()));
+            assertThat(denied.isError()).isTrue();
+            assertThat(text(denied)).contains("'contracted' refused").contains("[480012, 480099]")
+                    .doesNotContain("OTHER").doesNotContain("bob");
         } finally {
             alice.closeGracefully();
             bob.closeGracefully();
