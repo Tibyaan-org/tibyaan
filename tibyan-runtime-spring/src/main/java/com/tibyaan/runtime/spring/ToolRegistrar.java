@@ -122,7 +122,8 @@ public final class ToolRegistrar {
                 excluded.put(descriptor.name(), reason);
                 continue;
             }
-            callbacks.add(new CapabilityToolCallback(descriptor, executionAdapter, objectMapper));
+            callbacks.add(new CapabilityToolCallback(descriptor, executionAdapter, objectMapper,
+                    manifest.shapesByName()));
             if (descriptor.securityUnverifiable() && !descriptor.verified()
                     && !policy.listsUnverifiable(descriptor.name())) {
                 // It registered, it is unverifiable, and it is not on the list: the global switch alone opened it.

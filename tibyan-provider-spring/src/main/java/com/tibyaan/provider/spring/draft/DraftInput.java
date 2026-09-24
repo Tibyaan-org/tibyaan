@@ -8,15 +8,22 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * written in source, and the IR type the tool maps it to, or null when it does not map today.
  *
  * <p>Phase DL-2a (section 4.19.2): {@code multiple} is true when the parameter is a collection of the mapped
- * type, so the approval covers the array. It is omitted from the file when absent, which keeps every entry
- * written before the phase byte-identical.
+ * type, so the approval covers the array. Phase DL-2b (section 4.19.3): {@code shape} lists the fields of a
+ * structured input and {@code unmapped} names why a class could not be one. Each is omitted from the file
+ * when absent, which keeps every entry written before the phase byte-identical.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record DraftInput(String name, String javaType, String type,
-                         @JsonInclude(JsonInclude.Include.NON_NULL) Boolean multiple) {
+                         @JsonInclude(JsonInclude.Include.NON_NULL) Boolean multiple,
+                         @JsonInclude(JsonInclude.Include.NON_NULL) DraftShape shape,
+                         @JsonInclude(JsonInclude.Include.NON_NULL) String unmapped) {
 
     public DraftInput(String name, String javaType, String type) {
-        this(name, javaType, type, null);
+        this(name, javaType, type, null, null, null);
+    }
+
+    public DraftInput(String name, String javaType, String type, Boolean multiple) {
+        this(name, javaType, type, multiple, null, null);
     }
 
     // Not is-prefixed: an is-prefixed accessor would be auto-detected as a second serialized property and

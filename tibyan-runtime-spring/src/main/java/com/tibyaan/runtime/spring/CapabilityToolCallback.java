@@ -28,10 +28,15 @@ final class CapabilityToolCallback implements ToolCallback {
 
     CapabilityToolCallback(CapabilityDescriptor descriptor, ExecutionAdapter executionAdapter,
                            ObjectMapper objectMapper) {
+        this(descriptor, executionAdapter, objectMapper, Map.of());
+    }
+
+    CapabilityToolCallback(CapabilityDescriptor descriptor, ExecutionAdapter executionAdapter,
+                           ObjectMapper objectMapper, Map<String, ShapeDescriptor> shapesByName) {
         this.descriptor = descriptor;
         this.executionAdapter = executionAdapter;
         this.objectMapper = objectMapper;
-        this.inputSchema = buildInputSchema(descriptor);
+        this.inputSchema = buildInputSchema(descriptor, shapesByName);
     }
 
     /**
@@ -79,7 +84,7 @@ final class CapabilityToolCallback implements ToolCallback {
     }
 
     // A minimal JSON Schema for the tool's inputs, derived from the IR types.
-    private static String buildInputSchema(CapabilityDescriptor descriptor) {
+    private static String buildInputSchema(CapabilityDescriptor descriptor, Map<String, ShapeDescriptor> shapesByName) {
         StringBuilder properties = new StringBuilder();
         StringBuilder required = new StringBuilder();
         for (int i = 0; i < descriptor.inputs().size(); i++) {
@@ -88,12 +93,70 @@ final class CapabilityToolCallback implements ToolCallback {
                 properties.append(",");
                 required.append(",");
             }
-            // DL-2a (Volume 7 section 13 item 3): a multiple input is an array of its element type.
-            String element = "{\"type\":\"" + IrTypes.jsonSchemaType(input.type()) + "\"}";
+            // DL-2a (Volume 7 section 13 item 3): a multiple input is an array of its element type. DL-2b: a
+            // SHAPE_REF input is the nested object schema of its shape.
+            String element = input.type() != null && input.type().startsWith("SHAPE_REF(")
+                    ? shapeSchema(input.type().substring("SHAPE_REF(".length(), input.type().length() - 1),
+                            shapesByName, 0)
+                    : "{\"type\":\"" + IrTypes.jsonSchemaType(input.type()) + "\"}";
             properties.append("\"").append(input.name()).append("\":")
                     .append(input.multiple() ? "{\"type\":\"array\",\"items\":" + element + "}" : element);
             required.append("\"").append(input.name()).append("\"");
         }
         return "{\"type\":\"object\",\"properties\":{" + properties + "},\"required\":[" + required + "]}";
+    }
+
+    // DL-2b (Volume 7 section 13 item 3): a shape as a nested object schema with no required list (decision
+    // D4), each closed set as enum, a multiple field as an array, a nested shape recursed, and the partial
+    // disclosure in the description. A shape the manifest does not carry renders as an open object with a
+    // description saying so; the adapter refuses the call at invocation.
+    private static String shapeSchema(String name, Map<String, ShapeDescriptor> shapesByName, int depth) {
+        ShapeDescriptor shape = shapesByName.get(name);
+        if (shape == null || depth > 8) {
+            return "{\"type\":\"object\",\"description\":\"" + escape("Shape " + name + " is not carried by the manifest.")
+                    + "\"}";
+        }
+        StringBuilder properties = new StringBuilder();
+        for (int i = 0; i < shape.fields().size(); i++) {
+            ShapeDescriptor.ShapeFieldDescriptor field = shape.fields().get(i);
+            if (i > 0) {
+                properties.append(",");
+            }
+            String element;
+            if (field.type() != null && field.type().startsWith("SHAPE_REF(")) {
+                element = shapeSchema(field.type().substring("SHAPE_REF(".length(), field.type().length() - 1),
+                        shapesByName, depth + 1);
+            } else {
+                StringBuilder scalar = new StringBuilder("{\"type\":\"")
+                        .append(IrTypes.jsonSchemaType(field.type())).append("\"");
+                if (!field.values().isEmpty()) {
+                    scalar.append(",\"enum\":[");
+                    for (int v = 0; v < field.values().size(); v++) {
+                        scalar.append(v > 0 ? "," : "").append("\"").append(escape(field.values().get(v))).append("\"");
+                    }
+                    scalar.append("]");
+                }
+                element = scalar.append("}").toString();
+            }
+            properties.append("\"").append(escape(field.name())).append("\":")
+                    .append(field.multiple() ? "{\"type\":\"array\",\"items\":" + element + "}" : element);
+        }
+        String description = "Input object " + shape.name() + "; every field optional."
+                + (shape.partial().isEmpty() ? "" : " Not modeled: " + String.join(", ", shape.partial()) + ".");
+        return "{\"type\":\"object\",\"description\":\"" + escape(description) + "\",\"properties\":{" + properties
+                + "},\"additionalProperties\":false}";
+    }
+
+    private static String escape(String text) {
+        StringBuilder out = new StringBuilder();
+        for (char c : text.toCharArray()) {
+            switch (c) {
+                case '"' -> out.append("\\\"");
+                case '\\' -> out.append("\\\\");
+                case '\n' -> out.append("\\n");
+                default -> out.append(c);
+            }
+        }
+        return out.toString();
     }
 }

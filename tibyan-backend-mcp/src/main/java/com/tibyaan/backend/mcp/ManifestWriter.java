@@ -7,6 +7,9 @@ import com.tibyaan.core.ir.CapabilityKind;
 import com.tibyaan.core.ir.CapabilityModel;
 import com.tibyaan.core.ir.EntityRef;
 import com.tibyaan.core.ir.Review;
+import com.tibyaan.core.ir.ShapeRef;
+import com.tibyaan.core.ir.Shape;
+import com.tibyaan.core.ir.Field;
 import com.tibyaan.core.ir.Type;
 
 import java.util.List;
@@ -60,24 +63,34 @@ final class ManifestWriter {
         out.append("  \"module\": ").append(quote(ir.module())).append(",\n");
         out.append("  \"version\": ").append(quote(ir.version())).append(",\n");
         List<Capability> tools = ir.capabilities();
+        Map<String, Shape> shapesByName = new java.util.LinkedHashMap<>();
+        for (Shape shape : ir.shapes()) {
+            shapesByName.put(shape.name(), shape);
+        }
+        // Phase DL-2b (Volume 6 section 3.11): the shapes section follows the tools; a manifest without a
+        // structured input carries none and is byte-identical.
+        boolean hasShapes = !ir.shapes().isEmpty();
         if (tools.isEmpty()) {
-            out.append("  \"tools\": []\n");
+            out.append(hasShapes ? "  \"tools\": [],\n" : "  \"tools\": []\n");
         } else {
             out.append("  \"tools\": [\n");
             for (int i = 0; i < tools.size(); i++) {
-                appendTool(out, tools.get(i));
+                appendTool(out, tools.get(i), shapesByName);
                 out.append(i < tools.size() - 1 ? ",\n" : "\n");
             }
-            out.append("  ]\n");
+            out.append(hasShapes ? "  ],\n" : "  ]\n");
+        }
+        if (hasShapes) {
+            appendShapes(out, ir.shapes());
         }
         out.append("}\n");
         return out.toString();
     }
 
-    private static void appendTool(StringBuilder out, Capability capability) {
+    private static void appendTool(StringBuilder out, Capability capability, Map<String, Shape> shapesByName) {
         out.append("    {\n");
         out.append("      \"name\": ").append(quote(capability.name())).append(",\n");
-        out.append("      \"description\": ").append(quote(description(capability))).append(",\n");
+        out.append("      \"description\": ").append(quote(description(capability, shapesByName))).append(",\n");
         out.append("      \"binding\": ").append(quote(capability.binding().value())).append(",\n");
         // Phase DL-1 (Volume 6 section 3.9): the kind, the tier and the review object, right after the
         // binding. Each is emitted ONLY when it is not the default: `kind` only for WRITE and ACTION (a
@@ -189,6 +202,74 @@ final class ManifestWriter {
         out.append("    }");
     }
 
+    // Phase DL-2b (Volume 6 section 3.11): the reviewer's sentence is followed by one sentence per structured
+    // input naming the shape, its field count and its skipped fields, so the honesty the reviewer approved
+    // reaches the agent through the surface most clients show.
+    private static String shapeRemark(Capability capability, Map<String, Shape> shapesByName) {
+        StringBuilder remark = new StringBuilder();
+        for (Map.Entry<String, Type> input : capability.inputs().entrySet()) {
+            if (input.getValue() instanceof ShapeRef ref) {
+                Shape shape = shapesByName.get(ref.shapeName());
+                if (shape == null) {
+                    continue;
+                }
+                List<String> partial = shape.partialFields();
+                remark.append(" Input '").append(input.getKey()).append("' is an object of shape ")
+                        .append(shape.name()).append(" (").append(shape.fields().size()).append(" field")
+                        .append(shape.fields().size() == 1 ? "" : "s");
+                if (!partial.isEmpty()) {
+                    remark.append("; ").append(partial.size()).append(" not modeled: ")
+                            .append(String.join(", ", partial));
+                }
+                remark.append(").");
+            }
+        }
+        return remark.toString();
+    }
+
+    // The shapes section (Volume 6 section 3.11): every shape the model carries, once, with its fields in
+    // declaration order, each field's element type, whether the wire carries an array, its closed set, and
+    // the partial disclosure. Absent from a manifest without a structured input.
+    private static void appendShapes(StringBuilder out, List<Shape> shapes) {
+        out.append("  \"shapes\": [\n");
+        for (int s = 0; s < shapes.size(); s++) {
+            Shape shape = shapes.get(s);
+            out.append("    {\n");
+            out.append("      \"key\": ").append(quote(shape.key())).append(",\n");
+            out.append("      \"name\": ").append(quote(shape.name())).append(",\n");
+            out.append("      \"fields\": [\n");
+            for (int f = 0; f < shape.fields().size(); f++) {
+                Field field = shape.fields().get(f);
+                out.append("        {\n");
+                out.append("          \"name\": ").append(quote(field.name())).append(",\n");
+                out.append("          \"type\": ").append(quote(field.type().canonical()));
+                if (shape.multipleFields().contains(field.name())) {
+                    out.append(",\n          \"multiple\": true");
+                }
+                List<String> values = shape.fieldValues().get(field.name());
+                if (values != null && !values.isEmpty()) {
+                    out.append(",\n          \"enum\": [");
+                    for (int v = 0; v < values.size(); v++) {
+                        out.append(v > 0 ? ", " : "").append(quote(values.get(v)));
+                    }
+                    out.append("]");
+                }
+                out.append("\n").append(f < shape.fields().size() - 1 ? "        },\n" : "        }\n");
+            }
+            out.append("      ]");
+            List<String> partial = shape.partialFields();
+            if (!partial.isEmpty()) {
+                out.append(",\n      \"partial\": [");
+                for (int p = 0; p < partial.size(); p++) {
+                    out.append(p > 0 ? ", " : "").append(quote(partial.get(p)));
+                }
+                out.append("]");
+            }
+            out.append("\n").append(s < shapes.size() - 1 ? "    },\n" : "    }\n");
+        }
+        out.append("  ]\n");
+    }
+
     // The attestation object, character-exact from the component's own fields (Volume 6 section 3.6
     // condition 2). The tokens are the canonical lowercase forms an agent reads.
     private static void appendAttestation(StringBuilder out, Attestation attestation) {
@@ -256,7 +337,7 @@ final class ManifestWriter {
     // The IR has no description field, so the backend synthesizes one from the capability's shape.
     // When the read returns a named view, the description says so, since the description is the
     // surface most MCP clients show an agent directly (Volume 6 section 3.1).
-    private static String description(Capability capability) {
+    private static String description(Capability capability, Map<String, Shape> shapesByName) {
         // A reviewed tool's description leads with its class too (Volume 6 section 3.9): the first sentence
         // names the reviewer, the origin of the words and the tool's own label, so truncation can never
         // strip the fact that this tool is a named human's decision and not a proof. Then the reviewer's
@@ -269,7 +350,8 @@ final class ManifestWriter {
             String sentence = reviewerDescription(capability)
                     .map(words -> lead + " " + words)
                     .orElse(lead);
-            return sentence + outputRemark(capability) + securityClause(capability);
+            return sentence + shapeRemark(capability, shapesByName) + outputRemark(capability)
+                    + securityClause(capability);
         }
         // An attested tool's description LEADS WITH THE CLASS (Volume 6 section 3.6 condition 4): the label
         // is the first sentence because truncation must never strip the epistemic class, then the human's

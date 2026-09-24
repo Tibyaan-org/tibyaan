@@ -85,6 +85,53 @@
         }
       }
     },
+    "/reviewed/createOrder": {
+      "post": {
+        "operationId": "reviewed_createOrder",
+        "tags": [
+          "reviewed"
+        ],
+        "summary": "Reviewed by a.elseginy (human), not tool-verified; the tool labeled it WRITE. Creates an order from the draft and returns its id.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "draft": {
+                    "$ref": "#/components/schemas/OrderDraft"
+                  }
+                },
+                "required": [
+                  "draft"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The result of the reviewed write, as the reviewer described it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            }
+          }
+        },
+        "x-tibyan-reviewed": true,
+        "x-tibyan-review": {
+          "label": "WRITE",
+          "reviewedBy": "a.elseginy",
+          "reviewedOn": "2026-09-24",
+          "descriptionOrigin": "human"
+        }
+      }
+    },
     "/reviewed/createProduct": {
       "post": {
         "operationId": "reviewed_createProduct",
@@ -133,28 +180,34 @@
       }
     },
     "/reviewed/findProductsByIds": {
-      "get": {
+      "post": {
         "operationId": "reviewed_findProductsByIds",
         "tags": [
           "reviewed"
         ],
         "summary": "Reviewed by a.elseginy (human), not tool-verified; the tool labeled it READ. Lists the products with the given ids.",
-        "parameters": [
-          {
-            "name": "ids",
-            "in": "query",
-            "required": true,
-            "style": "form",
-            "explode": true,
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "integer",
-                "format": "int64"
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "format": "int64"
+                    }
+                  }
+                },
+                "required": [
+                  "ids"
+                ]
               }
             }
           }
-        ],
+        },
         "responses": {
           "200": {
             "description": "The result of the reviewed read, as the reviewer described it.",
@@ -326,6 +379,32 @@
           "id"
         ],
         "additionalProperties": true
+      },
+      "OrderDraft": {
+        "type": "object",
+        "description": "Input object OrderDraft as modeled by Tibyaan; every field optional. Partial: 1 field(s) of the source class are not represented: extra: Map<String, Object>.",
+        "properties": {
+          "customer": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "HIGH"
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "x-tibyan-partial": [
+          "extra: Map<String, Object>"
+        ]
       }
     }
   }

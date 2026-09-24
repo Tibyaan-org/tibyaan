@@ -11,6 +11,11 @@ import com.tibyaan.core.ir.Primitive;
 import com.tibyaan.core.ir.Review;
 import com.tibyaan.core.ir.ReviewLabel;
 import com.tibyaan.core.ir.Type;
+import com.tibyaan.provider.spring.extractors.ShapeExtractor;
+import com.tibyaan.provider.spring.extractors.DisplayNames;
+import com.tibyaan.core.ir.ShapeRef;
+import com.tibyaan.core.ir.Shape;
+import com.tibyaan.core.ir.Field;
 import com.tibyaan.core.semantic.SemanticValidator;
 import com.tibyaan.provider.spring.JavaTypeMapper;
 import com.tibyaan.provider.spring.attest.AttestationIntake;
@@ -82,6 +87,8 @@ public final class DraftIntake {
     private final Map<String, String> displayByKey;
     private final DraftLabeler labeler;
     private final List<ServiceMethodSource> sources;
+    // Phase DL-2b (section 4.19.3): reads the shape of a DTO parameter, R2 and R3.
+    private final ShapeExtractor shapeExtractor;
 
     public DraftIntake(List<CompilationUnit> units, TypeReferenceResolver resolver, RepositoryCatalog catalog,
                        JavaTypeMapper typeMapper, Map<String, String> displayByKey,
@@ -92,8 +99,9 @@ public final class DraftIntake {
         this.enumInputValues = new EnumInputValues(resolver, units);
         this.displayByKey = displayByKey;
         ReadSafety readSafety = new ReadSafety(catalog);
+        this.shapeExtractor = new ShapeExtractor(units, resolver, typeMapper, this.enumInputValues);
         this.labeler = new DraftLabeler(readSafety, typeMapper, attestationIntake,
-                new BeanCallClosure(units, catalog, readSafety));
+                new BeanCallClosure(units, catalog, readSafety), shapeExtractor);
         this.sources = sources;
     }
 
@@ -102,10 +110,14 @@ public final class DraftIntake {
      * entries still pending review. The three are separate because they are three different things: a decision
      * a named human made and the tool carried, an approval the tool refused, and a queue nobody has decided.
      */
-    public record Result(List<Capability> reviewed, List<DraftRefusal> refusals, int pending) {
+    public record Result(List<Capability> reviewed, List<DraftRefusal> refusals, int pending, List<Shape> shapes) {
+
+        public Result(List<Capability> reviewed, List<DraftRefusal> refusals, int pending) {
+            this(reviewed, refusals, pending, List.of());
+        }
 
         public static Result empty() {
-            return new Result(List.of(), List.of(), 0);
+            return new Result(List.of(), List.of(), 0, List.of());
         }
     }
 
@@ -129,6 +141,9 @@ public final class DraftIntake {
         }
         Set<String> admittedBindings = new HashSet<>();
         DraftLabeler.Labeling labeling = labeler.labeling(sources, proven);
+        // DL-2b: every shape any admitted entry reaches, keyed by qualified name; display names are assigned
+        // over the whole set once every entry is in, exactly as entities get theirs (section 4.12.3).
+        Map<String, ShapeExtractor.ShapeDraft> shapeDrafts = new LinkedHashMap<>();
 
         for (DraftEntry entry : entries) {
             String review = entry.review();
@@ -144,14 +159,72 @@ public final class DraftIntake {
                         + "' is not one of pending, approved or rejected (section 4.17.2)"));
                 continue;
             }
-            evaluate(entry, labeling, provenByBinding, admittedBindings, takenNames, reviewed, refusals);
+            evaluate(entry, labeling, provenByBinding, admittedBindings, takenNames, reviewed, refusals, shapeDrafts);
         }
-        return new Result(reviewed, refusals, pending);
+        Map<String, String> shapeNames = DisplayNames.assign(shapeDrafts.keySet());
+        return new Result(remapShapeRefs(reviewed, shapeNames), refusals, pending,
+                buildShapes(shapeDrafts, shapeNames));
+    }
+
+
+    // DL-2b (section 4.19.3): the IR shapes, built once display names are known. A field draft typed by a
+    // nested shape becomes a SHAPE_REF to that shape's display name; a skipped field rides the partial
+    // annotation (the section 4.9 contract applied to an input); every field is optional on the wire (D4).
+    static List<Shape> buildShapes(Map<String, ShapeExtractor.ShapeDraft> drafts, Map<String, String> names) {
+        List<Shape> shapes = new ArrayList<>();
+        for (ShapeExtractor.ShapeDraft draft : drafts.values()) {
+            List<Field> fields = new ArrayList<>();
+            Set<String> multiple = new LinkedHashSet<>();
+            Map<String, List<String>> values = new LinkedHashMap<>();
+            for (ShapeExtractor.FieldDraft field : draft.fields()) {
+                Type type = field.isNested() ? Type.shapeRef(names.get(field.shapeKey())) : field.primitive();
+                fields.add(Field.of(field.name(), type, true));
+                if (field.multiple()) {
+                    multiple.add(field.name());
+                }
+                if (!field.values().isEmpty()) {
+                    values.put(field.name(), field.values());
+                }
+            }
+            List<Annotation> annotations = draft.skipped().isEmpty()
+                    ? List.of()
+                    : List.of(new Annotation(Shape.PARTIAL_ANNOTATION, draft.skipped()));
+            shapes.add(new Shape(draft.key(), names.get(draft.key()), fields, multiple, values, annotations));
+        }
+        return shapes;
+    }
+
+    // The reviewed capabilities carried SHAPE_REF(<qualified key>) placeholders while intake ran; once the
+    // display names exist, every placeholder becomes the SHAPE_REF(<name>) the model validates and renders.
+    private static List<Capability> remapShapeRefs(List<Capability> reviewed, Map<String, String> names) {
+        if (names.isEmpty()) {
+            return reviewed;
+        }
+        List<Capability> remapped = new ArrayList<>();
+        for (Capability capability : reviewed) {
+            Map<String, Type> inputs = new LinkedHashMap<>();
+            boolean changed = false;
+            for (Map.Entry<String, Type> input : capability.inputs().entrySet()) {
+                Type type = input.getValue();
+                if (type instanceof ShapeRef ref && names.containsKey(ref.shapeName())) {
+                    type = Type.shapeRef(names.get(ref.shapeName()));
+                    changed = true;
+                }
+                inputs.put(input.getKey(), type);
+            }
+            remapped.add(changed
+                    ? new Capability(capability.name(), capability.kind(), inputs, capability.output(),
+                            capability.outputMultiple(), capability.readOnly(), capability.binding(),
+                            capability.annotations(), capability.attestation(), capability.inputValues(),
+                            capability.review(), capability.multipleInputs())
+                    : capability);
+        }
+        return remapped;
     }
 
     private void evaluate(DraftEntry entry, DraftLabeler.Labeling labeling, Map<String, Capability> provenByBinding,
                           Set<String> admittedBindings, Set<String> takenNames, List<Capability> reviewed,
-                          List<DraftRefusal> refusals) {
+                          List<DraftRefusal> refusals, Map<String, ShapeExtractor.ShapeDraft> shapeDrafts) {
         String target = entry.target() == null ? "(none)" : entry.target();
 
         // RV-A, RESOLVE: exactly one in-tree declaration (the attestation resolver, condition 1), and that
@@ -217,7 +290,7 @@ public final class DraftIntake {
         Map<String, List<String>> inputValues = new LinkedHashMap<>();
         Set<String> multipleInputs = new LinkedHashSet<>();
         Optional<DraftRefusal> unmapped = bindInputs(entry, resolved.get().method(), inputs, inputValues,
-                multipleInputs);
+                multipleInputs, shapeDrafts);
         if (unmapped.isPresent()) {
             admittedBindings.remove(binding);
             refusals.add(unmapped.get());
@@ -267,7 +340,8 @@ public final class DraftIntake {
     // cannot read refuses rather than shipping unconstrained, and a primitive maps. A collection, a DTO, or an
     // unresolvable type refuses naming the parameter and its type (decision D6: collections are DL-2's).
     private Optional<DraftRefusal> bindInputs(DraftEntry entry, MethodDeclaration method, Map<String, Type> inputs,
-                                              Map<String, List<String>> inputValues, Set<String> multipleInputs) {
+                                              Map<String, List<String>> inputValues, Set<String> multipleInputs,
+                                              Map<String, ShapeExtractor.ShapeDraft> shapeDrafts) {
         Optional<CompilationUnit> unit = method.findCompilationUnit();
         for (Parameter parameter : method.getParameters()) {
             String declaredType = parameter.getType().asString();
@@ -303,10 +377,24 @@ public final class DraftIntake {
             }
             Optional<Type> mapped = typeMapper.map(boundType);
             if (mapped.isEmpty()) {
+                // DL-2b, rules R2 and R3 (section 4.19.3): an in-tree class the runtime can construct binds as a
+                // shape, carried by its qualified name until display names are assigned; one it cannot refuses
+                // naming why; anything else is neither and refuses as before.
+                ShapeExtractor.Outcome shape = unit.map(cu -> shapeExtractor.extract(boundType, cu))
+                        .orElseGet(ShapeExtractor.Outcome::notAShape);
+                if (shape.isRefused()) {
+                    return Optional.of(refusal(entry, Cause.INPUT_UNMAPPED, "parameter '" + parameterName
+                            + "' of type '" + declaredType + "': " + shape.refusal()));
+                }
+                if (shape.isShape()) {
+                    shape.shapes().forEach(shapeDrafts::putIfAbsent);
+                    inputs.put(parameterName, Type.shapeRef(shape.key()));
+                    continue;
+                }
                 return Optional.of(refusal(entry, Cause.INPUT_UNMAPPED, "parameter '" + parameterName
                         + "' has type '" + declaredType + "', which is neither a modeled primitive, nor an "
-                        + "in-tree enum, nor a paging parameter; a DTO input is DL-2b's (section 4.17.3, RV-E; "
-                        + "section 4.19)"));
+                        + "in-tree enum, nor a paging parameter, nor an in-tree class the runtime could construct "
+                        + "(section 4.17.3, RV-E; section 4.19.3)"));
             }
             inputs.put(parameterName, mapped.get());
         }

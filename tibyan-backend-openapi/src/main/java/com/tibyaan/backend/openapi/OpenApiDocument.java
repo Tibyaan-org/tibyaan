@@ -10,6 +10,8 @@ import com.tibyaan.core.ir.EntityRef;
 import com.tibyaan.core.ir.Field;
 import com.tibyaan.core.ir.Primitive;
 import com.tibyaan.core.ir.Review;
+import com.tibyaan.core.ir.ShapeRef;
+import com.tibyaan.core.ir.Shape;
 import com.tibyaan.core.ir.Type;
 
 import java.util.ArrayDeque;
@@ -51,12 +53,17 @@ final class OpenApiDocument {
 
     private final CapabilityModel ir;
     private final Map<String, Entity> entitiesByName;
+    private final Map<String, Shape> shapesByName;
 
     private OpenApiDocument(CapabilityModel ir) {
         this.ir = ir;
         this.entitiesByName = new LinkedHashMap<>();
         for (Entity entity : ir.entities()) {
             entitiesByName.put(entity.name(), entity);
+        }
+        this.shapesByName = new LinkedHashMap<>();
+        for (Shape shape : ir.shapes()) {
+            shapesByName.put(shape.name(), shape);
         }
     }
 
@@ -297,11 +304,13 @@ final class OpenApiDocument {
     private Map<String, Object> reviewedPathItem(Capability capability) {
         Review review = capability.review();
         boolean mutating = capability.kind() != CapabilityKind.READ;
+        // DL-2b, decision D6: a read with a structured or multiple input is bodied, and so a POST.
+        boolean bodied = mutating || carriesStructuredInput(capability);
         Map<String, Object> operation = new LinkedHashMap<>();
         operation.put("operationId", capability.name());
         operation.put("tags", List.of(REVIEWED_TAG));
         operation.put("summary", reviewedSummary(capability) + securityClause(capability));
-        if (mutating) {
+        if (bodied) {
             // A write's inputs travel in the body, never in the URL. A write with no inputs has no body.
             if (!capability.inputs().isEmpty()) {
                 operation.put("requestBody", reviewedRequestBody(capability));
@@ -325,7 +334,7 @@ final class OpenApiDocument {
         operation.put("x-tibyan-review", reviewObject(review));
 
         Map<String, Object> item = new LinkedHashMap<>();
-        item.put(mutating ? "post" : "get", operation);
+        item.put(bodied ? "post" : "get", operation);
         return item;
     }
 
@@ -612,6 +621,8 @@ final class OpenApiDocument {
                 schemas.put(name, entitySchema(entity));
             }
         }
+        // DL-2b: the input shapes follow the entity schemas; none without a structured input.
+        schemas.putAll(shapeSchemas());
         return schemas;
     }
 
@@ -671,6 +682,10 @@ final class OpenApiDocument {
     // as a $ref; only primitives reach here.
     private Map<String, Object> typeSchema(Type type) {
         Map<String, Object> schema = new LinkedHashMap<>();
+        if (type instanceof ShapeRef shapeRef) {
+            // DL-2b: a structured input is a reference to its shape's component schema.
+            return ref(shapeSchemaName(shapeRef.shapeName()));
+        }
         Primitive primitive = (Primitive) type;
         switch (primitive) {
             case STRING -> schema.put("type", "string");
@@ -700,6 +715,102 @@ final class OpenApiDocument {
                 schema.put("format", "date-time");
             }
             default -> throw new IllegalArgumentException("unmapped primitive: " + primitive);
+        }
+        return schema;
+    }
+
+    // Phase DL-2b (Volume 6 section 4.7): a reviewed READ whose inputs include a shape or a multiple input
+    // travels in a body, because a query string cannot carry an object honestly (decision D6).
+    private static boolean carriesStructuredInput(Capability capability) {
+        if (capability.hasMultipleInputs()) {
+            return true;
+        }
+        for (Type type : capability.inputs().values()) {
+            if (type instanceof ShapeRef) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // A shape's component schema name: its display name, or, when an entity already owns that name in the
+    // single OpenAPI schema namespace, the name suffixed Shape. Deterministic, and never a collision.
+    private String shapeSchemaName(String shapeName) {
+        return entitiesByName.containsKey(shapeName) ? shapeName + "Shape" : shapeName;
+    }
+
+    // The shapes reachable from a reviewed capability's inputs, through nested shape fields (the closure
+    // rule the entity schemas already follow), each rendered once under its schema name.
+    private Map<String, Object> shapeSchemas() {
+        TreeSet<String> referenced = new TreeSet<>();
+        Deque<String> queue = new ArrayDeque<>();
+        for (Capability capability : ir.capabilities()) {
+            for (Type type : capability.inputs().values()) {
+                if (type instanceof ShapeRef ref) {
+                    queue.add(ref.shapeName());
+                }
+            }
+        }
+        while (!queue.isEmpty()) {
+            String name = queue.poll();
+            if (referenced.add(name)) {
+                Shape shape = shapesByName.get(name);
+                if (shape != null) {
+                    for (Field field : shape.fields()) {
+                        if (field.type() instanceof ShapeRef target) {
+                            queue.add(target.shapeName());
+                        }
+                    }
+                }
+            }
+        }
+        Map<String, Object> schemas = new LinkedHashMap<>();
+        for (String name : referenced) {
+            Shape shape = shapesByName.get(name);
+            if (shape != null) {
+                schemas.put(shapeSchemaName(name), shapeSchema(shape));
+            }
+        }
+        return schemas;
+    }
+
+    // A shape as a schema: every field optional (decision D4), a closed set as enum, a multiple field as an
+    // array, a nested shape as a $ref, and the skipped fields disclosed in the description and the
+    // extension, exactly as an entity's partiality renders.
+    private Map<String, Object> shapeSchema(Shape shape) {
+        Map<String, Object> properties = new LinkedHashMap<>();
+        for (Field field : shape.fields()) {
+            Map<String, Object> element;
+            if (field.type() instanceof ShapeRef target) {
+                element = ref(shapeSchemaName(target.shapeName()));
+            } else {
+                element = typeSchema(field.type());
+                List<String> values = shape.fieldValues().get(field.name());
+                if (values != null && !values.isEmpty()) {
+                    element.put("enum", new ArrayList<>(values));
+                }
+            }
+            if (shape.multipleFields().contains(field.name())) {
+                Map<String, Object> array = new LinkedHashMap<>();
+                array.put("type", "array");
+                array.put("items", element);
+                element = array;
+            }
+            properties.put(field.name(), element);
+        }
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "object");
+        List<String> partial = shape.partialFields();
+        String description = "Input object " + shape.name() + " as modeled by Tibyaan; every field optional.";
+        if (!partial.isEmpty()) {
+            description += " Partial: " + partial.size() + " field(s) of the source class are not represented: "
+                    + String.join(", ", partial) + ".";
+        }
+        schema.put("description", description);
+        schema.put("properties", properties);
+        schema.put("additionalProperties", Boolean.FALSE);
+        if (!partial.isEmpty()) {
+            schema.put("x-tibyan-partial", new ArrayList<>(partial));
         }
         return schema;
     }

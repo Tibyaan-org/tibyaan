@@ -13,10 +13,13 @@ package com.tibyaan.core.ir;
  * (for example {@code "LONG"} or {@code "ENTITY_REF(Product)"}). The canonical form lives in
  * core so the vocabulary is owned here, with zero dependency on any serialization library.
  */
-public sealed interface Type permits Primitive, EntityRef {
+public sealed interface Type permits Primitive, EntityRef, ShapeRef {
 
     /** Prefix that marks the canonical string form of an entity reference. */
     String ENTITY_REF_PREFIX = "ENTITY_REF(";
+
+    /** Prefix that marks the canonical string form of a shape reference (Volume 4 section 3.12, DL-2b). */
+    String SHAPE_REF_PREFIX = "SHAPE_REF(";
 
     /**
      * The canonical string form of this type, for example {@code "LONG"} or
@@ -27,6 +30,10 @@ public sealed interface Type permits Primitive, EntityRef {
     /** A reference to an entity by name. */
     static EntityRef entityRef(String entityName) {
         return new EntityRef(entityName);
+    }
+
+    static ShapeRef shapeRef(String shapeName) {
+        return new ShapeRef(shapeName);
     }
 
     /**
@@ -48,6 +55,10 @@ public sealed interface Type permits Primitive, EntityRef {
         if (trimmed.startsWith(ENTITY_REF_PREFIX) && trimmed.endsWith(")")) {
             String name = trimmed.substring(ENTITY_REF_PREFIX.length(), trimmed.length() - 1).trim();
             return new EntityRef(name);
+        }
+        if (trimmed.startsWith(SHAPE_REF_PREFIX) && trimmed.endsWith(")")) {
+            String name = trimmed.substring(SHAPE_REF_PREFIX.length(), trimmed.length() - 1).trim();
+            return new ShapeRef(name);
         }
         try {
             return Primitive.valueOf(trimmed);

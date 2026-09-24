@@ -120,6 +120,15 @@ public final class TypeReferenceResolver {
                     fqcnsBySimpleName.computeIfAbsent(decl.getNameAsString(), k -> new ArrayList<>()).add(fqcn);
                 });
             }
+            // Phase DL-2b (Volume 5 section 4.19.3, R2): a record is a class for resolution; it binds as a shape
+            // through its canonical constructor.
+            for (com.github.javaparser.ast.body.RecordDeclaration decl
+                    : unit.findAll(com.github.javaparser.ast.body.RecordDeclaration.class)) {
+                decl.getFullyQualifiedName().ifPresent(fqcn -> {
+                    kindByFqcn.put(fqcn, Kind.CLASS);
+                    fqcnsBySimpleName.computeIfAbsent(decl.getNameAsString(), k -> new ArrayList<>()).add(fqcn);
+                });
+            }
         }
         return new TypeReferenceResolver(kindByFqcn, enumConstantsByFqcn, fqcnsBySimpleName);
     }

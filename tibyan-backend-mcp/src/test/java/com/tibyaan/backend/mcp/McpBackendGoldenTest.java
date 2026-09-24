@@ -13,6 +13,7 @@ import com.tibyaan.core.ir.Field;
 import com.tibyaan.core.ir.Metadata;
 import com.tibyaan.core.ir.Primitive;
 import com.tibyaan.core.ir.Review;
+import com.tibyaan.core.ir.Shape;
 import com.tibyaan.core.ir.ReviewLabel;
 import com.tibyaan.core.ir.Type;
 import com.tibyaan.core.semantic.SemanticValidator;
@@ -289,6 +290,21 @@ class McpBackendGoldenTest {
                 new Review(ReviewLabel.READ, "a.elseginy", "2026-09-24", Review.ORIGIN_HUMAN, "sha256:r5"),
                 java.util.Set.of("ids"));
 
+        // Phase DL-2b (Volume 6 sections 3.11 and 4.7): a reviewed write whose input is a structured object.
+        Shape orderDraft = new Shape("com.example.OrderDraft", "OrderDraft", List.of(
+                Field.of("customer", Primitive.STRING, true),
+                Field.of("priority", Primitive.STRING, true),
+                Field.of("tags", Primitive.STRING, true)),
+                java.util.Set.of("tags"), Map.of("priority", List.of("LOW", "HIGH")),
+                List.of(new Annotation(Shape.PARTIAL_ANNOTATION, List.of("extra: Map<String, Object>"))));
+        Capability createOrder = Capability.reviewed("reviewed_createOrder",
+                inputs("draft", Type.shapeRef("OrderDraft")), Primitive.LONG, false,
+                new BindingRef("com.example.OrderService#create"),
+                List.of(new Annotation("description", List.of("Creates an order from the draft and returns its id."))),
+                Map.of(),
+                new Review(ReviewLabel.WRITE, "a.elseginy", "2026-09-24", Review.ORIGIN_HUMAN, "sha256:r6"),
+                java.util.Set.of());
+
         Capability createProduct = Capability.reviewed("reviewed_createProduct",
                 inputs("name", Primitive.STRING), Primitive.LONG, false,
                 new BindingRef("com.example.ProductService#create"),
@@ -315,8 +331,9 @@ class McpBackendGoldenTest {
                 new Review(ReviewLabel.READ, "b.reviewer", "2026-09-22", Review.ORIGIN_HUMAN, "sha256:r4"));
 
         return new CapabilityModel("shop", "0.1", List.of(product, tenant),
-                List.of(getProduct, searchTenants, findByStatus, findByIds, createProduct, reindexProducts, productStats),
-                List.of(), Metadata.empty());
+                List.of(getProduct, searchTenants, findByStatus, findByIds, createProduct, reindexProducts, productStats,
+                        createOrder),
+                List.of(), Metadata.empty(), List.of(orderDraft));
     }
 
     private static Map<String, Type> inputs(String name, Type type) {

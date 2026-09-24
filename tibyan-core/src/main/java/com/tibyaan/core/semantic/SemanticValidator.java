@@ -10,6 +10,8 @@ import com.tibyaan.core.ir.EntityRef;
 import com.tibyaan.core.ir.Field;
 import com.tibyaan.core.ir.Primitive;
 import com.tibyaan.core.ir.Relation;
+import com.tibyaan.core.ir.Shape;
+import com.tibyaan.core.ir.ShapeRef;
 import com.tibyaan.core.ir.Review;
 import com.tibyaan.core.ir.ReviewLabel;
 import com.tibyaan.core.ir.Type;
@@ -55,6 +57,7 @@ public final class SemanticValidator {
         checkAttestedPrefix(model, errors);
         checkInputValueConstraints(model, errors);
         checkInputMultiplicity(model, errors);
+        checkShapes(model, errors);
         checkBoundaryAttestations(model, errors);
         checkReviewCompleteness(model, errors);
         checkReviewedPrefix(model, errors);
@@ -381,12 +384,133 @@ public final class SemanticValidator {
                 Type type = capability.inputs().get(input);
                 if (type == null) {
                     errors.add(where + ", which is not an input of that capability (rule 14)");
-                } else if (!(type instanceof Primitive)) {
+                } else if (!(type instanceof Primitive) && !(type instanceof ShapeRef)) {
                     errors.add(where + ", whose type is " + type.canonical() + "; a multiple input is an array"
-                            + " of a primitive, never of an entity reference (rule 14)");
+                            + " of a primitive or a shape reference, never of an entity reference (rule 14)");
                 }
             }
         }
+    }
+
+    // Rules 15 and 16 (Volume 4 section 5; phase DL-2b, section 3.12): shape identity, reference and
+    // completeness. Keys and names unique; every SHAPE_REF on an input or a shape field resolves; none on
+    // an output or an entity field; the shape graph is acyclic; every shape has a field; fields are typed
+    // by a primitive or a SHAPE_REF; multipleFields, fieldValues and partial are well formed.
+    private static void checkShapes(CapabilityModel model, List<String> errors) {
+        Set<String> keys = new HashSet<>();
+        Set<String> names = new HashSet<>();
+        Map<String, Shape> byName = new HashMap<>();
+        for (Shape shape : model.shapes()) {
+            if (!keys.add(shape.key())) {
+                errors.add("duplicate shape key '" + shape.key() + "' (rule 15)");
+            }
+            if (!names.add(shape.name())) {
+                errors.add("duplicate shape name '" + shape.name() + "' (rule 15)");
+            }
+            byName.put(shape.name(), shape);
+        }
+        for (Entity entity : model.entities()) {
+            for (Field field : entity.fields()) {
+                if (field.type() instanceof ShapeRef) {
+                    errors.add("field '" + entity.name() + "." + field.name() + "' is typed by a shape"
+                            + " reference; a shape is an input form, never an entity field (rule 15)");
+                }
+            }
+        }
+        for (Capability capability : model.capabilities()) {
+            for (Map.Entry<String, Type> input : capability.inputs().entrySet()) {
+                if (input.getValue() instanceof ShapeRef ref && !byName.containsKey(ref.shapeName())) {
+                    errors.add("capability '" + capability.name() + "' input '" + input.getKey()
+                            + "' references unknown shape '" + ref.shapeName() + "' (rule 15)");
+                }
+            }
+            if (capability.output() instanceof ShapeRef ref) {
+                errors.add("capability '" + capability.name() + "' output is the shape reference '"
+                        + ref.shapeName() + "'; a shape is an input form, never an output (rule 15)");
+            }
+        }
+        for (Shape shape : model.shapes()) {
+            String where = "shape '" + shape.name() + "'";
+            if (shape.fields().isEmpty()) {
+                errors.add(where + " has no field; an empty object input is not modeled (rule 16)");
+            }
+            Map<String, Type> fieldTypes = new HashMap<>();
+            for (Field field : shape.fields()) {
+                fieldTypes.put(field.name(), field.type());
+                if (field.type() instanceof EntityRef ref) {
+                    errors.add(where + " field '" + field.name() + "' references entity '" + ref.entityName()
+                            + "'; a shape field is a primitive or a shape reference, never an entity (rule 16)");
+                } else if (field.type() instanceof ShapeRef ref && !byName.containsKey(ref.shapeName())) {
+                    errors.add(where + " field '" + field.name() + "' references unknown shape '"
+                            + ref.shapeName() + "' (rule 15)");
+                }
+            }
+            for (String multiple : shape.multipleFields()) {
+                Type type = fieldTypes.get(multiple);
+                if (type == null) {
+                    errors.add(where + " marks field '" + multiple + "' multiple, which is not a field of that"
+                            + " shape (rule 16)");
+                } else if (!(type instanceof Primitive) && !(type instanceof ShapeRef)) {
+                    errors.add(where + " marks field '" + multiple + "' multiple, whose type is "
+                            + type.canonical() + " (rule 16)");
+                }
+            }
+            for (Map.Entry<String, List<String>> constraint : shape.fieldValues().entrySet()) {
+                Type type = fieldTypes.get(constraint.getKey());
+                String at = where + " constrains field '" + constraint.getKey() + "'";
+                if (type == null) {
+                    errors.add(at + ", which is not a field of that shape (rule 16)");
+                    continue;
+                }
+                if (type != Primitive.STRING) {
+                    errors.add(at + ", whose type is " + type.canonical() + ", not STRING (rule 16)");
+                }
+                if (constraint.getValue().isEmpty()) {
+                    errors.add(at + " with an empty value set (rule 16)");
+                } else if (new LinkedHashSet<>(constraint.getValue()).size() != constraint.getValue().size()) {
+                    errors.add(at + " with duplicated values " + constraint.getValue() + " (rule 16)");
+                }
+            }
+            for (String skipped : shape.partialFields()) {
+                int colon = skipped.indexOf(':');
+                String skippedName = colon >= 0 ? skipped.substring(0, colon).trim() : skipped;
+                if (fieldTypes.containsKey(skippedName)) {
+                    errors.add(where + " discloses '" + skippedName + "' as skipped but also carries it as a"
+                            + " field (rule 16)");
+                }
+            }
+        }
+        // Acyclic: a depth-first walk over shape references from every shape.
+        for (Shape shape : model.shapes()) {
+            List<String> path = new ArrayList<>();
+            if (hasCycle(shape.name(), byName, path, new HashSet<>())) {
+                errors.add("shape references form a cycle: " + String.join(" -> ", path) + " (rule 15)");
+                break;
+            }
+        }
+    }
+
+    private static boolean hasCycle(String name, Map<String, Shape> byName, List<String> path, Set<String> done) {
+        if (path.contains(name)) {
+            path.add(name);
+            return true;
+        }
+        if (done.contains(name)) {
+            return false;
+        }
+        Shape shape = byName.get(name);
+        if (shape == null) {
+            return false;
+        }
+        path.add(name);
+        for (Field field : shape.fields()) {
+            if (field.type() instanceof ShapeRef ref && hasCycle(ref.shapeName(), byName, path, done)) {
+                return true;
+            }
+        }
+        path.remove(path.size() - 1);
+        done.add(name);
+        return false;
     }
 
     // The compiled declared-security contract, which the provider attaches through the Annotation hook

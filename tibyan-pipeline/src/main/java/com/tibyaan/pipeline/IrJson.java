@@ -98,6 +98,9 @@ public final class IrJson {
         // The same scoping for the optional multipleInputs component (Volume 4 section 3.11, phase DL-2a):
         // omitted when empty, so a model with no multiple input serializes byte-identically.
         mapper.addMixIn(Capability.class, CapabilityInputValuesMixin.class);
+        // The optional shapes list (Volume 4 section 3.12, phase DL-2b) is omitted when empty, so a model
+        // without a structured input serializes byte-identically.
+        mapper.addMixIn(CapabilityModel.class, CapabilityModelShapesMixin.class);
         return mapper;
     }
 
@@ -109,6 +112,13 @@ public final class IrJson {
 
         @JsonInclude(JsonInclude.Include.NON_EMPTY)
         abstract java.util.Set<String> multipleInputs();
+    }
+
+    /** Scopes NON_EMPTY to CapabilityModel's shapes alone (Volume 4 section 3.12). */
+    private abstract static class CapabilityModelShapesMixin {
+
+        @JsonInclude(JsonInclude.Include.NON_EMPTY)
+        abstract List<com.tibyaan.core.ir.Shape> shapes();
     }
 
     private static final class TypeSerializer extends JsonSerializer<Type> {

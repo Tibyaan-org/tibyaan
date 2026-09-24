@@ -17,6 +17,7 @@ import java.util.List;
  * @param capabilities the actions the system can perform, never null
  * @param relations    how entities relate, never null
  * @param metadata     free form, non semantic data, never null
+ * @param shapes       the input shapes reachable from an emitted capability (Volume 4 section 3.12, phase DL-2b), never null
  */
 public record CapabilityModel(
         String module,
@@ -24,7 +25,14 @@ public record CapabilityModel(
         List<Entity> entities,
         List<Capability> capabilities,
         List<Relation> relations,
-        Metadata metadata) {
+        Metadata metadata,
+        List<Shape> shapes) {
+
+    /** The pre-DL-2b shape: a model with no structured input, which serializes byte-identically. */
+    public CapabilityModel(String module, String version, List<Entity> entities, List<Capability> capabilities,
+                           List<Relation> relations, Metadata metadata) {
+        this(module, version, entities, capabilities, relations, metadata, List.of());
+    }
 
     public CapabilityModel {
         if (module == null || module.isBlank()) {
@@ -37,5 +45,8 @@ public record CapabilityModel(
         capabilities = capabilities == null ? List.of() : List.copyOf(capabilities);
         relations = relations == null ? List.of() : List.copyOf(relations);
         metadata = metadata == null ? Metadata.empty() : metadata;
+        // Phase DL-2b (Volume 4 section 3.12): the shapes reachable from an emitted capability's inputs; never
+        // null, empty on every model without a structured input.
+        shapes = shapes == null ? List.of() : List.copyOf(shapes);
     }
 }

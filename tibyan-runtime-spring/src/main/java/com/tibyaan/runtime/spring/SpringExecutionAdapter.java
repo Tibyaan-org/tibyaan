@@ -35,6 +35,8 @@ public final class SpringExecutionAdapter implements ExecutionAdapter {
 
     private final ApplicationContext applicationContext;
     private final Map<String, CapabilityDescriptor> capabilitiesByName;
+    // DL-2b (Volume 7 section 13 item 2): the manifest shapes, by the display name a SHAPE_REF input names.
+    private final Map<String, ShapeDescriptor> shapesByName;
     // R2 (section 12.2): a successful resolution is cached per class name; an observable difference
     // between resolving once and resolving on every call does not exist, since the context is fixed.
     private final Map<String, Object> beansByClassName = new ConcurrentHashMap<>();
@@ -46,6 +48,7 @@ public final class SpringExecutionAdapter implements ExecutionAdapter {
             byName.put(descriptor.name(), descriptor);
         }
         this.capabilitiesByName = byName;
+        this.shapesByName = manifest.shapesByName();
     }
 
     @Override
@@ -84,6 +87,19 @@ public final class SpringExecutionAdapter implements ExecutionAdapter {
             InputDescriptor input = inputs.get(i);
             // DL-2a (Volume 7 section 13 item 1): a multiple input arrives as an array and is built into the
             // declared collection, each element coerced by the EI-R rule to the generic element type.
+            if (input.type() != null && input.type().startsWith("SHAPE_REF(")) {
+                // DL-2b (Volume 7 section 13 item 2): a structured input is walked against its shape and bound to
+                // the declared class; a list of them is item 1 over item 2.
+                String shapeName = input.type().substring("SHAPE_REF(".length(), input.type().length() - 1);
+                ShapeDescriptor shape = shapesByName.get(shapeName);
+                if (shape == null) {
+                    throw new IllegalStateException("input '" + input.name() + "' of capability '" + capability.name()
+                            + "' references shape '" + shapeName + "', which the manifest does not carry");
+                }
+                callArgs[i] = ShapeBinding.bind(safeArgs.get(input.name()), shape, shapesByName, declaredTypes[i],
+                        genericTypes[i], input.multiple(), input.name());
+                continue;
+            }
             callArgs[i] = input.multiple()
                     ? IrTypes.coerceMany(safeArgs.get(input.name()), declaredTypes[i], genericTypes[i], input.name())
                     : IrTypes.coerce(safeArgs.get(input.name()), declaredTypes[i], input.name());

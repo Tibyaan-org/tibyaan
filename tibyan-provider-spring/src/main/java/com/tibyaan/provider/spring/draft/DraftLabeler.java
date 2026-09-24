@@ -4,11 +4,13 @@ import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.Parameter;
 import com.github.javaparser.ast.expr.MethodCallExpr;
+import com.tibyaan.core.ir.Type;
 import com.tibyaan.core.ir.Capability;
 import com.tibyaan.provider.spring.JavaTypeMapper;
 import com.tibyaan.provider.spring.attest.AttestationIntake;
 import com.tibyaan.provider.spring.attest.ReadSafety;
 import com.tibyaan.provider.spring.extractors.CollectionParameter;
+import com.tibyaan.provider.spring.extractors.ShapeExtractor;
 import com.tibyaan.provider.spring.extractors.ServiceMethodSource;
 
 import java.util.ArrayList;
@@ -53,6 +55,8 @@ public final class DraftLabeler {
     private final JavaTypeMapper typeMapper;
     private final AttestationIntake fingerprints;
     private final BeanCallClosure closure;
+    // DL-2b (section 4.19.3): renders a DTO parameter's fields into the drafts file; null renders none.
+    private final ShapeExtractor shapes;
 
     /**
      * @param readSafety   the read-safety check the READ, WRITE and UNKNOWN labels come from
@@ -69,10 +73,16 @@ public final class DraftLabeler {
      */
     public DraftLabeler(ReadSafety readSafety, JavaTypeMapper typeMapper, AttestationIntake fingerprints,
                         BeanCallClosure closure) {
+        this(readSafety, typeMapper, fingerprints, closure, null);
+    }
+
+    public DraftLabeler(ReadSafety readSafety, JavaTypeMapper typeMapper, AttestationIntake fingerprints,
+                        BeanCallClosure closure, ShapeExtractor shapes) {
         this.readSafety = readSafety;
         this.typeMapper = typeMapper;
         this.fingerprints = fingerprints;
         this.closure = closure;
+        this.shapes = shapes;
     }
 
     /** The label of one method with its located reason and, for the two proven labels, the capability. */
@@ -280,11 +290,40 @@ public final class DraftLabeler {
             Optional<String> element = CollectionParameter.elementOf(javaType);
             String toMap = element.orElse(javaType);
             String mapped = typeMapper.map(toMap).map(type -> type.canonical()).orElse(null);
-            inputs.add(element.isPresent()
-                    ? new DraftInput(parameter.getNameAsString(), javaType, mapped, Boolean.TRUE)
-                    : new DraftInput(parameter.getNameAsString(), javaType, mapped));
+            Boolean multiple = element.isPresent() ? Boolean.TRUE : null;
+            // DL-2b (section 4.19.3): a DTO parameter shows its whole object, fields and skipped fields, so the
+            // approval covers it; a class the tool cannot construct names why.
+            DraftShape shape = null;
+            String unmapped = null;
+            if (mapped == null && shapes != null) {
+                ShapeExtractor.Outcome outcome = declaration.findCompilationUnit()
+                        .map(cu -> shapes.extract(toMap, cu))
+                        .orElseGet(ShapeExtractor.Outcome::notAShape);
+                if (outcome.isShape()) {
+                    mapped = Type.SHAPE_REF_PREFIX + outcome.shapes().get(outcome.key()).simpleName() + ")";
+                    shape = toDraftShape(outcome.key(), outcome.shapes());
+                } else if (outcome.isRefused()) {
+                    unmapped = outcome.refusal();
+                }
+            }
+            inputs.add(new DraftInput(parameter.getNameAsString(), javaType, mapped, multiple, shape, unmapped));
         }
         return inputs;
+    }
+
+    private static DraftShape toDraftShape(String key, Map<String, ShapeExtractor.ShapeDraft> drafts) {
+        ShapeExtractor.ShapeDraft draft = drafts.get(key);
+        List<DraftShape.DraftShapeField> fields = new ArrayList<>();
+        for (ShapeExtractor.FieldDraft field : draft.fields()) {
+            String type = field.isNested()
+                    ? Type.SHAPE_REF_PREFIX + drafts.get(field.shapeKey()).simpleName() + ")"
+                    : field.primitive().canonical();
+            fields.add(new DraftShape.DraftShapeField(field.name(), field.javaType(), type,
+                    field.multiple() ? Boolean.TRUE : null,
+                    field.values().isEmpty() ? null : field.values(),
+                    field.isNested() ? toDraftShape(field.shapeKey(), drafts) : null));
+        }
+        return new DraftShape(key, fields, draft.skipped());
     }
 
     // <ServiceSimpleName>_<method>, with a numeric suffix on the second and later collisions (overloads, or

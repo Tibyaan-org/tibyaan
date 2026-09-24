@@ -139,6 +139,49 @@
           "type": "LONG"
         }
       ]
+    },
+    {
+      "name": "reviewed_createOrder",
+      "description": "Reviewed by a.elseginy (human), not tool-verified; the tool labeled it WRITE. Creates an order from the draft and returns its id. Input 'draft' is an object of shape OrderDraft (3 fields; 1 not modeled: extra: Map<String, Object>).",
+      "binding": "com.example.OrderService#create",
+      "kind": "WRITE",
+      "tier": "reviewed",
+      "review": {
+        "label": "WRITE",
+        "reviewedBy": "a.elseginy",
+        "reviewedOn": "2026-09-24",
+        "descriptionOrigin": "human"
+      },
+      "output": "LONG",
+      "inputs": [
+        {
+          "name": "draft",
+          "type": "SHAPE_REF(OrderDraft)"
+        }
+      ]
+    }
+  ],
+  "shapes": [
+    {
+      "key": "com.example.OrderDraft",
+      "name": "OrderDraft",
+      "fields": [
+        {
+          "name": "customer",
+          "type": "STRING"
+        },
+        {
+          "name": "priority",
+          "type": "STRING",
+          "enum": ["LOW", "HIGH"]
+        },
+        {
+          "name": "tags",
+          "type": "STRING",
+          "multiple": true
+        }
+      ],
+      "partial": ["extra: Map<String, Object>"]
     }
   ]
 }

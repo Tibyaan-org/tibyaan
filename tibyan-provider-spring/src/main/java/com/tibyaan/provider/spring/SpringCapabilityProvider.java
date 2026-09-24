@@ -39,6 +39,8 @@ import com.tibyaan.provider.spring.draft.DraftMerge;
 import com.tibyaan.provider.spring.draft.DraftRefusal;
 import com.tibyaan.provider.spring.draft.DraftReport;
 import com.tibyaan.provider.spring.draft.DraftsFile;
+import com.tibyaan.provider.spring.extractors.EnumInputValues;
+import com.tibyaan.provider.spring.extractors.ShapeExtractor;
 import com.tibyaan.provider.spring.extractors.ControllerSecurity;
 import com.tibyaan.provider.spring.extractors.DisplayNames;
 import com.tibyaan.provider.spring.extractors.EntityExtractor;
@@ -249,9 +251,10 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
         // over the whole model, after every entity has been through tolerant extraction (section 4.8).
         Finalized finalized = closeAndFinalize(entities, relations, outcomes, skippedFields);
 
+        // DL-2b (section 4.19.3): the shapes the reviewed capabilities reach ride the model; none without one.
         CapabilityModel model = new CapabilityModel(
                 moduleName(sourceRoot), IR_VERSION, finalized.entities(), capabilities,
-                dedupeAndSort(finalized.relations()), Metadata.empty());
+                dedupeAndSort(finalized.relations()), Metadata.empty(), reviewedIntake.shapes());
         return new ScanReport(model, finalized.outcomes(), parsed.skips(), finalized.skippedFields(),
                 listReads.outcomes(), listReads.deferrals(), attestationRefusals,
                 enumParsedInBody(serviceSources, resolver), intake.drafts(), reviewedIntake.refusals(),
@@ -979,7 +982,8 @@ public final class SpringCapabilityProvider implements SourceAnalyzer {
                 Map.of());
         ReadSafety readSafety = new ReadSafety(repositories);
         DraftLabeler labeler = new DraftLabeler(readSafety, typeMapper, fingerprints,
-                new BeanCallClosure(parsed.units(), repositories, readSafety));
+                new BeanCallClosure(parsed.units(), repositories, readSafety),
+                new ShapeExtractor(parsed.units(), resolver, typeMapper, new EnumInputValues(resolver, parsed.units())));
         List<Capability> proven = report.model().capabilities().stream()
                 .filter(capability -> !capability.hasReview())
                 .toList();

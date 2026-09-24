@@ -24,6 +24,7 @@ import com.tibyaan.provider.spring.JavaTypeMapper;
 import com.tibyaan.provider.spring.attest.IntakeRefusal.Cause;
 import com.tibyaan.core.ir.CapabilityKind;
 import com.tibyaan.provider.spring.extractors.CollectionParameter;
+import com.tibyaan.provider.spring.extractors.ShapeExtractor;
 import com.tibyaan.provider.spring.extractors.EnumInputValues;
 import com.tibyaan.provider.spring.extractors.RepositoryCatalog;
 import com.tibyaan.provider.spring.extractors.SpringDataRepo;
@@ -797,7 +798,29 @@ public final class AttestationIntake {
         });
         returnTypeDeclaration(resolvedTarget).ifPresent(decl -> members.put(
                 decl.getFullyQualifiedName().orElse(decl.getNameAsString()), decl));
+        // DL-2b, decision D5 (Volume 5 section 4.19.3): every shape a parameter reaches is part of the contract
+        // the reviewer read, so its declaration is a slice member and a field change flips the fingerprint.
+        // A parameter that is not a shape adds nothing, which keeps every earlier fingerprint unchanged.
+        parameterShapeDeclarations(resolvedTarget).forEach((key, decl) -> members.put("shape:" + key, decl));
         return members;
+    }
+
+    private Map<String, Node> parameterShapeDeclarations(ResolvedTarget resolvedTarget) {
+        Map<String, Node> declarations = new TreeMap<>();
+        Optional<CompilationUnit> cu = resolvedTarget.method().findCompilationUnit();
+        if (cu.isEmpty()) {
+            return declarations;
+        }
+        ShapeExtractor shapes = new ShapeExtractor(units, resolver, typeMapper, enumInputValues);
+        for (Parameter parameter : resolvedTarget.method().getParameters()) {
+            String declaredType = parameter.getType().asString();
+            String element = CollectionParameter.elementOf(declaredType).orElse(declaredType);
+            ShapeExtractor.Outcome outcome = shapes.extract(element, cu.get());
+            if (outcome.isShape()) {
+                outcome.shapes().forEach((key, draft) -> declarations.put(key, draft.declaration()));
+            }
+        }
+        return declarations;
     }
 
     // The target's return type resolved to an in-tree class or interface declaration: the wrapper, the
