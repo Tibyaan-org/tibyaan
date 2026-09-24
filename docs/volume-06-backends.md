@@ -284,3 +284,23 @@ emits, `a.b.ProductService#findById` instead of `ProductService#findById` (Volum
 backend reads the binding; both copy it, so the change is one field's content on every entry of every golden,
 a deliberate visible diff under rule 10, with nothing else moving. The OpenAPI document carries the same value
 wherever it carried the old one. The runtime side, R2 and R3, is Volume 7 section 12.2.
+
+## 3.11 MCP: multiple inputs and shapes (phase DL-2; designed 2026-09-24, PENDING RATIFICATION)
+
+A MULTIPLE input (DL-2a) renders in the manifest as `"multiple": true` on the input, keeping its element type
+and its `values` when it has a closed set; the runtime turns that into an array schema. A `SHAPE_REF` input
+(DL-2b) renders as `"type": "SHAPE_REF(<name>)"` and the manifest gains a `shapes` section listing each
+reachable shape once: `key`, `name`, `fields` (each with `name`, `type`, `multiple`, `values`), and `partial`
+naming the skipped fields with their declared types. The description of a reviewed capability with a shape
+input gains one sentence naming the shape and its skipped count, so the honesty the reviewer approved reaches
+the agent. A manifest without a multiple or shape input is byte-identical to today.
+
+## 4.7 OpenAPI: multiple inputs and shapes (phase DL-2; designed 2026-09-24, PENDING RATIFICATION)
+
+A MULTIPLE input renders as an array-typed parameter (`style: form, explode: true` on a query parameter, an
+array property in a body). Each shape renders as a component schema under its display name, fields optional
+(D4), closed sets as `enum`, and the `partial` disclosure in the schema description, exactly as an entity's
+partiality renders today. A READ whose inputs include a shape, or a multiple input, renders as
+`POST /reviewed/<name>` with a JSON body (decision D6): a query string cannot carry an object honestly, and
+the operation's `x-tibyan-kind: READ` still states what it is. No verified or attested read has such an
+input, so every existing operation is unchanged.

@@ -186,6 +186,64 @@ section 4 bar in Volume 5, section 4.17.4; an IR without approved drafts seriali
 Ratified and built 2026-09-23 (Volume 5, sections 4.17.12 and 4.17.13); rules 12 and 13 are in force in section 5
 below. The build adds two guards rule 12 implies: one tier per capability, and the kind equals the label's kind.
 
+
+### 3.11 Input multiplicity (phase DL-2a; designed 2026-09-24, PENDING RATIFICATION)
+
+An optional component on Capability: the set of INPUT NAMES whose wire form is an array of the input's type,
+absent (empty) on every capability that has none. It is the fifth deliberate growth (FLOAT, `outputMultiple`,
+`Attestation`, `inputValues`, this), and it is E4's decision applied to the other side of the call.
+
+| Field | Type | Notes |
+|---|---|---|
+| multipleInputs | set of string | Input names whose argument is a JSON array of the input's type, read from a `List`, `Set`, `Collection` or `Iterable` parameter whose element type is a modeled primitive or an in-tree enum (Volume 5 section 4.19.2) |
+
+Validation rule 14 (section 5): every name in `multipleInputs` names an existing input of the capability, and
+that input's type is a primitive (never an `ENTITY_REF`). Rule 10 is unchanged: a closed set on a multiple
+input constrains each element.
+
+Why a flag and not a `LIST(T)` type: section 3.9 recorded that `Type` is deliberately flat and closed and
+that a payload-carrying member is the wedge that opens type algebra. The collection-output note took the
+flag for outputs on the same ground; inputs take the same shape, so the model says "many of T" the same way
+on both sides. The growth bar, met: (1) counted evidence, 76 collection-of-primitive parameters on the
+adopter benchmark blocking 60 drafted methods (Volume 5 section 4.19.1); (2) truthful naming, the flag says
+exactly what the wire carries; (3) no coercion, `Type` untouched, `inputs` untouched, a flag-free model
+serializes byte-identically.
+
+### 3.12 Shapes: structured inputs (phase DL-2b; designed 2026-09-24, PENDING RATIFICATION)
+
+A Shape is the wire form of an in-tree class the runtime constructs from a JSON object: a DTO. It is the
+sixth deliberate growth and the second that adds an element rather than a value, so it carries its own
+rules. A Shape is NOT an Entity: it has no identity in the system, is never persisted, is never the target
+of a relation and never the subject of a read.
+
+| Field | Type | Notes |
+|---|---|---|
+| key | string | The class's canonical qualified name, unique within the model (the section 3.7 discipline) |
+| name | string | The display name, the simple name unless it collides, disambiguated by the section 3.7 rule; the token `SHAPE_REF(name)` refers to it |
+| fields | list of Field | The mapped fields in declaration order, typed by a primitive or a `SHAPE_REF`; never an `ENTITY_REF` |
+| multipleFields | set of string | Field names whose wire form is an array of the field's type (section 3.11, at field level) |
+| fieldValues | map of string to list of string | Per-field closed sets, the section 3.9 contract at field level |
+| annotations | list of Annotation | Carries `partial` naming the skipped fields with their declared types (Volume 5 section 4.9 applied to an input) |
+
+`Type` gains a third member, `SHAPE_REF(name)`, legal on a capability INPUT and on a shape FIELD, never on an
+output and never on an entity field. `CapabilityModel` gains `shapes`, which carries only the shapes reachable
+from an emitted capability's inputs (the closure rule the OpenAPI backend already applies to entities), so a
+model with no shape input serializes byte-identically.
+
+Validation rules 15 and 16 (section 5): shape keys and display names unique; every `SHAPE_REF` resolves to a
+shape in the model; a shape's fields are typed by a primitive or a `SHAPE_REF`, never an `ENTITY_REF`; the
+reference graph among shapes is acyclic; `multipleFields` and `fieldValues` name existing fields, the latter
+STRING-typed with non-empty distinct values; every shape has at least one field; `partial` values name
+fields that are NOT in `fields`.
+
+The growth bar, met: (1) counted evidence, 388 DTO-shaped parameters blocking 320 drafted methods on the
+adopter benchmark, 219 of them writes (Volume 5 section 4.19.1); (2) truthful naming, a Shape is named for
+what it is, the shape of an input object, and is kept apart from Entity precisely because it is not one;
+(3) no coercion, no entity, capability, primitive or existing field changes meaning, and every model built
+before this phase serializes byte-identically. What this growth will never become: a persistence model, a
+required-ness or validation-constraint system, a carrier for `Map` or `Object` payloads, or a way for a
+verified read to take an object.
+
 ## 4. The primitive type system
 
 The type system is closed. A type is either one of these primitives or a reference to an entity defined in the same model.
@@ -240,6 +298,13 @@ Structural rules, checked in `tibyan-core`:
 12. REVIEW COMPLETENESS AND NECESSITY (phase DL-1, section 3.10; ratified and built 2026-09-23). A capability carrying a `Review` must carry every field non-empty (`label` from the closed set READ, WRITE, UNKNOWN; `reviewedBy`; `reviewedOn`; `descriptionOrigin` from `human` or `ai-draft`; `fingerprint`). A capability of kind WRITE or ACTION MUST carry a `Review`: no discovery rule proves a write, so a write without a named reviewer is refused. Rule 5 still holds: `readOnly` is never true on WRITE or ACTION.
 
 13. THE REVIEWED PREFIX IS RESERVED IN BOTH DIRECTIONS (phase DL-1, section 3.10; same status). A capability carrying a `Review` is named `reviewed_<name>`, and a capability without one must not be. As with rule 9, the epistemic class is readable from the name alone on every surface, and a truncated description cannot hide it.
+
+
+14. INPUT MULTIPLICITY IS WELL FORMED (phase DL-2a, section 3.11; PENDING RATIFICATION). Every name in `multipleInputs` names an existing input of the capability, and that input's type is a primitive.
+
+15. SHAPE IDENTITY AND REFERENCE (phase DL-2b, section 3.12; PENDING RATIFICATION). Shape keys are unique within the model, shape display names are unique within the model, every `SHAPE_REF` on a capability input or a shape field resolves to a shape in the model, no `SHAPE_REF` appears on an output or an entity field, and the reference graph among shapes is acyclic.
+
+16. SHAPE COMPLETENESS (phase DL-2b, section 3.12; same status). Every shape has at least one field; its fields are typed by a primitive or a `SHAPE_REF`, never an `ENTITY_REF`; `multipleFields` names existing fields typed by a primitive; `fieldValues` names existing STRING-typed fields with non-empty, distinct values; the `partial` annotation's values name fields that are not among the shape's fields.
 
 A validation failure stops the pipeline before any generation, with a located, human-readable message.
 

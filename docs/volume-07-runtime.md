@@ -648,3 +648,34 @@ as before. `reviewed_CartServiceImpl_getExpectedDeliveryTime {cartId=1}` now ans
 `zag.lib.common.model.exception.BusinessException: [CART-0001] [CART_NOT_FOUND]: cart not found 1`, with the
 same line at WARN in the service log, where section 10.7 had an opaque failure. F7 closed, F8 closed; F9 (six
 of nine beans not hosted here) is unchanged by design and still surfaces at call time.
+
+## 13. Collection and structured arguments at the runtime (phase DL-2; designed 2026-09-24, PENDING RATIFICATION; DL-2a then DL-2b)
+
+Volume 5 section 4.19 is the rule; this section is what the adapter does with an argument whose IR input is
+MULTIPLE (DL-2a) or a `SHAPE_REF` (DL-2b). Both extend the EI-R rule of section 9 (bind to the DECLARED
+parameter type, refuse an illegal value naming the legal ones) and change nothing for an input that is
+neither.
+
+1. A MULTIPLE input arrives as a JSON array. The adapter reads the parameter's generic element type from
+   `Method.getGenericParameterTypes()`, coerces every element by section 9's rule into that element type
+   (an enum element against its closed set, naming the legal values), and builds the declared collection: a
+   `List` as an `ArrayList`, a `Set` as a `LinkedHashSet` (insertion order kept), `Collection` or `Iterable`
+   as a `List`. A non-array argument, a raw collection parameter, or an element that does not coerce refuses
+   loudly naming the input and the index. An empty array is an empty collection; `null` is `null`.
+2. A `SHAPE_REF` input arrives as a JSON object. The adapter first walks the object against the shape from the
+   manifest: every property must be a field of the shape (an unknown property is refused, D7, never dropped),
+   every closed set is enforced naming the legal values, every MULTIPLE field is an array, every nested
+   `SHAPE_REF` field is walked in turn. Then the object is bound to the parameter's declared class through
+   Jackson (`convertValue`, unknown properties failing, records through their canonical constructor), and
+   the method is invoked with it. A skipped field (the shape's `partial` list) is never in the object, so it
+   stays at the class's default. A `List<S>` parameter is item 1 applied over item 2.
+3. The tool schema (section 4, `CapabilityToolCallback`) renders a MULTIPLE input as `{"type":"array",
+   "items":{...}}` and a `SHAPE_REF` input as a nested `{"type":"object","properties":{...}}` with no
+   `required` list (D4), each closed set as `enum`, and the shape's `partial` disclosure in the property
+   description. The manifest carries a `shapes` section the loader reads and tolerates as it does every
+   other field (Volume 6 section 3.11).
+4. Nothing else changes: bean resolution (section 12), method resolution by name and arity, the write gate
+   (section 11) and the security list (section 10) are untouched.
+
+Fixtures are CI-1 to CI-7 and SI-1 to SI-12 of Volume 5 section 4.19; the runtime halves of CI-3, CI-7, SI-3
+and SI-11 live in `tibyan-runtime-spring`.

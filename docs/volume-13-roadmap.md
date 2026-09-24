@@ -597,6 +597,23 @@ attested 15, reviewed 9, every zero invariant), and the section 10.7 call repeat
 wrong-class case answering `no bean of class`. Not byte-identical by design; any movement outside the
 `binding` field is a regression finding.
 
+
+### DL-2: collection inputs and structured inputs (designed 2026-09-24, PENDING RATIFICATION; DL-2a then DL-2b)
+
+Goal: lift the one refusal that now dominates the reviewed tier. On as-backend 473 of 990 drafted methods
+have inputs the tool can bind; the rest are refused at RV-E for a collection or a DTO parameter, and that
+includes 294 of the 372 writes. Evidence: the full-tree parameter census of Volume 5 section 4.19.1. Design:
+DL-2a, a per-input `multiple` flag (Volume 4 section 3.11, the E4 precedent) with the runtime building the
+declared collection; DL-2b, the Shape element and `SHAPE_REF` (Volume 4 section 3.12, the sixth IR growth,
+rules 15 and 16), with disclosed partiality, shapes in the fingerprint, and Jackson binding that refuses
+unknown properties (Volume 7 section 13; Volume 6 sections 3.11 and 4.7). Nine decisions with
+recommendations in section 4.19.5. Forecast: byte-identical on the discovered and attested tiers of all three
+benchmarks by construction; the as-backend drafts file goes from 473 to 533 (2a) to 853 (2b) entries typed on
+every input, labels and census unchanged. Exit criterion per step: its fixtures green (CI-1 to CI-7; SI-1 to
+SI-12), the forecast met against a pre-build worktree, and one real approval on as-backend exercising the new
+input shape end to end through an MCP client. Rank: first coverage item after the invariants; nothing else
+moves as many real methods.
+
 ## 4. Tier 3: direction only (production readiness and beyond)
 
 This tier is deliberately coarse: one short paragraph per item, no designs, no phase plans, no acceptance criteria. Everything here is conditional on Tier 2 proving the semantic core on real applications, meaning the benchmark discovers a meaningful share of a real app's reads with zero mis-bindings. Writing detailed plans for this tier before that proof would repeat the original roadmap's mistake.

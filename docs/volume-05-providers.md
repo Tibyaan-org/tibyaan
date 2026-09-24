@@ -2520,6 +2520,163 @@ merge, with every review kept. Core rule 7 keeps its check over the now-qualifie
 2's question. Fixtures BI-1 to BI-4, BI-10 and BI-11 are the provider's; the forecast (Volume 7 section 12.5)
 is a diff confined to `binding` values on all three benchmarks with every count unchanged.
 
+
+### 4.19 DL-2: collection inputs and structured inputs (designed 2026-09-24, PENDING RATIFICATION; two build steps, DL-2a then DL-2b)
+
+DL-1 deferred collection inputs to DL-2 by name (decision D6, section 4.17.11) with the trigger recorded: 66
+READ entries on as-backend carried `List<Long>` or `List<Integer>`. Binding Identity built, the trigger was
+re-counted on the whole drafts file, and the count says the deferral was two problems, not one.
+
+#### 4.19.1 The evidence (as-backend, 990 drafts, 2026-09-24)
+
+Every parameter of every drafted method, classified against the adopter's own source tree:
+
+| Parameter shape | Inputs | Today |
+|---|---|---|
+| Modeled primitive, or an in-tree enum (the EI-1 path) | 949 + 111 | binds |
+| `List`/`Set`/`Collection` of a primitive or an in-tree enum | 76 | refused, RV-E |
+| In-tree class or record the runtime could construct (a DTO) | 374 | refused, RV-E |
+| `List` of such a DTO | 14 | refused, RV-E |
+| `@Entity` class as a parameter | 42 | refused; stays refused (D8) |
+| In-tree interface or abstract class, `Map<...>`, `Object`, `Class<T>`, `byte[]`, out-of-tree | 133 | refused; stays refused |
+
+By entry, the question is whether EVERY input binds:
+
+| | Binds today | DL-2a adds (collections of primitives) | DL-2b adds (DTOs, and lists of DTOs) | Still refused after both |
+|---|---|---|---|---|
+| READ (358) | 261 | 52 | 28 | 17 |
+| WRITE (372) | 78 | 4 | 219 | 71 |
+| UNKNOWN (240) | 114 | 4 | 73 | 49 |
+| VERIFIED + ATTESTED (20) | 20 | 0 | 0 | 0 |
+| ALL (990) | 473 | 60 | 320 | 137 |
+
+So the admissible share of this application's public service methods goes 48% to 54% to 86%, and the WRITE
+share 78 of 372 to 301 of 372. The 116 distinct DTO types those inputs name carry 756 fields: 542 primitive,
+20 in-tree enum, 25 collections of primitives, 59 nested DTOs, 6 entities, 104 the tool cannot model (`Map`,
+`Object`, dates outside the primitive set, framework types). Only 24 of the 116 are fully mappable; 92 have
+at least one field the tool must skip. That number decides D3 below: a shape rule without disclosed
+partiality covers 24 DTOs, with it 116.
+
+Nothing verified or attested carries any of these shapes, on any benchmark: both steps are byte-identical on
+the discovered and attested tiers BY CONSTRUCTION, and their entire effect lands in the drafts file and in
+what a reviewer can approve.
+
+#### 4.19.2 DL-2a: collection inputs
+
+**The rule (R1).** A parameter declared `List<T>`, `Set<T>`, `Collection<T>` or `Iterable<T>`, where T is a
+modeled primitive or an in-tree provable enum (section 4.16.4), binds as the input T with MULTIPLE set: the
+IR carries the element type and says the wire carries an array of it (Volume 4 section 3.11), exactly as E4
+carries a list read's element type with `outputMultiple`. A raw collection, a wildcard element (`? extends
+X`), an array, a nested collection, a `Map`, and a collection of anything else are not this rule; DL-2a
+refuses them as today, naming the parameter and the shape. An enum element carries its closed set through
+`inputValues` unchanged: the set constrains each element.
+
+**The intake.** RV-E (section 4.17.3) and the attestation intake's condition 3 (section 4.15.4) share one input
+rule and both gain R1; the four pms entries section 9.4 F4 recorded as refused on `List<Long>` become
+attestable again. The drafts entry shows `"multiple": true` on the input, so the approval covers it.
+
+**The runtime** (Volume 7 section 13): the argument arrives as a JSON array, each element is coerced by the
+EI-R rule to the parameter's generic element type, and the result is built as the declared collection
+(`List`, `Set` in insertion order, or `Collection`/`Iterable` as a `List`). A missing generic type at runtime
+(a raw collection the provider never admits) refuses loudly.
+
+**Fixtures CI-1 to CI-7.** CI-1 `List<Long>` binds as LONG multiple; CI-2 `Set<String>` likewise; CI-3
+`List<OrderDirection>` (in-tree enum) carries its closed set and an illegal element is refused naming the
+legal values; CI-4 a raw `List` refuses; CI-5 `List<? extends X>` refuses; CI-6 `List<List<Long>>` refuses;
+CI-7 an empty array invokes with an empty collection, and `null` refuses on a primitive-typed element only
+as EI-R already does.
+
+**Forecast.** Byte-identical on all three benchmarks' discovered and attested output. Drafts file: 60 more
+entries on as-backend carry a type on every input (473 to 533); every label and every census count unchanged.
+
+#### 4.19.3 DL-2b: structured inputs (shapes)
+
+**What a shape is.** A Shape (Volume 4 section 3.12) is the wire form of an in-tree class the runtime can
+construct from a JSON object: a qualified `key`, a display `name` (section 4.12.3's disambiguation rule,
+so two DTOs named `ProductDTO` in two contexts get distinct names), and typed fields. It is NOT an entity: it
+is never persisted, never keyed by `@Id`, never the target of a relation, and never carries a read. A
+capability input of type `SHAPE_REF(name)` says the agent sends that object.
+
+**R2, which classes qualify.** In tree; a class or a record; not an interface, not abstract, not annotated
+`@Entity`, `@MappedSuperclass` or `@Embeddable` (D8: a persistence object is never an input the tool
+constructs); constructible and settable by structure: a record binds through its canonical constructor; a
+class binds when it declares no constructor or a public no-argument one (or Lombok `@NoArgsConstructor` or
+`@Data`) AND its mapped fields are settable (a public setter, Lombok `@Setter` or `@Data`, or a public
+field). A class with only an all-arguments constructor, or `@Builder` without a no-argument constructor,
+refuses with `SHAPE_NOT_CONSTRUCTIBLE` naming what is missing. Out of tree refuses; the tool never guesses
+a library type's shape.
+
+**R3, fields.** Every non-static, non-transient instance field of the class and of its in-tree superclasses,
+in declaration order, mapped by the entity field rules: a primitive maps (section 4.3); an in-tree enum
+maps to STRING with its closed set carried in the shape's `fieldValues` (the EI-1 contract, at field level);
+a collection of a primitive or enum maps with MULTIPLE (R1); a field whose type is itself an R2 class maps
+as a nested `SHAPE_REF`, recursively; a self-referential or mutually referential shape refuses the whole
+shape (`SHAPE_CYCLE`) rather than rendering an unbounded schema. Every other field (an entity, a `Map`, an
+`Object`, an interface, a framework type, a date outside the primitive set) is SKIPPED with disclosure: the
+shape carries the `partial` annotation naming every skipped field with its declared type, the section 4.9
+contract applied to an input. A shape with no mapped field refuses (`SHAPE_EMPTY`). A parameter declared
+`List<S>` for a qualifying shape S binds as `SHAPE_REF(S)` with MULTIPLE.
+
+**Optionality (D4).** Every shape field is optional on the wire and the schema says so; the tool claims
+nothing about required-ness, exactly as EI-1 refused to. A skipped field is never set: the object reaches the
+method with that field at its default, and the reviewer approved a description that saw the skipped list.
+
+**Fingerprint (D5).** The fingerprint of an entry with a shape input covers the slice AND every reachable
+shape declaration (field names and declared types), so a DTO that gains, loses or retypes a field turns the
+approved entry `STALE_DRAFT` until a person re-approves it. A DTO is part of the contract the reviewer read.
+
+**The drafts surface.** A shape input in `drafts.json` lists its fields (`name`, `javaType`, `type`,
+`multiple`, nested shape or `skipped` with the reason) inline, so the file a reviewer approves shows the
+whole object, and the survey's reviewed line reads `(shape ProductDTO: 7 fields, 2 skipped)`.
+
+**The runtime** (Volume 7 section 13): the argument arrives as a JSON object; the adapter validates every
+closed set in the shape recursively, naming the legal values as EI-R does; then binds the object to the
+parameter's declared class with Jackson, unknown properties FAILING (D7: an agent-sent field the shape does
+not carry is refused, never silently dropped); then invokes. A nested skipped field is never populated.
+
+**Backends** (Volume 6 sections 3.11 and 4.7): the MCP manifest carries a `shapes` section and renders a
+shape input as a nested object schema with its closed sets and its `partial` disclosure in the description;
+OpenAPI renders each shape as a component schema and a READ whose inputs include a shape or a multiple
+input as `POST /reviewed/<name>` with a JSON body (D6), because a query string cannot carry an object
+honestly; its `x-tibyan-kind: READ` still says what it is.
+
+**Fixtures SI-1 to SI-12.** SI-1 a Lombok `@Data` DTO of primitives binds with every field; SI-2 a record
+binds; SI-3 an enum field carries its closed set and an illegal value refuses naming the legal ones; SI-4 a
+nested DTO binds as a nested shape; SI-5 a DTO with an entity-typed field binds partial, the field named in
+`partial`; SI-6 a DTO with no mappable field refuses `SHAPE_EMPTY`; SI-7 an all-args-only constructor refuses
+`SHAPE_NOT_CONSTRUCTIBLE`; SI-8 an `@Entity` parameter refuses; SI-9 a self-referential DTO refuses
+`SHAPE_CYCLE`; SI-10 two same-simple-name DTOs get distinct display names and keys; SI-11 an agent-sent
+unknown property refuses at the runtime; SI-12 a DTO field change flips the approved entry to `STALE_DRAFT`.
+
+**Forecast.** Byte-identical on all three benchmarks' discovered and attested output. Drafts file on
+as-backend: 320 more entries typed on every input (533 to 853); shapes emitted only for approved entries
+(the closure rule), so a model without an approved shape-input entry serializes byte-identically to DL-2a.
+
+#### 4.19.4 What DL-2 will never do
+
+Never accept an `@Entity` as an input (D8). Never bind a `Map`, an `Object`, an interface, an abstract class
+or a library type by guessing its shape. Never claim a field is required. Never author a description. Never
+drop an agent-sent property silently. Never turn a shape into an entity or a read. And never widen the
+verified tier: a discovered read has, and will have, only primitive inputs.
+
+#### 4.19.5 Decisions for the maintainer, each with a recommendation
+
+- D1, HOW A COLLECTION IS CARRIED: a per-input `multiple` flag (the E4 precedent, `Type` stays flat) or a
+  `LIST(T)` type. Recommendation: the flag; EI-1 recorded why a payload-carrying `Type` member is the wedge
+  that opens type algebra, and nothing here needs it.
+- D2, SHAPES AS A NEW ELEMENT or as entities. Recommendation: a new element; a DTO is not persisted and
+  calling it an entity would lie to every backend that renders entities as records of the system.
+- D3, PARTIAL SHAPES: disclose or refuse. Recommendation: disclose (92 of 116 DTOs are partial; a refusal
+  would make DL-2b cover 24), with the skipped fields in the drafts entry so the approval covers them.
+- D4, OPTIONALITY: all fields optional, no required-ness claim. Recommendation: yes.
+- D5, FINGERPRINT COVERS SHAPES. Recommendation: yes.
+- D6, OPENAPI FOR A READ WITH A SHAPE OR MULTIPLE INPUT: POST with a body. Recommendation: yes; nothing
+  existing moves, since no verified or attested read has such an input.
+- D7, UNKNOWN PROPERTIES AT THE RUNTIME: fail. Recommendation: fail loud.
+- D8, ENTITY INPUTS: refuse permanently. Recommendation: refuse (42 inputs).
+- D9, SEQUENCING: DL-2a in one session, DL-2b in the next. Recommendation: yes; 2a is a flag and a coercion,
+  2b is the sixth IR growth and carries its own rules.
+
 ## 5. Future providers
 
 | Provider | Source | Why it matters |
