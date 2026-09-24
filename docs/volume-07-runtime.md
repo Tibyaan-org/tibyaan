@@ -679,3 +679,64 @@ neither.
 
 Fixtures are CI-1 to CI-7 and SI-1 to SI-12 of Volume 5 section 4.19; the runtime halves of CI-3, CI-7, SI-3
 and SI-11 live in `tibyan-runtime-spring`.
+
+## 14. Hosted bindings: the startup check (candidate F9; designed 2026-09-24, PENDING RATIFICATION)
+
+### 14.1 The evidence
+
+docs/experiments/as-backend-trial.md sections 10.7 to 10.11. The adopter generates one manifest for the whole
+reactor and ships it into every service (its own `application-local.properties` says so), but a service can
+execute only the bindings whose beans it hosts. On the pharmacy service six of the nine first reviewed tools,
+then seven of eleven, registered and answered `no bean of class '...' is hosted by this application` at the
+first call; section 9 had recorded the same for two of fifteen attested tools without a number. The
+registration line therefore overstates what the service can do, and an agent reading `tools/list` learns
+the truth one failed call at a time. Binding Identity (section 12) made the check trivial: resolution by
+class identity is a pure function of the manifest and the context, available at startup.
+
+### 14.2 The rule
+
+**H1.** After the exposure policy (sections 10 and 11) has decided which tools may register, and before any
+tool is registered, the runtime resolves every remaining tool's binding class by section 12.2 R2 against the
+application context: exactly one bean whose user class has that canonical name. A tool whose class no bean
+hosts, or which two beans host, is NOT registered. It is named in one startup line with its reason:
+`Tibyaan: N tool(s) not hosted by this application and not registered: [reviewed_X (no bean of class a.b.X),
+attested_Y (2 beans of class a.b.Y: p, q)]`. Registration is what the service can execute, nothing more.
+
+**H2.** The exposure lists keep their meaning. A name in `tibyan.writes.allow` or
+`tibyan.security.exposeUnverifiable` that the manifest carries but this service does not host is a VALID entry
+(X1 to X5 check the manifest, not the host) and is reported on the H1 line, not as a startup failure: the
+same list is legitimately shared by every service the manifest ships into.
+
+**H3.** No new property. Skipping with a named line is the only behavior; a strict mode that fails startup
+when any tool is unhosted is a later candidate for a single-service adopter, not this one (decision D1).
+
+### 14.3 What does not change
+
+Bean resolution at invocation (section 12.2) stays exactly as built; H1 runs the same resolution once, earlier.
+The manifest, the IR, both backends, the write gate and the security list are untouched. A service that hosts
+every binding logs nothing new and registers exactly what it registers today.
+
+### 14.4 Fixtures (HB-1 to HB-5)
+
+- HB-1: a tool whose class one bean hosts registers, no H1 line.
+- HB-2: a tool whose class no bean hosts is not registered and the H1 line names it with `no bean of class`.
+- HB-3: a tool whose class two beans host is not registered and the H1 line names both bean names.
+- HB-4: a CGLIB-proxied bean counts as hosting its user class.
+- HB-5: a name in `tibyan.writes.allow` that the manifest carries but no bean hosts does not fail startup; the
+  tool is reported on the H1 line.
+
+### 14.5 Forecast
+
+Runtime only, so all three benchmarks are byte-identical by construction. On the pharmacy service of
+as-backend, measured 2026-09-24 with 11 reviewed and 15 attested tools and the write allowed: the registration
+line drops from 31 to the tools the service hosts, at least the seven reviewed tools sections 10.7 and 10.9
+name (`RoleServiceImpl`, `ScopeServiceImpl`, `CurrentStockServiceImpl`, `SubProductServiceImpl`, the stock
+`LookupServiceImpl`, `PharmacyUserServiceImpl`, `LocalStockProxyService`) plus the two attested tools of section
+9; the exact count is the build's measurement, and a drop beyond the named ones is a finding to read.
+
+### 14.6 Decisions for the maintainer
+
+- D1, an unhosted tool: skip and name it (recommended) or fail startup. Skip, because the reactor-wide
+  manifest shipped to every service is the adopter's declared practice and a failure would make it unusable.
+- D2, an unhosted name in an exposure list: valid and reported (recommended) or a startup failure. Valid, for
+  the same reason: one list, many services.

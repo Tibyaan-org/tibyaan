@@ -614,6 +614,18 @@ SI-12), the forecast met against a pre-build worktree, and one real approval on 
 input shape end to end through an MCP client. Rank: first coverage item after the invariants; nothing else
 moves as many real methods.
 
+
+### Hosted bindings, the startup check (candidate F9; designed 2026-09-24, PENDING RATIFICATION)
+
+Goal: register only what a service can execute. Evidence: on as-backend's pharmacy service seven of eleven
+reviewed tools and two of fifteen attested tools bind to beans that service does not host, and an agent finds
+out at the first call (as-backend-trial.md sections 10.7 to 10.11). Design: Volume 7 section 14, rule H1 (the
+section 12.2 resolution run once at startup; an unhosted or ambiguous tool is not registered and is named on
+one line), H2 (an exposure-list name the service does not host stays valid and is reported), H3 (no property).
+Fixtures HB-1 to HB-5. Forecast: byte-identical benchmarks by construction; the pharmacy registration line
+drops by at least the nine named tools. Rank: after DL-2, the first honesty item; it changes what a registration
+line claims, not coverage.
+
 ## 4. Tier 3: direction only (production readiness and beyond)
 
 This tier is deliberately coarse: one short paragraph per item, no designs, no phase plans, no acceptance criteria. Everything here is conditional on Tier 2 proving the semantic core on real applications, meaning the benchmark discovers a meaningful share of a real app's reads with zero mis-bindings. Writing detailed plans for this tier before that proof would repeat the original roadmap's mistake.
