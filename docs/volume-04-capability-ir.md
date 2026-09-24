@@ -187,7 +187,7 @@ Ratified and built 2026-09-23 (Volume 5, sections 4.17.12 and 4.17.13); rules 12
 below. The build adds two guards rule 12 implies: one tier per capability, and the kind equals the label's kind.
 
 
-### 3.11 Input multiplicity (phase DL-2a; designed and RATIFIED 2026-09-24)
+### 3.11 Input multiplicity (phase DL-2a; designed and RATIFIED 2026-09-24, BUILT 2026-09-24)
 
 An optional component on Capability: the set of INPUT NAMES whose wire form is an array of the input's type,
 absent (empty) on every capability that has none. It is the fifth deliberate growth (FLOAT, `outputMultiple`,
@@ -300,7 +300,7 @@ Structural rules, checked in `tibyan-core`:
 13. THE REVIEWED PREFIX IS RESERVED IN BOTH DIRECTIONS (phase DL-1, section 3.10; same status). A capability carrying a `Review` is named `reviewed_<name>`, and a capability without one must not be. As with rule 9, the epistemic class is readable from the name alone on every surface, and a truncated description cannot hide it.
 
 
-14. INPUT MULTIPLICITY IS WELL FORMED (phase DL-2a, section 3.11; RATIFIED 2026-09-24). Every name in `multipleInputs` names an existing input of the capability, and that input's type is a primitive.
+14. INPUT MULTIPLICITY IS WELL FORMED (phase DL-2a, section 3.11; RATIFIED and BUILT 2026-09-24). Every name in `multipleInputs` names an existing input of the capability, and that input's type is a primitive.
 
 15. SHAPE IDENTITY AND REFERENCE (phase DL-2b, section 3.12; RATIFIED 2026-09-24). Shape keys are unique within the model, shape display names are unique within the model, every `SHAPE_REF` on a capability input or a shape field resolves to a shape in the model, no `SHAPE_REF` appears on an output or an entity field, and the reference graph among shapes is acyclic.
 

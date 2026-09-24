@@ -2521,7 +2521,7 @@ merge, with every review kept. Core rule 7 keeps its check over the now-qualifie
 is a diff confined to `binding` values on all three benchmarks with every count unchanged.
 
 
-### 4.19 DL-2: collection inputs and structured inputs (designed 2026-09-24, RATIFIED 2026-09-24 as written; two build steps, DL-2a then DL-2b; ratification record at 4.19.6)
+### 4.19 DL-2: collection inputs and structured inputs (designed 2026-09-24, RATIFIED 2026-09-24 as written; DL-2a BUILT 2026-09-24, build record at 4.19.7; DL-2b pending its own session; ratification record at 4.19.6)
 
 DL-1 deferred collection inputs to DL-2 by name (decision D6, section 4.17.11) with the trigger recorded: 66
 READ entries on as-backend carried `List<Long>` or `List<Integer>`. Binding Identity built, the trigger was
@@ -2561,7 +2561,7 @@ Nothing verified or attested carries any of these shapes, on any benchmark: both
 the discovered and attested tiers BY CONSTRUCTION, and their entire effect lands in the drafts file and in
 what a reviewer can approve.
 
-#### 4.19.2 DL-2a: collection inputs
+#### 4.19.2 DL-2a: collection inputs (BUILT 2026-09-24, record at 4.19.7)
 
 **The rule (R1).** A parameter declared `List<T>`, `Set<T>`, `Collection<T>` or `Iterable<T>`, where T is a
 modeled primitive or an in-tree provable enum (section 4.16.4), binds as the input T with MULTIPLE set: the
@@ -2686,6 +2686,58 @@ element, D3 disclosed partiality, D4 all shape fields optional, D5 shapes in the
 read with a shape or multiple input, D7 unknown properties fail, D8 entity inputs refused, D9 DL-2a then DL-2b
 in separate sessions. This record is committed before any DL-2a code (rule 12). DL-2b is ratified by the same
 act and waits for its own session.
+
+
+#### 4.19.7 DL-2a build record (BUILT 2026-09-24)
+
+BUILT as ratified: rule R1 on both intakes, the per-input `multiple` flag through the IR, the drafts file, both
+backends and the runtime.
+
+WHAT CHANGED IN CODE. Core: `Capability` gains `multipleInputs` (a set of input names, never null, omitted
+from the IR JSON when empty) and `Capability.reviewed(...)` an overload carrying it; `SemanticValidator` gains
+rule 14. Provider: `CollectionParameter` classifies a declared type as `List`, `Set`, `Collection` or
+`Iterable` of one element, or refuses a raw, wildcard, nested or array collection by name; `DraftIntake` (RV-E)
+and `AttestationIntake` (condition 3) both route a collection's element through the plain-parameter rule and
+mark the input multiple; `DraftLabeler` shows the element type and `"multiple": true` in the drafts file
+(`DraftInput` gains the field, omitted when absent). Backends: the MCP manifest renders `"multiple": true` on
+the input; OpenAPI renders an array-typed, form-style exploded query parameter or an array body property.
+Runtime: `InputDescriptor` reads the flag, the tool schema renders `{"type":"array","items":...}`, and
+`IrTypes.coerceMany` builds the declared collection from the JSON array, each element through the EI-R rule,
+refusing a non-array value, a raw parameter and an unsupported collection type by name. The IR JSON of a model
+without a multiple input is byte-identical.
+
+FIXTURES. CI-1 to CI-6 in `CollectionInputProviderTest` over `fixtures/collection-inputs` (List of Long, Set
+of String, Collection of an in-tree enum with its closed set, raw, wildcard, nested); the classifier's own
+cases (qualified `java.util.List<T>`, `Iterable<T>`, an array, a `Map`, a nested `Map`); RV-8's collection case
+in `DraftReviewProviderTest` flipped from a refusal to a binding, as the design said it would; the runtime
+halves CI-1, CI-2, CI-3 and CI-7 in `CollectionInputRuntimeTest` (Integer elements coerced to the declared
+Long, a Set in insertion order, an illegal enum element refused naming the index and the legal values, an empty
+array, a non-array value refused, a raw parameter refused, the array schema); rule 14 in
+`InputMultiplicityValidationTest`; the JSON round trip and omission in `MultipleInputsIrJsonTest`; a reviewed
+read with a multiple input added to both reviewed goldens (`mcp-reviewed`, `openapi/reviewed.json`), the other
+goldens rewritten byte-identical.
+
+THE FORECAST, CHECKED against a worktree at c6bf4ed with the same three trees. Discovered and attested
+output byte-identical on all three benchmarks (IR JSON, MCP manifest, OpenAPI document: zero diff lines), every
+count unchanged (pms 5; erp 37; as-backend 5 / 15 / 9, mis-bound 0, attestation-drift 0, review-drift 0,
+mis-constrained 0). The as-backend drafts file: the census unchanged (990: 5 / 15 / 358 / 372 / 240); 95
+inputs gained a type and `"multiple": true` and nothing else moved; entries whose every input the tool now
+binds went 473 to 532 against a forecast of 533. THE ONE-ENTRY MISS IS THE FORECAST'S, NOT THE TOOL'S: the
+census script of 4.19.1 counted `Object` as a primitive, so `ListThreadContextRequestContext.put(List<Object>)`
+was forecast as a DL-2a gain; the tool correctly leaves `Object` unmapped. The corrected forecast is 532 and
+was met exactly: READ 261 to 313, WRITE 78 to 82, UNKNOWN 114 to 117.
+
+`mvn clean verify`: green, 12 modules, provider 268 tests, both integration tests.
+
+THE EXIT CRITERION'S LAST CLAUSE, one real approval on as-backend exercising a collection input end to end
+through an MCP client, WAITS FOR THE MAINTAINER'S NAMED ACT. Two READ candidates are hosted by the pharmacy
+service the section 10.7 run used, both `LookupServiceImpl` in `zag.zpi.pharmacy.core.service`:
+`getAllCities(List<Integer> governorateIds)` and `getAllRegions(List<Integer> cityIds)`, each returning a
+`LookupResultSet`. Their descriptions are not yet read or drafted. Recorded in as-backend-trial.md section
+10.9.
+
+NOT IN THIS BUILD, BY DESIGN: DL-2b (shapes); a `List` of a DTO shows `"multiple": true` with a null type in
+the drafts file today and binds only when DL-2b lands.
 
 ## 5. Future providers
 

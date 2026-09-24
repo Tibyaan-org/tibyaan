@@ -598,7 +598,7 @@ wrong-class case answering `no bean of class`. Not byte-identical by design; any
 `binding` field is a regression finding.
 
 
-### DL-2: collection inputs and structured inputs (designed and RATIFIED 2026-09-24; DL-2a then DL-2b)
+### DL-2: collection inputs and structured inputs (designed and RATIFIED 2026-09-24; DL-2a BUILT 2026-09-24, DL-2b pending its own session)
 
 Goal: lift the one refusal that now dominates the reviewed tier. On as-backend 473 of 990 drafted methods
 have inputs the tool can bind; the rest are refused at RV-E for a collection or a DTO parameter, and that

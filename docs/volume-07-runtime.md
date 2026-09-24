@@ -649,7 +649,7 @@ as before. `reviewed_CartServiceImpl_getExpectedDeliveryTime {cartId=1}` now ans
 same line at WARN in the service log, where section 10.7 had an opaque failure. F7 closed, F8 closed; F9 (six
 of nine beans not hosted here) is unchanged by design and still surfaces at call time.
 
-## 13. Collection and structured arguments at the runtime (phase DL-2; designed and RATIFIED 2026-09-24; DL-2a then DL-2b)
+## 13. Collection and structured arguments at the runtime (phase DL-2; designed and RATIFIED 2026-09-24; DL-2a BUILT 2026-09-24, DL-2b pending)
 
 Volume 5 section 4.19 is the rule; this section is what the adapter does with an argument whose IR input is
 MULTIPLE (DL-2a) or a `SHAPE_REF` (DL-2b). Both extend the EI-R rule of section 9 (bind to the DECLARED

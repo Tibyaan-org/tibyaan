@@ -755,3 +755,23 @@ F7 and F8 are closed on the app that found them. F9 stays a candidate: the messa
 capability, and a startup check would move it earlier, but that is a registration policy with its own
 ratification. NEXT: the maintainer's call on F9, and real approvals continue; a reviewed binding is now safe on
 any hosting service, whether or not its simple name is reused in the reactor.
+
+### 10.9 DL-2a built (2026-09-24): collection inputs bind, 473 to 532
+
+THE RE-CENSUS. **[tibyaan]** `tibyan draft` on the same commit, against a worktree at c6bf4ed: the census is
+unchanged (990: VERIFIED 5, ATTESTED 15, READ 358, WRITE 372, UNKNOWN 240); 95 inputs gained a type and
+`"multiple": true`; entries the tool can bind on every input went 473 to 532 (READ 261 to 313, WRITE 78 to 82,
+UNKNOWN 114 to 117). The forecast said 533; the one entry is `List<Object>`, which the forecast script counted
+as a collection of a primitive and the tool rightly does not. Discovered, attested and reviewed output on this
+app is byte-identical: none of the nine approved entries has a collection input.
+
+WHAT A REVIEWER SEES NOW. **[adopter]** an entry such as `LookupServiceImpl_getAllCities` reads
+`{"name": "governorateIds", "javaType": "List<Integer>", "type": "INTEGER", "multiple": true}`; a `List` of a
+DTO (for example `List<RecordAttribute>`, 8 inputs) reads `"multiple": true` with a null type, which is DL-2b's
+by name.
+
+NOT DONE: the real approval. Two READ candidates are hosted by the pharmacy service this ledger runs:
+`zag.zpi.pharmacy.core.service.LookupServiceImpl#getAllCities(List<Integer> governorateIds)` and
+`#getAllRegions(List<Integer> cityIds)`, both returning `LookupResultSet`. Approving one by name, with a read
+description, and calling it through the MCP client of section 10.7 with a JSON array is the last clause of
+DL-2a's exit criterion, and it is the maintainer's act.
