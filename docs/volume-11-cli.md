@@ -232,3 +232,16 @@ spike DL-0, Volume 13 section 3). DL-1 (Volume 5, section 4.17.7) adds the merge
 stamp, and makes the file the record: review is editing it, there is no review command, and `tibyan scan` reports
 `reviewed N` beside `discovered` and `attested`, never summed, plus the pending and refused draft counts with each
 refusal's cause and target. Exit codes unchanged: 0 written, 3 the source could not be read.
+
+
+## 3.6 `tibyan describe`: drafting descriptions for pending entries (phase Describe; designed 2026-09-24, PENDING RATIFICATION)
+
+`tibyan describe <path> [--model <id>] [--limit <n>] [--only <name>...] [--label READ|WRITE|UNKNOWN]
+[--dry-run]` reads `tibyan/drafts.json`, selects the PENDING entries whose description is empty or whose
+`ai-draft` description is older than the entry's fingerprint, and for each asks a model for one description
+from the fingerprinted slice (Volume 5 section 4.15.5.2). It writes the words back verbatim with
+`descriptionOrigin: ai-draft`, `describedBy: <model id>` and `describedFrom: <fingerprint>`, leaves `review`
+pending, and prints a summary: described N, skipped M (approved, rejected, human-described, stale), refused K
+(with reasons). It never touches an approved or rejected entry or a human's words, never prints a drafted
+sentence, and exits 3 with a located message when `ANTHROPIC_API_KEY` is absent. It is the only command
+that makes a network call; `--dry-run` prints the prompts and writes nothing.

@@ -1504,6 +1504,70 @@ WHAT THIS MEANS FOR AN ADOPTER TODAY: any producer of drafts can be used, includ
 
 MEASURED (2026-09-01): all three benchmarks BYTE-IDENTICAL across the serialized IR, the generated MCP output, the generated OpenAPI document, AND the survey text, verified by `diff -r` against a worktree at the pre-build commit. None carries a record file, so no draft queue can appear and the phase is provably additive.
 
+
+#### 4.15.5.2 The assist itself: `tibyan describe` (phase Describe; designed 2026-09-24, PENDING RATIFICATION; stack decision Volume 16 section 7, ADR-0016)
+
+The split of 4.15.5.1 is closed on the maintainer's decision of 2026-09-24 that publication waits for this
+design and for the security design (Volume 7 section 15). The evidence is the reviewed tier's first month on
+a real app: every one of the eleven approvals on as-backend (sections 10.6 to 10.11) required a person to read
+the target's code and write the sentence, and the sentence was written by the tool's operator from exactly
+the slice the tool already fingerprints. The convenience half of AT-4 is that reading, done by a model, under
+the boundary 4.15.5 already ratified: a draft is a third thing, it ships nothing, and a named human confirms
+it per entry.
+
+THE FOUR ANSWERS 4.15.5.1 LEFT OPEN.
+
+1. WHERE IT LIVES: in `tibyan-cli`, as one command, `tibyan describe`. It is not a provider, a backend or a
+   runtime, so rule 6 does not place it; it is a composition-root feature over the drafts file, exactly as
+   `tibyan draft` is. No new module.
+2. WHICH MODEL, THROUGH WHAT: the Anthropic Messages API over `java.net.http.HttpClient` with the CLI's
+   existing Jackson; no SDK, no new dependency, nothing in core. The model id is a flag (`--model`, default
+   `claude-sonnet-5`) and is recorded on every entry it touches. The key is read from `ANTHROPIC_API_KEY`
+   only, never from a flag, a file or the drafts file.
+3. DETERMINISM: `describe` is quarantined from generation. It is never invoked by `scan`, `draft`, `generate`
+   or the Maven plugin, it writes only to `tibyan/drafts.json`, and it produces reviewer INPUT, not tool
+   output: the words reach a surface only when a named human approves the entry, at which point the
+   deterministic path (`scan`, `generate`) carries them exactly as it carries a human's. Rule 10 governs
+   generation and is untouched. A description carries `descriptionOrigin: ai-draft` and two new provenance
+   fields, `describedBy` (the model id) and `describedFrom` (the entry's fingerprint when described).
+4. OFFLINE, COST, CREDENTIALS: with no key the command refuses with a located message and touches nothing.
+   `--limit` (default 50) bounds a run and the summary prints how many entries were described, skipped and
+   refused; `--dry-run` prints every prompt and writes nothing. Nothing else in the tool makes a network
+   call, and a test asserts the HTTP client type is referenced from the describe package alone.
+
+THE RULE (DS).
+
+- DS-1, WHAT IS DESCRIBED: a PENDING entry whose `description` is empty, or whose description is an
+  `ai-draft` older than its fingerprint (`describedFrom` differs). Never an approved or rejected entry, never
+  a description a human wrote (`descriptionOrigin: human` with words), never a stale entry.
+- DS-2, WHAT THE MODEL SEES: the slice the tool fingerprints (the target method, the imports, the repository
+  declarations it calls, the return type declaration, the parameter shapes), the label and its reason, and
+  the house rules of the eleven approved descriptions: say what the method returns or does, what narrows it,
+  what it refuses, what it ignores, what side effect it has, and nothing about the code's style.
+- DS-3, WHAT THE TOOL TAKES BACK: one sentence group, at most 600 characters, no line breaks, stored
+  verbatim as data. The tool never edits, ranks or merges it and never prints it on a tool surface (the
+  4.15.5.1 rule: the survey names the entry and stops).
+- DS-4, WHAT A RE-RUN DOES: `tibyan draft` keeps an `ai-draft` description through a merge and, when the
+  fingerprint moved, marks it `descriptionStale: true` rather than deleting it; `describe` replaces a stale
+  ai-draft and never a human's words.
+- DS-5, WHAT APPROVAL DOES: unchanged (4.17.2). The reviewer reads the drafted words, edits them or not, and
+  approves by name; the origin stays `ai-draft` so the record says how the words were produced.
+
+FIXTURES DS-1 to DS-6, against a fake HTTP transport with a recorded response: a pending empty entry is
+described with origin, model and fingerprint recorded; an approved entry and a human-described entry are
+untouched; a missing key refuses and writes nothing; a fingerprint change marks the ai-draft stale on the
+next `tibyan draft` and `describe` replaces it; `--dry-run` prints the prompt and writes nothing; `--limit`
+stops at N and says so.
+
+FORECAST: the three benchmarks are byte-identical by construction (no scan, generate or draft path changes;
+the two new fields are omitted when absent). On as-backend, 981 pending entries are describable; the first
+measured run describes the 54 fully mapped write candidates of section 10.10 and the maintainer reads them.
+
+DECISIONS FOR THE MAINTAINER: D1 the default model (`claude-sonnet-5`, recommended: the cheapest model that
+reads code well; `--model` overrides); D2 the key source (environment only, recommended); D3 the per-run
+limit (50, recommended); D4 whether a stale ai-draft is replaced silently or only with `--refresh`
+(replaced by `describe` only, never by `draft`; recommended).
+
 #### 4.15.6 Name-and-signature honesty: how attested capabilities satisfy the E6b verdict
 
 The E6b rejection says a description is not enough, so the attested distinction must live where the agent acts: the name and the schema.

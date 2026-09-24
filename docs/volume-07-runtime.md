@@ -780,3 +780,102 @@ one. `tools/list` returned 20 and a hosted reviewed read still answered. The 13-
 (attested tools opened by the global switch alone) is unchanged and still open on this app.
 
 `mvn clean verify`: green, 12 modules.
+
+## 15. The caller at the tool boundary (spike SEC-0 and phase SEC-1; designed 2026-09-24, PENDING RATIFICATION; ADR-0017)
+
+### 15.1 The evidence
+
+Section 8 gap 9 deferred enforcement of the declared authority contract to the consumer's layer and named
+the hook that would close it when evidence asked. The evidence is the first real runs: on as-backend the MCP
+endpoint sits behind the adopter's JWT filter and answered 403 until `/sse` and `/mcp/message` were opened
+by a local override (as-backend-trial.md section 10.7); every call then ran with "no token put in the
+Context", so `getApprovedPharmacies`, whose approved description says it narrows to the caller's role, ran
+unnarrowed for an anonymous caller (section 10.7); thirteen attested tools register only because the global
+switch is on in the local profile (section 10.6, F1); and the first reviewed WRITE inserted a row with no
+caller at all (section 10.11). The maintainer decided on 2026-09-24 that publication waits for this. The
+generated layer has no identity of the caller, so it can neither refuse nor narrow, and the adopter's own
+enforcement point (the controller) is not on the invocation path.
+
+### 15.2 What is already true, read from the libraries (static, 2026-09-24)
+
+- The MCP Java SDK 0.18.3 carries a per-request `McpTransportContext`: the WebMVC SSE transport takes a
+  `contextExtractor(ServerRequest -> McpTransportContext)` and every `McpSyncServerExchange` exposes
+  `transportContext()`.
+- Spring AI 1.0.9 hands the exchange to a tool callback in its `ToolContext` under the key `exchange`
+  (`McpToolUtils.getMcpExchange`), through `ToolCallback.call(String, ToolContext)`; the runtime today
+  implements only `call(String)`, which is why the host logs "the tool context is not used".
+- Spring AI's auto-configuration builds the transport provider with no extractor and marks it
+  `@ConditionalOnMissingBean`, so the Tibyaan runtime may define its own provider with an extractor.
+- The host's servlet security filter chain runs before the router function that receives the JSON-RPC
+  POST, so on that thread `SecurityContextHolder` holds whatever the host authenticated; the tool then runs
+  on the SDK's scheduler thread, where it is gone. That is the loss the section 10.7 log shows.
+
+### 15.3 Spike SEC-0: the three questions the build rests on
+
+Q1. Does a Tibyaan-defined `WebMvcSseServerTransportProvider` with an extractor replace the auto-configured
+one without breaking Spring AI's router function and its `base-url` handling (the F5 fix of section 9.4)?
+Q2. Does the `Authentication` captured on the POST thread reach `call(String, ToolContext)` for that same
+JSON-RPC message, and only that message (no bleed between sessions or concurrent calls)?
+Q3. Does a `SecurityContext` set around the invocation make the host's own method security fire on a
+service bean that declares it (the inverse case gap 9 names), and stay clear of every other thread?
+Run against the example app with Spring Security added to the IT, then against as-backend's pharmacy
+service with a token from its own login. A no on any question is reported, not worked around.
+
+### 15.4 Phase SEC-1: the rule, conditional on the spike
+
+**S1, CAPTURE.** The runtime's transport provider extracts, per request, the host's `Authentication` (or its
+absence) into the transport context under a Tibyaan key. It reads nothing else: no header parsing, no token
+validation, no session store. The host authenticates; the runtime observes.
+
+**S2, PROPAGATE.** `CapabilityToolCallback` implements `call(String, ToolContext)`, reads the captured
+`Authentication`, and runs the invocation with it as the `SecurityContext` of the executing thread, cleared
+in `finally`. A host that declares method security on a service bean therefore sees the real caller (the
+gap 9 inverse case closes as the host's own security working as declared).
+
+**S3, ENFORCE THE DECLARED CONTRACT.** Before invoking, a tool whose manifest entry carries
+`requiredAuthorities` (the compiled any-of literals of Volume 5 section 4.14) refuses unless the caller is
+authenticated and holds at least one of them as a `GrantedAuthority`, compared exactly, literal for literal;
+the refusal names the tool and the missing contract, never the caller's authorities. A `securityUnverifiable`
+tool keeps sections 10 and 11 as its only gate, because the tool could not compile its contract and will not
+invent one. A tool with neither keeps today's behavior. `CapabilityDescriptor` gains `requiredAuthorities`,
+which the loader already tolerates.
+
+**S4, ANONYMOUS.** One property, `tibyan.security.requireCaller` (default `true`): an unauthenticated call to
+ANY reviewed WRITE or ACTION, or to any tool with `requiredAuthorities`, is refused with a located message.
+Default true because the first write on a real app ran anonymously and nothing but a local profile stood in
+the way; a host without Spring Security has no `Authentication` to capture and sets it false knowingly,
+which the startup line reports.
+
+**S5, THE STARTUP LINE.** The registered line gains a hosting-style honesty line: how many registered tools
+carry a compiled contract, how many are unverifiable and open only by list or switch, and whether
+`requireCaller` is on.
+
+### 15.5 What this does not do
+
+It does not validate tokens, issue them, or read headers; it never widens what a switch or list opens; it
+never lowers a compiled contract to a hint; and it does not decide what a caller may see INSIDE a result
+(row-level narrowing stays the application's, as `getApprovedPharmacies` shows). The consumer's layer of gap
+9 remains legitimate and is no longer the only one.
+
+### 15.6 Fixtures (SC-1 to SC-8)
+
+SC-1 an authenticated caller holding one of the compiled authorities invokes; SC-2 one holding none is
+refused naming the tool and the contract; SC-3 an anonymous caller is refused on a contract-carrying tool
+and on a reviewed write under `requireCaller`; SC-4 `requireCaller=false` admits the anonymous caller to a
+tool with no contract and still refuses one with a contract; SC-5 the captured `Authentication` is visible
+inside the bound method and absent after the call; SC-6 two concurrent sessions never see each other's
+caller; SC-7 a host with no Spring Security starts with `requireCaller=false` and the line says so; SC-8 a
+`securityUnverifiable` tool keeps the list rule unchanged.
+
+### 15.7 Forecast
+
+Runtime only: byte-identical benchmarks by construction. On as-backend, the section 10.7 run repeated with a
+real token from the adopter's login: the anonymous calls of sections 10.7 to 10.11 refuse under S4, the same
+calls with the token succeed, and `getApprovedPharmacies` narrows to the caller's role as its description
+says. The 13-tool WARN of section 10.6 is unchanged by this phase and stays the adopter's to close.
+
+### 15.8 Decisions for the maintainer
+
+D1 the `requireCaller` default (true, recommended); D2 authority comparison (exact literal, recommended;
+no `ROLE_` normalization, the compiled contract is what the app declared); D3 whether the spike runs on the
+example app alone or also on as-backend (both, recommended: the second is where the loss was seen).

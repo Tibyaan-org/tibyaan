@@ -289,3 +289,33 @@ flowchart LR
 **Alternatives.** Position as an MCP generator (rejected: commoditizable, weak moat). Position as AI-native (rejected: vague, and does not convey operability). Expand the IR to the full semantic model now (rejected: scope trap; it is staged across later phases instead).
 
 **Tradeoffs.** The moat is aspirational early and must be earned through deeper analysis over time. Until the semantic depth accrues, the product resembles an MCP generator. This is accepted because the alternative, competing on protocol output alone, is a genuinely undifferentiated product.
+
+
+## ADR-0016: The description drafter is one quarantined CLI command, not a flag and not a plugin (proposed 2026-09-24, PENDING RATIFICATION)
+
+Context. The reviewed tier needs a description per approved entry; on the first real app every one was
+written by hand from the slice the tool already fingerprints. The tool's contract is deterministic offline
+analysis, and a model call is neither.
+
+Decision. `tibyan describe` (Volume 5 section 4.15.5.2) is the only network-capable command: it writes drafts
+into `tibyan/drafts.json` under origin `ai-draft` with the model id and the fingerprint recorded, and nothing
+it writes reaches a tool surface until a named human approves the entry. It lives in `tibyan-cli`, uses the
+JDK HTTP client, takes its key from the environment, and is never invoked by any other command or by the
+Maven plugin.
+
+Consequences. Rule 10 stays a property of generation; the assist's non-determinism is confined to reviewer
+input. Adopters without a key lose only convenience. The drafts file gains two provenance fields.
+
+## ADR-0017: The caller reaches the tool boundary through the host's own authentication, and the runtime enforces the compiled contract (proposed 2026-09-24, PENDING RATIFICATION)
+
+Context. The runtime invokes service beans directly, below the controllers where the surveyed applications
+declare their security; the first real runs executed reads and a write with no caller at all.
+
+Decision. The runtime captures the host's `Authentication` per MCP request through the SDK's transport
+context, propagates it into the invocation, and refuses a tool whose manifest carries `requiredAuthorities`
+unless the caller holds one; unauthenticated calls to writes and to contract-carrying tools are refused by
+default (Volume 7 section 15). The runtime validates no token and reads no header: the host authenticates.
+
+Consequences. A host's own method security works on the invocation path. The consumer's layer of Volume 7
+section 8 gap 9 stays legitimate but is no longer the only enforcement. A host without Spring Security must
+opt out explicitly, and the startup line says so.

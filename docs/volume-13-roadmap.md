@@ -626,6 +626,30 @@ Fixtures HB-1 to HB-5. Forecast: byte-identical benchmarks by construction; the 
 drops by at least the nine named tools. Rank: after DL-2, the first honesty item; it changes what a registration
 line claims, not coverage.
 
+
+### Publication of 0.4.0 postponed (maintainer decision 2026-09-24)
+
+The tree carries everything since 0.3.0 (the reviewed tier and the write gate, DL-1.1 to 1.3, Binding
+Identity, DL-2a and DL-2b, F9), all measured, and it is not published: the maintainer decided that 0.4.0
+waits for two things, the description drafter decision and the caller at the tool boundary. Both are
+designed below, pending ratification. Nothing else is queued ahead of them.
+
+### Describe: the AT-4 assist as one quarantined command (designed 2026-09-24, PENDING RATIFICATION)
+
+Goal: end the hand-written description. Evidence: eleven approvals on as-backend, every sentence written by
+a person from the slice the tool fingerprints. Design: Volume 5 section 4.15.5.2, Volume 11 section 3.6,
+Volume 16 section 7, ADR-0016. Exit criterion: fixtures DS-1 to DS-6 green against a fake transport,
+benchmarks byte-identical, and one real run on as-backend whose drafted sentences the maintainer reads and
+approves or corrects by name.
+
+### SEC-0 and SEC-1: the caller at the tool boundary (designed 2026-09-24, PENDING RATIFICATION)
+
+Goal: no reviewed write and no contract-carrying tool runs without a caller, and the caller the host
+authenticated reaches the bound method. Evidence: sections 10.6 to 10.11 of the as-backend ledger. Design:
+Volume 7 section 15 (a three-question spike, then S1 to S5), ADR-0017. Exit criterion: the spike's three
+answers recorded; fixtures SC-1 to SC-8 green; benchmarks byte-identical; the section 10.7 run repeated on
+as-backend with a real token, the anonymous calls refused and the authenticated ones narrowed as described.
+
 ## 4. Tier 3: direction only (production readiness and beyond)
 
 This tier is deliberately coarse: one short paragraph per item, no designs, no phase plans, no acceptance criteria. Everything here is conditional on Tier 2 proving the semantic core on real applications, meaning the benchmark discovers a meaningful share of a real app's reads with zero mis-bindings. Writing detailed plans for this tier before that proof would repeat the original roadmap's mistake.

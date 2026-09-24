@@ -88,3 +88,19 @@ Where the comparison flips, later: a `.NET` or PHP provider that runs out of pro
 ## 6. Dependencies that must never reach the core
 
 A reminder that this volume must not contradict: `tibyan-core` depends on none of the above. Not Spring, not JavaParser, not the MCP library, not the template engine. Those belong to providers, backends, and runtimes. If any of them appears in core's dependency list, a concept has leaked and must move out (ADR-0001, ADR-0013, Volume 12 section 4).
+
+
+## 7. The description drafter: the first network call, quarantined (designed 2026-09-24, PENDING RATIFICATION)
+
+The stack of section 2 contains no model client, and Volume 5 section 4.15.5.1 recorded that adding one is
+this volume's decision. The decision proposed: ONE command, `tibyan describe` (Volume 5 section 4.15.5.2;
+Volume 11 section 3.6), calls the Anthropic Messages API over the JDK's `java.net.http.HttpClient` with the
+CLI's existing Jackson. No SDK enters the tree, nothing enters core or the plugin API, and no other command
+or module makes a network call: `scan`, `draft`, `generate`, `attest`, `validate` and the Maven plugin stay
+deterministic and offline, which a test guards by asserting the HTTP client type is referenced from the
+describe package alone. The model id is a flag with a recorded default and is written on every entry the
+command touches; the API key is read from the environment only. Why no SDK: the call is one request shape
+and one response shape, and a dependency would bring a transitive tree into the one module that already
+composes every plugin, for nothing the JDK client does not do. Why one command and not a flag on `draft`:
+quarantine is a property of the command boundary, and a flag would put a network call inside the
+deterministic path's process.
