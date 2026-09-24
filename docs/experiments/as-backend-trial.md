@@ -634,3 +634,95 @@ security list is nine minus two names, per hosting service, which is what Volume
 
 NOT DONE: starting the adopter's services with the manifest and the list, and calling a reviewed tool through a
 real MCP client. That needs the adopter's databases running and is the next thing to do on this app.
+
+### 10.7 The first reviewed capability executed end to end (2026-09-24)
+
+THE RUN. **[adopter]** `zpi-pharmacy-mgt` at commit 23db1101cd, repackaged as a boot jar against Tibyaan
+0.4.0-SNAPSHOT (the adopter's `package` profile deactivates the `activeByDefault` module list, so the
+working invocation is `mvn -o -Ppackage,default -pl z-pharma-inv/ms/pharmacy/zpi-pharmacy-mgt package`), started
+with `spring.profiles.active=local` against a throwaway local MySQL 8.4 with `spring.jpa.hibernate.ddl-auto=update`
+(70 tables created, all empty), the existing Artemis container and the remote Redis. Two command-line overrides,
+neither written to any adopter file: `tibyan.security.exposeUnverifiable` naming the seven unverifiable reviewed
+tools of section 10.6, and the adopter's `zag.lib.security.public-paths` extended by `/sse,/mcp/message`, because
+the MCP endpoint sits behind the adopter's JWT filter and answers 403 without a bearer token (the section 9 run
+had the same shape). The client is a 50-line program on the MCP Java SDK 0.18.3 (`HttpClientSseClientTransport`,
+`McpSyncClient`), the same SDK the server uses.
+
+THE SURFACE. **[reported]** `tools/list` returned 29 tools: 5 verified, 15 attested, 9 reviewed. All nine reviewed
+names registered: the seven because they were named, the two local proxies by default. The startup honesty line
+fired as designed: 14 attested tools "registered ONLY because tibyan.attested.exposeSecurityUnverifiable=true;
+nobody named them", which is F1 of section 9.4 still open on this app.
+
+THE CALLS. **[reported]** eleven calls against nine tools:
+
+| Tool, arguments | Result |
+|---|---|
+| `reviewed_LocalPharmacyProxyService_getApprovedPharmacies {}` | `isError=false`, `{"total":0,"list":[]}` |
+| `reviewed_LocalPharmacyProxyService_getApprovedPharmacies {pharmacyId=1}` | `isError=false`, `{"total":0,"list":[]}` |
+| `attested_cancellationReasons {}` (control) | `isError=false`, `{"total":0,"list":[]}` |
+| `reviewed_CartServiceImpl_getExpectedDeliveryTime {cartId=1}` | `isError=true`, `failed to invoke binding 'CartServiceImpl#getExpectedDeliveryTime'` |
+| `reviewed_LookupServiceImpl_getAllSuppliersLookups {}` | `isError=true`, `no method 'getAllSuppliersLookups' taking 0 argument(s) on zag.zpi.pharmacy.core.service.LookupServiceImpl$$SpringCGLIB$$0` |
+| the other six reviewed tools, any arguments | `isError=true`, `no bean found for binding hint '<Class>'` |
+
+`getApprovedPharmacies` is THE FIRST REVIEWED CAPABILITY EXECUTED END TO END on a real application: the adopter's
+log shows `PharmacyServiceImpl.getAllApprovedPharmacies` entered with the reviewed argument, the repository's
+`selectAllByFilters` and `countAllByFilters` run against MySQL, and the empty result set serialized back through
+the MCP transport. The description the maintainer approved says it "narrows to the caller's role" and the call ran
+with the adopter's own `no token put in the Context`, so the narrowing did not apply: the anonymous caller saw the
+unnarrowed (empty) set, which is the exposure the tool's security verdict exists to name, here on one of the two
+tools that carry NO declared contract and therefore register by default. `getExpectedDeliveryTime` reached the
+bound method (the adopter's aspect logged `Starts with Input: [1]` and the cart select ran) and failed inside it
+on the empty table; the measurement proves the path up to the method, not the method. Every empty result is a
+property of the throwaway database, not of the tool: this run proves transport, registration, the write gate's
+read-only surface, the security list, bean resolution, argument coercion and invocation. It proves nothing about
+data.
+
+THE FINDINGS, numbered on from section 9.4.
+
+**F7. The binding is a simple class name, and the runtime resolves it by simple name.** **[tibyaan]** The
+manifest carries `binding: "LookupServiceImpl#getAllSuppliersLookups"`; the reviewed target in the drafts file is
+`zag.service.stock.core.service.LookupServiceImpl#getAllSuppliersLookups()`. `SpringExecutionAdapter.resolveBean`
+(lines 84 to 97) tries the default bean name `lookupServiceImpl`, then the first bean whose SIMPLE class name
+matches. **[adopter]** the reactor declares four classes named `LookupServiceImpl` (`zag.service.activity.core`,
+`zag.service.stock.core`, `zag.service.system.settings.core`, `zag.zpi.pharmacy.core`). The pharmacy service
+hosts the fourth, not the reviewed one, and the runtime resolved to it. The call failed only because that class
+has no zero-argument `getAllSuppliersLookups`; had it had one, the reviewed tool would have invoked a method the
+reviewer never read. That is a mis-bind at the moment of action, on the exact shape Entity Identity (Volume 5
+section 4.12) closed for entities on this same benchmark class: simple-name keying collapses legitimately reused
+names across bounded contexts. The verified and attested bindings have the same form (`binding` is
+`<SimpleName>#<method>` on every tier), so the exposure is runtime-wide and not a reviewed-tier property. The
+drafts file already carries the qualified target; the manifest drops it. This is the finding of the run, and the
+next design: carry the declaring class qualified through the manifest and have the runtime verify that the
+resolved bean IS that class (or refuse loudly), never resolve by simple name. It is a binding-integrity item, and
+under the standing rule that a mis-bind outranks every coverage item, it outranks DL-2 and candidate hygiene.
+PENDING RATIFICATION; nothing was changed in this session.
+
+**F8. An invocation failure hides its cause.** **[tibyaan]** `SpringExecutionAdapter.invoke` (line 80) wraps
+`InvocationTargetException` in `IllegalStateException("failed to invoke binding '...'", e)`, the tool callback
+lets it propagate, and the client text carries only the outer message; the adopter's log has no exception line
+at all for the cart call. A reviewer diagnosing a reviewed tool has neither the business exception nor its
+message. Diagnostic-only: surface the cause's class and message in the returned error and log it at WARN.
+
+**F9. Registration is manifest-wide, hosting is per service.** **[adopter]** six of the nine reviewed beans
+live in services this one does not host (`RoleServiceImpl` and `ScopeServiceImpl` in user-core, hosted by
+zpi-user-mgt and zpi-backend-mgt; `CurrentStockServiceImpl`, `SubProductServiceImpl` and the reviewed
+`LookupServiceImpl` in stock-core and product-core, hosted by zpi-customer-product-mgt and zpi-backend-mgt;
+`PharmacyUserServiceImpl` in zpi-user-core, hosted by zpi-user-mgt; `LocalStockProxyService` is on the pharmacy
+classpath but not a bean here, the adopter loads proxies per service). **[tibyaan]** the runtime registers all
+nine and discovers the absence only at call time. Section 9 recorded the same fact for attested tools (13 of 15
+hosted) without a number. A startup check that a binding's bean exists would move this to startup honesty, next
+to the X1 to X5 checks; it is a candidate, not ratified.
+
+**F10. The order of checks at invocation.** **[tibyaan]** bean resolution runs before argument coercion, so the
+illegal enum probe (`orderDir=UP` on `getAllSubProductsByFilters`) answered `no bean found` and EI-R's refusal was
+not reached on this service. A fact, not a defect; the EI-R refusal is covered by its own fixtures.
+
+WHAT THIS CHANGES. The reviewed tier is now measured on the same footing as the attested one: a named human's
+decision, carried through scan, manifest, gate and runtime, executed against the real application through a real
+client, with the tool's own honesty lines firing where they should. It also found the first runtime defect the
+reviewed tier's shape exposes, F7, which section 9's thirteen hosted attested tools could not have found because
+none of their simple names is reused in this reactor.
+
+NEXT: ratify, amend or refuse the F7 design (qualified binding, verified at resolution). Real approvals continue
+in parallel; they are safe on this service today only for bindings whose simple name is unique in the reactor,
+which the maintainer can check with the drafts file's `target` field.
