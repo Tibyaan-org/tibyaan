@@ -105,6 +105,34 @@ class CollectionInputRuntimeTest {
     }
 
     @Test
+    void ci8_aCglibProxiedBeanStillExposesItsGenericElementType() {
+        // Found on the first real call (as-backend-trial.md section 10.9): the CGLIB override of a proxied bean
+        // carries no generic signature, so the element type must be read from the user class.
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.registerBean("ticketService", TicketService.class);
+            context.registerBean("advisor", org.springframework.beans.factory.config.BeanPostProcessor.class,
+                    () -> new org.springframework.beans.factory.config.BeanPostProcessor() {
+                        @Override
+                        public Object postProcessAfterInitialization(Object bean, String beanName) {
+                            if (!(bean instanceof TicketService)) {
+                                return bean;
+                            }
+                            org.springframework.aop.framework.ProxyFactory factory =
+                                    new org.springframework.aop.framework.ProxyFactory(bean);
+                            factory.setProxyTargetClass(true);
+                            return factory.getProxy();
+                        }
+                    });
+            context.refresh();
+            assertThat(context.getBean("ticketService").getClass().getName()).contains("$$SpringCGLIB$$");
+
+            SpringExecutionAdapter adapter = new SpringExecutionAdapter(context, manifest("byIds", "ids", "LONG"));
+            assertThat(adapter.invoke(new CapabilityRef("cap"), Map.of("ids", List.of(1, 2))))
+                    .isEqualTo("ids=[1, 2]:Long");
+        }
+    }
+
+    @Test
     void theToolSchemaRendersAMultipleInputAsAnArray() {
         CapabilityDescriptor descriptor = manifest("byIds", "ids", "LONG").tools().get(0);
         CapabilityToolCallback callback = new CapabilityToolCallback(descriptor, null,

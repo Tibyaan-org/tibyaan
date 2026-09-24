@@ -72,7 +72,11 @@ public final class SpringExecutionAdapter implements ExecutionAdapter {
         // DECLARED parameter type. Reconstructing the parameter types from the IR was the latent defect
         // (Volume 7 section 9): a STRING input yielded String.class against a real enum or LocalDate
         // parameter, so the lookup threw and the capability was uninvokable.
-        Method method = findMethod(bean, methodName, inputs.size(), binding);
+        // The method is resolved on the USER class, never on the proxy subclass: a CGLIB override carries no
+        // generic signature, so a List<Integer> parameter reads as a raw List there and a multiple input could
+        // not be built (found on the first real collection-input call, as-backend-trial.md section 10.9).
+        // Invoking the user-class Method on the proxy instance still dispatches virtually through the advice.
+        Method method = findMethod(ClassUtils.getUserClass(bean.getClass()), methodName, inputs.size(), binding);
         Class<?>[] declaredTypes = method.getParameterTypes();
         java.lang.reflect.Type[] genericTypes = method.getGenericParameterTypes();
         Object[] callArgs = new Object[inputs.size()];
@@ -155,9 +159,9 @@ public final class SpringExecutionAdapter implements ExecutionAdapter {
      * It never guesses which overload a capability binds to: an invocation against the wrong overload is a
      * mis-bind at the moment of action, which is exactly what this project never does.
      */
-    private static Method findMethod(Object bean, String methodName, int arity, String binding) {
+    private static Method findMethod(Class<?> userClass, String methodName, int arity, String binding) {
         List<Method> candidates = new ArrayList<>();
-        for (Method method : bean.getClass().getMethods()) {
+        for (Method method : userClass.getMethods()) {
             if (method.getName().equals(methodName) && method.getParameterCount() == arity
                     && !method.isBridge() && !method.isSynthetic()) {
                 candidates.add(method);
@@ -165,12 +169,12 @@ public final class SpringExecutionAdapter implements ExecutionAdapter {
         }
         if (candidates.isEmpty()) {
             throw new IllegalStateException("no method '" + methodName + "' taking " + arity
-                    + " argument(s) on " + bean.getClass().getName() + " for binding '" + binding + "'");
+                    + " argument(s) on " + userClass.getName() + " for binding '" + binding + "'");
         }
         if (candidates.size() > 1) {
             throw new IllegalStateException("binding '" + binding + "' is ambiguous: "
                     + candidates.size() + " overloads of '" + methodName + "' take " + arity
-                    + " argument(s) on " + bean.getClass().getName() + " ("
+                    + " argument(s) on " + userClass.getName() + " ("
                     + candidates.stream().map(Method::toGenericString).sorted().collect(joining("; "))
                     + "); the adapter never guesses which one a capability binds to");
         }
