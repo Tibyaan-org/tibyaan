@@ -634,7 +634,7 @@ Identity, DL-2a and DL-2b, F9), all measured, and it is not published: the maint
 waits for two things, the description drafter decision and the caller at the tool boundary. Both are
 designed below, pending ratification. Nothing else is queued ahead of them.
 
-### Describe: the AT-4 assist as one quarantined command (designed 2026-09-24, PENDING RATIFICATION)
+### Describe: the AT-4 assist as one quarantined command (designed and RATIFIED 2026-09-24)
 
 Goal: end the hand-written description. Evidence: eleven approvals on as-backend, every sentence written by
 a person from the slice the tool fingerprints. Design: Volume 5 section 4.15.5.2, Volume 11 section 3.6,
@@ -642,7 +642,7 @@ Volume 16 section 7, ADR-0016. Exit criterion: fixtures DS-1 to DS-6 green again
 benchmarks byte-identical, and one real run on as-backend whose drafted sentences the maintainer reads and
 approves or corrects by name.
 
-### SEC-0 and SEC-1: the caller at the tool boundary (designed 2026-09-24, PENDING RATIFICATION)
+### SEC-0 and SEC-1: the caller at the tool boundary (designed and RATIFIED 2026-09-24)
 
 Goal: no reviewed write and no contract-carrying tool runs without a caller, and the caller the host
 authenticated reaches the bound method. Evidence: sections 10.6 to 10.11 of the as-backend ledger. Design:

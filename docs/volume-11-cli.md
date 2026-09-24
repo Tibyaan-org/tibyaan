@@ -234,7 +234,7 @@ stamp, and makes the file the record: review is editing it, there is no review c
 refusal's cause and target. Exit codes unchanged: 0 written, 3 the source could not be read.
 
 
-## 3.6 `tibyan describe`: drafting descriptions for pending entries (phase Describe; designed 2026-09-24, PENDING RATIFICATION)
+## 3.6 `tibyan describe`: drafting descriptions for pending entries (phase Describe; designed and RATIFIED 2026-09-24)
 
 `tibyan describe <path> [--model <id>] [--limit <n>] [--only <name>...] [--label READ|WRITE|UNKNOWN]
 [--dry-run]` reads `tibyan/drafts.json`, selects the PENDING entries whose description is empty or whose

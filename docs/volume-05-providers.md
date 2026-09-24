@@ -1505,7 +1505,7 @@ WHAT THIS MEANS FOR AN ADOPTER TODAY: any producer of drafts can be used, includ
 MEASURED (2026-09-01): all three benchmarks BYTE-IDENTICAL across the serialized IR, the generated MCP output, the generated OpenAPI document, AND the survey text, verified by `diff -r` against a worktree at the pre-build commit. None carries a record file, so no draft queue can appear and the phase is provably additive.
 
 
-#### 4.15.5.2 The assist itself: `tibyan describe` (phase Describe; designed 2026-09-24, PENDING RATIFICATION; stack decision Volume 16 section 7, ADR-0016)
+#### 4.15.5.2 The assist itself: `tibyan describe` (phase Describe; designed and RATIFIED 2026-09-24 as written, build in this session; stack decision Volume 16 section 7, ADR-0016)
 
 The split of 4.15.5.1 is closed on the maintainer's decision of 2026-09-24 that publication waits for this
 design and for the security design (Volume 7 section 15). The evidence is the reviewed tier's first month on

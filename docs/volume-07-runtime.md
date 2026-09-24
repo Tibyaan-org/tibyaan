@@ -781,7 +781,7 @@ one. `tools/list` returned 20 and a hosted reviewed read still answered. The 13-
 
 `mvn clean verify`: green, 12 modules.
 
-## 15. The caller at the tool boundary (spike SEC-0 and phase SEC-1; designed 2026-09-24, PENDING RATIFICATION; ADR-0017)
+## 15. The caller at the tool boundary (spike SEC-0 and phase SEC-1; designed and RATIFIED 2026-09-24 as written, the spike next after Describe; ADR-0017)
 
 ### 15.1 The evidence
 

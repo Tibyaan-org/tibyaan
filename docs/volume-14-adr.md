@@ -291,7 +291,7 @@ flowchart LR
 **Tradeoffs.** The moat is aspirational early and must be earned through deeper analysis over time. Until the semantic depth accrues, the product resembles an MCP generator. This is accepted because the alternative, competing on protocol output alone, is a genuinely undifferentiated product.
 
 
-## ADR-0016: The description drafter is one quarantined CLI command, not a flag and not a plugin (proposed 2026-09-24, PENDING RATIFICATION)
+## ADR-0016: The description drafter is one quarantined CLI command, not a flag and not a plugin (proposed and RATIFIED 2026-09-24)
 
 Context. The reviewed tier needs a description per approved entry; on the first real app every one was
 written by hand from the slice the tool already fingerprints. The tool's contract is deterministic offline
@@ -306,7 +306,7 @@ Maven plugin.
 Consequences. Rule 10 stays a property of generation; the assist's non-determinism is confined to reviewer
 input. Adopters without a key lose only convenience. The drafts file gains two provenance fields.
 
-## ADR-0017: The caller reaches the tool boundary through the host's own authentication, and the runtime enforces the compiled contract (proposed 2026-09-24, PENDING RATIFICATION)
+## ADR-0017: The caller reaches the tool boundary through the host's own authentication, and the runtime enforces the compiled contract (proposed and RATIFIED 2026-09-24)
 
 Context. The runtime invokes service beans directly, below the controllers where the surveyed applications
 declare their security; the first real runs executed reads and a write with no caller at all.
