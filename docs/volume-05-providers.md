@@ -2521,7 +2521,7 @@ merge, with every review kept. Core rule 7 keeps its check over the now-qualifie
 is a diff confined to `binding` values on all three benchmarks with every count unchanged.
 
 
-### 4.19 DL-2: collection inputs and structured inputs (designed 2026-09-24, PENDING RATIFICATION; two build steps, DL-2a then DL-2b)
+### 4.19 DL-2: collection inputs and structured inputs (designed 2026-09-24, RATIFIED 2026-09-24 as written; two build steps, DL-2a then DL-2b; ratification record at 4.19.6)
 
 DL-1 deferred collection inputs to DL-2 by name (decision D6, section 4.17.11) with the trigger recorded: 66
 READ entries on as-backend carried `List<Long>` or `List<Integer>`. Binding Identity built, the trigger was
@@ -2676,6 +2676,16 @@ verified tier: a discovered read has, and will have, only primitive inputs.
 - D8, ENTITY INPUTS: refuse permanently. Recommendation: refuse (42 inputs).
 - D9, SEQUENCING: DL-2a in one session, DL-2b in the next. Recommendation: yes; 2a is a flag and a coercion,
   2b is the sixth IR growth and carries its own rules.
+
+
+#### 4.19.6 Ratification record (2026-09-24)
+
+Ratified by the maintainer on 2026-09-24, as written, with the instruction "ratified as written, build DL-2a".
+Every decision of 4.19.5 stands at its recommendation: D1 the per-input `multiple` flag, D2 a new Shape
+element, D3 disclosed partiality, D4 all shape fields optional, D5 shapes in the fingerprint, D6 POST for a
+read with a shape or multiple input, D7 unknown properties fail, D8 entity inputs refused, D9 DL-2a then DL-2b
+in separate sessions. This record is committed before any DL-2a code (rule 12). DL-2b is ratified by the same
+act and waits for its own session.
 
 ## 5. Future providers
 
