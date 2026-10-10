@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "tibyaan-site",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "tibyaan-site", "run", "dev"],
+      "port": 3000,
+      "autoPort": true
+    }
+  ]
+}
