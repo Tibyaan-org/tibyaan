@@ -68,6 +68,9 @@ Status: Draft. Summary: a provider and a runtime for the .NET ecosystem. Motivat
 ### RFC-0006: Plugin marketplace
 Status: Draft. Summary: a distribution and discovery mechanism for third-party plugins. Motivation: grows an ecosystem around a stable plugin API (Volume 10, section 7). Open questions: versioning guarantees, trust, and compatibility signaling.
 
+### RFC-0007: Outside-in provider (spike OI-0)
+Status: Draft, written 2026-10-18, not ratified. Summary: a CapabilityProvider that drafts capabilities from a system's published OpenAPI contract when its source cannot be read; such capabilities land in the reviewed tier only, never VERIFIED or ATTESTED. Motivation: systems the adopter owns but Tibyan cannot read. Open questions: the four of spike OI-0 (input census, label honesty against source, a classless binding, forwarding the caller's credential) and the evidence E1 to E4 a build would need. Full text: docs/rfc-0007-outside-in-provider.md.
+
 ## 4. How to add an RFC
 
 Copy the template in section 2, give it the next number, open it as Draft, and link it from this volume. Keep it Draft until there is a real intent to build it, so this list stays a map of direction rather than a backlog of speculation.

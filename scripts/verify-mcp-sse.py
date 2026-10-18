@@ -13,6 +13,11 @@ Usage:
 Args (all optional): base URL, a tool name to call, and its arguments as JSON.
 With no tool name it stops after tools/list.
 """
+import utils.net
+import utils.clients
+import utils.http_session
+import utils.transport
+import utils.session
 import json
 import sys
 import threading

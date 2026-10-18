@@ -11,7 +11,6 @@ target/
 # IDE
 .idea/
 *.iml
-.vscode/
 .settings/
 .project
 .classpath
@@ -38,4 +37,5 @@ Thumbs.db
 /tibyaan-site
 
 # Local secrets: the ANTHROPIC_API_KEY for tibyan describe, loaded into the environment by the shell, never read by the tool
-.env
+config.bat
+node_modules
