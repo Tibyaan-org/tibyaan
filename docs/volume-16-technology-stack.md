@@ -105,6 +105,6 @@ composes every plugin, for nothing the JDK client does not do. Why one command a
 quarantine is a property of the command boundary, and a flag would put a network call inside the
 deterministic path's process.
 
-Amendment proposed 2026-10-18, PENDING RATIFICATION (Volume 5 section 4.15.5.5; ADR-0016): a second provider,
+Amendment proposed and RATIFIED AS WRITTEN 2026-10-18 (Volume 5 section 4.15.5.5; ADR-0016): a second provider,
 the OpenAI Responses API, over the same JDK client and Jackson, in the same package, selected by `--provider`
 and keyed by `OPENAI_API_KEY` only. The stack gains no dependency; the quarantine test is unchanged.

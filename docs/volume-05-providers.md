@@ -1640,7 +1640,7 @@ UNKNOWN), and 173 WRITE across the reactor. The first run is therefore the 31 of
 with `--only` (the 32nd, `createGovernorate`, is approved). The list is in as-backend-trial.md section 10.16.
 A dry run of exactly that command built 31 prompts and left the drafts file byte-identical.
 
-#### 4.15.5.5 Amendment DS-P: a second model provider, OpenAI, behind the same quarantine (designed 2026-10-18, PENDING RATIFICATION; amends 4.15.5.2 answer 2, Volume 16 section 7, ADR-0016)
+#### 4.15.5.5 Amendment DS-P: a second model provider, OpenAI, behind the same quarantine (designed 2026-10-18, RATIFIED AS WRITTEN 2026-10-18, D1 to D4 at their recommendations; amends 4.15.5.2 answer 2, Volume 16 section 7, ADR-0016)
 
 THE EVIDENCE. The exit criterion's last clause (one real run on as-backend, 4.15.5.3) has waited since
 2026-09-24 for an `ANTHROPIC_API_KEY`. On 2026-10-18 the maintainer supplied an `OPENAI_API_KEY` instead, and
@@ -1718,7 +1718,11 @@ over the 31 named entries of as-backend-trial.md section 10.16,
 `tibyan describe <as-backend> --provider openai --model <id> --only <the 31>`, whose sentences the maintainer
 reads and approves or corrects by name (DS-5), recorded with the refused count and reasons.
 
-DECISIONS FOR THE MAINTAINER:
+RATIFIED AS WRITTEN 2026-10-18 by the maintainer, every decision at its recommendation: D1 the Responses API, D2 no
+OpenAI default model (`--model` required), D3 `<provider>:<model>` provenance, D4 an explicit `--provider` with
+default `anthropic`. Record committed before code (rule 12).
+
+DECISIONS FOR THE MAINTAINER (as proposed):
 - D1, the API: the Responses API (recommended: the vendor's current primary text API, and `store: false` is
   available on it) or Chat Completions (older, stateless by default, slightly simpler response shape).
 - D2, the OpenAI default model: none, `--model` required (recommended, DS-P6), or a named default the

@@ -306,7 +306,7 @@ Maven plugin.
 Consequences. Rule 10 stays a property of generation; the assist's non-determinism is confined to reviewer
 input. Adopters without a key lose only convenience. The drafts file gains two provenance fields.
 
-Amendment proposed 2026-10-18, PENDING RATIFICATION (Volume 5 section 4.15.5.5, DS-P). The command gains a second
+Amendment proposed and RATIFIED AS WRITTEN 2026-10-18 (Volume 5 section 4.15.5.5, DS-P). The command gains a second
 provider, OpenAI's Responses API, selected only by an explicit `--provider` flag (default `anthropic`), each
 provider reading its own key variable only. Everything this decision quarantines stays quarantined: still one
 command, the JDK client, no SDK, no new dependency, the describe package the only network-capable code. Context:
