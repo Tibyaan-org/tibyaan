@@ -1640,6 +1640,93 @@ UNKNOWN), and 173 WRITE across the reactor. The first run is therefore the 31 of
 with `--only` (the 32nd, `createGovernorate`, is approved). The list is in as-backend-trial.md section 10.16.
 A dry run of exactly that command built 31 prompts and left the drafts file byte-identical.
 
+#### 4.15.5.5 Amendment DS-P: a second model provider, OpenAI, behind the same quarantine (designed 2026-10-18, PENDING RATIFICATION; amends 4.15.5.2 answer 2, Volume 16 section 7, ADR-0016)
+
+THE EVIDENCE. The exit criterion's last clause (one real run on as-backend, 4.15.5.3) has waited since
+2026-09-24 for an `ANTHROPIC_API_KEY`. On 2026-10-18 the maintainer supplied an `OPENAI_API_KEY` instead, and
+`tibyan describe` cannot use it: answer 2 of 4.15.5.2 names the Anthropic Messages API and `ANTHROPIC_API_KEY`
+as the only provider and the only key. Using that key is therefore a design change, not a build defect, so it
+is designed here and committed before any code (rule 12). Nothing below touches scan, draft, generate, the
+Maven plugin, the IR, core or the plugin API.
+
+WHAT DOES NOT CHANGE. The quarantine of Volume 16 section 7 (one command, the JDK `HttpClient`, the CLI's
+Jackson, no SDK, no new dependency, the HTTP client type referenced from the describe package alone, guarded by
+`NetworkQuarantineTest` unchanged); DS-1 to DS-5 word for word (what is described, what the model sees, the
+600-character one-line bound taken verbatim, stale handling, approval); the prompt text; the `DescriptionModel`
+seam; the Anthropic path and its seven request fixtures, byte for byte, as the default.
+
+THE AMENDMENT (DS-P).
+
+- DS-P1, SELECTION IS EXPLICIT: a flag `--provider anthropic|openai`, default `anthropic`. The provider is never
+  inferred from which key is set or from the shape of the model id: inferring would be the guess the fail-loud
+  discipline forbids, and a machine holding both keys would describe through whichever the inference picked.
+- DS-P2, ONE KEY PER PROVIDER: `anthropic` reads `ANTHROPIC_API_KEY` only, `openai` reads `OPENAI_API_KEY` only;
+  never a flag, a file, `.env` parsing or the drafts file. A missing key for the selected provider exits 3 with a
+  located message naming that variable and writes nothing, exactly as today. `--dry-run` needs no key under
+  either provider.
+- DS-P3, THE TRANSPORT: `OpenAiResponsesModel`, a second implementation of `DescriptionModel` in
+  `com.tibyaan.cli.describe`, over the OpenAI Responses API (`POST https://api.openai.com/v1/responses`,
+  `Authorization: Bearer`) with one request shape and one response shape. The request carries `model`, `input`
+  (the one prompt, as a single user message), `max_output_tokens: 4096` and `store: false`, and nothing else: no
+  `temperature`, no `top_p`, no `reasoning` configuration (the 4.15.5.4 lesson: sampling parameters are rejected
+  by reasoning models, and each model runs its own default effort). `store: false` because the prompt is the
+  adopter's source code, and the Responses API retains a response server side unless told not to.
+- DS-P4, WHAT IS TAKEN BACK, the 4.15.5.4 discipline restated for this response shape: the response `status`
+  must be `completed`, else the entry is refused naming `incomplete_details.reason` (a `max_output_tokens` cut
+  is never written as a draft); `reasoning` output items are skipped; every `output_text` part of every
+  `message` item is taken verbatim, in order; a `refusal` content part refuses the entry naming it; an empty
+  result refuses. The text then meets DS-3 unchanged.
+- DS-P5, RETRIES: HTTP 429, 500, 502, 503 and 504 retried at most twice, honoring `retry-after` capped at 30
+  seconds, else 2 then 4 seconds, as the Anthropic path; EXCEPT a 429 whose error `code` is
+  `insufficient_quota`, which is a billing state, not a rate, and refuses at once. 400 and 401 are never
+  retried. The describer still skips a refused entry and continues (DS-1).
+- DS-P6, THE MODEL ID: under `openai`, `--model` is REQUIRED, with no recorded default; its absence exits 3
+  before any call. Under `anthropic` the default `claude-sonnet-5` stands. Reason: a recorded default is a claim
+  that the id exists and reads code well, and it must be checked against the vendor's current model list before
+  it is written down (4.15.5.4 found the built Anthropic request wrong on first contact with the reference).
+  The maintainer names the id at the run; a later amendment may record a default once one run has proven it.
+- DS-P7, PROVENANCE: `describedBy` records `<provider>:<model id>` (for example `openai:<id>`), so the record
+  says which vendor's model produced the words without relying on vendor naming conventions. No ai-draft entry
+  exists in any real drafts file yet (the real run never happened), so the change rewrites no adopter data; the
+  fake-model fixtures DS-1 to DS-6 update their expected `describedBy` deliberately, with a visible diff. Under
+  decision D3's alternative, `describedBy` stays the bare id.
+- DS-P8, DATA EGRESS, stated where an adopter reads it: `docs/SECURITY.md` and `docs/CLI.md` gain one sentence
+  each, that `describe` sends the fingerprinted slice of each described entry to the selected provider's API and
+  to no one else, and that `--dry-run` shows exactly what would be sent.
+
+FIXTURES DS-7 to DS-14, in `OpenAiResponsesModelTest` against a local fake endpoint (no paid call), plus two in
+the command test: DS-7 the request carries exactly `model`, `input`, `max_output_tokens` and `store: false`, and
+asserts `temperature`, `top_p` and `reasoning` absent and the bearer header present; DS-8 a `completed` response
+with a reasoning item and two `output_text` parts yields the parts verbatim in order; DS-9 `incomplete` with
+reason `max_output_tokens` refuses, naming it; DS-10 a `refusal` part refuses, naming it; DS-11 a 429 with
+`retry-after` is retried and then succeeds, a third 503 refuses; DS-12 a 429 `insufficient_quota` is not
+retried; DS-13 `--provider openai` without `OPENAI_API_KEY` exits 3 naming the variable and the drafts file is
+byte-equal after; DS-14 `--provider openai` without `--model` exits 3 before any call. `NetworkQuarantineTest`
+passes unchanged; the Anthropic fixtures pass unchanged.
+
+FORECAST: the three benchmarks and the CLI draft golden byte-identical by construction (no scan, draft or
+generate path changes; the describe package and the command's option wiring only, plus DS-P7's provenance
+string). `mvn clean verify` green, 12 modules.
+
+READINESS BEFORE THE FIRST PAID CALL, as 4.15.5.4 did for Anthropic: the request and response shapes of DS-P3
+and DS-P4 are checked against the current Responses API reference and proven against the fake endpoint; any
+divergence found is flagged as a build correction under rule 13 if it changes no recorded rule, and brought
+back to the maintainer if it does.
+
+EXIT CRITERION, the clause that has waited since 2026-09-24, unchanged in substance: one real run on as-backend
+over the 31 named entries of as-backend-trial.md section 10.16,
+`tibyan describe <as-backend> --provider openai --model <id> --only <the 31>`, whose sentences the maintainer
+reads and approves or corrects by name (DS-5), recorded with the refused count and reasons.
+
+DECISIONS FOR THE MAINTAINER:
+- D1, the API: the Responses API (recommended: the vendor's current primary text API, and `store: false` is
+  available on it) or Chat Completions (older, stateless by default, slightly simpler response shape).
+- D2, the OpenAI default model: none, `--model` required (recommended, DS-P6), or a named default the
+  maintainer records now.
+- D3, provenance: `<provider>:<model>` on every new entry (recommended, DS-P7) or the bare model id as today.
+- D4, selection: an explicit `--provider` with default `anthropic` (recommended, DS-P1), or `openai` as the new
+  default because it is the key this machine holds.
+
 #### 4.15.6 Name-and-signature honesty: how attested capabilities satisfy the E6b verdict
 
 The E6b rejection says a description is not enough, so the attested distinction must live where the agent acts: the name and the schema.

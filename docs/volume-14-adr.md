@@ -306,6 +306,14 @@ Maven plugin.
 Consequences. Rule 10 stays a property of generation; the assist's non-determinism is confined to reviewer
 input. Adopters without a key lose only convenience. The drafts file gains two provenance fields.
 
+Amendment proposed 2026-10-18, PENDING RATIFICATION (Volume 5 section 4.15.5.5, DS-P). The command gains a second
+provider, OpenAI's Responses API, selected only by an explicit `--provider` flag (default `anthropic`), each
+provider reading its own key variable only. Everything this decision quarantines stays quarantined: still one
+command, the JDK client, no SDK, no new dependency, the describe package the only network-capable code. Context:
+the maintainer holds an OpenAI key and not an Anthropic one, and the exit run has waited on a key since
+2026-09-24. Consequence: an adopter's slice may go to either vendor, which the operator chooses per run and
+SECURITY.md states.
+
 ## ADR-0017: The caller reaches the tool boundary through the host's own authentication, and the runtime enforces the compiled contract (proposed and RATIFIED 2026-09-24; BUILT 2026-09-24, Volume 7 sections 15.9 and 15.10)
 
 Context. The runtime invokes service beans directly, below the controllers where the surveyed applications
