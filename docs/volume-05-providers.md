@@ -1640,7 +1640,7 @@ UNKNOWN), and 173 WRITE across the reactor. The first run is therefore the 31 of
 with `--only` (the 32nd, `createGovernorate`, is approved). The list is in as-backend-trial.md section 10.16.
 A dry run of exactly that command built 31 prompts and left the drafts file byte-identical.
 
-#### 4.15.5.5 Amendment DS-P: a second model provider, OpenAI, behind the same quarantine (designed 2026-10-18, RATIFIED AS WRITTEN 2026-10-18, D1 to D4 at their recommendations; amends 4.15.5.2 answer 2, Volume 16 section 7, ADR-0016)
+#### 4.15.5.5 Amendment DS-P: a second model provider, OpenAI, behind the same quarantine (designed 2026-10-18, RATIFIED AS WRITTEN 2026-10-18, D1 to D4 at their recommendations; BUILT 2026-10-18, build record 4.15.5.6; amends 4.15.5.2 answer 2, Volume 16 section 7, ADR-0016)
 
 THE EVIDENCE. The exit criterion's last clause (one real run on as-backend, 4.15.5.3) has waited since
 2026-09-24 for an `ANTHROPIC_API_KEY`. On 2026-10-18 the maintainer supplied an `OPENAI_API_KEY` instead, and
@@ -1730,6 +1730,52 @@ DECISIONS FOR THE MAINTAINER (as proposed):
 - D3, provenance: `<provider>:<model>` on every new entry (recommended, DS-P7) or the bare model id as today.
 - D4, selection: an explicit `--provider` with default `anthropic` (recommended, DS-P1), or `openai` as the new
   default because it is the key this machine holds.
+
+#### 4.15.5.6 DS-P build record (BUILT 2026-10-18)
+
+BUILT as ratified, DS-P1 to DS-P8, D1 to D4 at their recommendations.
+
+WHAT CHANGED IN CODE. CLI only. `OpenAiResponsesModel`, a second `DescriptionModel` in
+`com.tibyaan.cli.describe`: the Responses API over the JDK `HttpClient` with the CLI's Jackson, the request
+`model`, `input`, `max_output_tokens: 4096`, `store: false` and nothing else (DS-P3); a response taken only when
+`status` is `completed`, reasoning items skipped, every `output_text` part of every message item taken verbatim
+in order, a `refusal` part refusing the entry by its text, an incomplete response refused naming its reason
+(DS-P4); 429, 500, 502, 503 and 504 retried at most twice honoring `retry-after`, a 429 whose error `code` or
+`type` is `insufficient_quota` never retried, a 400 never retried (DS-P5). `DescribeCommand` gains
+`--provider anthropic|openai` (default `anthropic`, DS-P1), reads `OPENAI_API_KEY` only under `openai` and
+`ANTHROPIC_API_KEY` only under `anthropic` (DS-P2), and exits 3 before any call when `--model` is absent under
+`openai` (DS-P6). Both model classes record `<provider>:<model>` as `describedBy`, while the request still sends
+the bare id (DS-P7). `docs/SECURITY.md` gains a section on what `describe` sends and to whom, and `docs/CLI.md`
+the flag and the same sentence (DS-P8). No new dependency; nothing outside `tibyan-cli` and the docs changed.
+
+FIXTURES. DS-7 to DS-12 in `OpenAiResponsesModelTest` (seven tests, DS-7 split into the request and the id)
+against a local fake endpoint; DS-13 and DS-14 in `DescriberTest`; `AnthropicMessagesModelTest` gains the id
+assertion (eight tests); `NetworkQuarantineTest` passes unchanged. CLI module 30 to 40 tests.
+
+FLAGGED, under rule 13 (wording only, no outcome changed). DS-P7 said the fake-model fixtures DS-1 to DS-6
+would update their expected `describedBy`. They did not need to: the prefix is applied by the two real model
+classes, and the fake model in `DescriberTest` names its own id, so its expectation is unchanged and the prefix
+is asserted in each real model's own test instead.
+
+READINESS, as 4.15.5.4: the request and response shapes were checked against OpenAI's published OpenAPI
+description (`openai/openai-openapi`, `manual_spec`): `store` defaults to `true` on `CreateResponse` (so sending
+`false` is required, as DS-P3 says), `status` is one of `completed`, `failed`, `in_progress`, `incomplete`,
+`incomplete_details.reason` is `max_output_tokens` or `content_filter`, and the message parts are
+`output_text` (`text`) and `refusal` (`refusal`). `insufficient_quota` is not in that description (it is a
+documented error code, not a schema value), which is why the build accepts it in either `code` or `type`.
+
+THE FORECAST, CHECKED. `mvn clean verify` green across 12 modules; the CLI draft golden byte-identical; no scan,
+draft or generate path changed, so the three benchmarks are byte-identical by construction.
+
+MEASURED, a dry run on as-backend. The adopter's tree has moved since 2026-09-24 (HEAD 9fde7f7334, 2026-10-14) and
+its working copy no longer holds `tibyan/drafts.json`: the file with the eleven approvals is gone from this
+machine, and no copy was found. A fresh `tibyan draft --out` into a scratch file gave 1153 drafts (VERIFIED 6,
+ATTESTED 0, READ 269, WRITE 352, UNKNOWN 526), and `describe --provider openai --model <id> --dry-run --only <the
+31 of as-backend-trial.md section 10.16>` built 24 prompts (7 of the 31 names no longer exist on the current
+tree), recorded the model as `openai:<id>`, and left the file byte-identical.
+
+THE EXIT CRITERION'S LAST CLAUSE, one real run whose sentences the maintainer reads, WAITS ON TWO THINGS: the
+model id the maintainer names (DS-P6), and which drafts file the run goes into, since the approved file is gone.
 
 #### 4.15.6 Name-and-signature honesty: how attested capabilities satisfy the E6b verdict
 

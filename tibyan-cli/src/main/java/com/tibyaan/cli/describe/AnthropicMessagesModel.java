@@ -29,6 +29,7 @@ import java.util.Set;
 public final class AnthropicMessagesModel implements DescriptionModel {
 
     static final String ENDPOINT = "https://api.anthropic.com/v1/messages";
+    static final String PROVIDER = "anthropic";
     static final String API_VERSION = "2023-06-01";
     /** Headroom for a model whose thinking is on by default: its thinking tokens count against this cap. */
     static final int MAX_TOKENS = 4096;
@@ -65,9 +66,10 @@ public final class AnthropicMessagesModel implements DescriptionModel {
         this.sleeper = sleeper;
     }
 
+    /** DS-P7 (Volume 5 section 4.15.5.5): the provider and the model, recorded as {@code describedBy}. */
     @Override
     public String id() {
-        return model;
+        return PROVIDER + ":" + model;
     }
 
     @Override

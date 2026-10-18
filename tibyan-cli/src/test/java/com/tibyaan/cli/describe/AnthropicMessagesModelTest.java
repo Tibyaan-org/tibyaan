@@ -105,6 +105,12 @@ class AnthropicMessagesModelTest {
     }
 
     @Test
+    void theIdNamesTheProviderAndTheModel() {
+        // DS-P7 (Volume 5 section 4.15.5.5): the recorded describedBy; the request still sends the bare model id.
+        assertThat(model().id()).isEqualTo("anthropic:claude-sonnet-5");
+    }
+
+    @Test
     void theThinkingBlockIsSkippedAndEveryTextBlockIsTakenVerbatimInOrder() throws Exception {
         reply(200, ended("Creates a governorate ", "from its two titles."));
 

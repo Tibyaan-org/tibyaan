@@ -243,5 +243,6 @@ from the fingerprinted slice (Volume 5 section 4.15.5.2). It writes the words ba
 `descriptionOrigin: ai-draft`, `describedBy: <model id>` and `describedFrom: <fingerprint>`, leaves `review`
 pending, and prints a summary: described N, skipped M (approved, rejected, human-described, stale), refused K
 (with reasons). It never touches an approved or rejected entry or a human's words, never prints a drafted
-sentence, and exits 3 with a located message when `ANTHROPIC_API_KEY` is absent. It is the only command
+sentence, and exits 3 with a located message when the selected provider's key (`ANTHROPIC_API_KEY`, or
+`OPENAI_API_KEY` under `--provider openai`, amendment DS-P, Volume 5 section 4.15.5.5) is absent. It is the only command
 that makes a network call; `--dry-run` prints the prompts and writes nothing.

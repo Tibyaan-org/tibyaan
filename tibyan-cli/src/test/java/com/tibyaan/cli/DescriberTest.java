@@ -114,6 +114,44 @@ class DescriberTest {
         assertThat(DraftsFile.read(drafts)).isEqualTo(edited);
     }
 
+    private int describeExit(Path root, ByteArrayOutputStream err, String... args) {
+        PrintStream original = System.err;
+        try {
+            System.setErr(new PrintStream(err, true, StandardCharsets.UTF_8));
+            return new CommandLine(new TibyanCli()).execute(args);
+        } finally {
+            System.setErr(original);
+        }
+    }
+
+    @Test
+    void ds13_openaiWithoutItsKeyRefusesNamingThatVariableAndWritesNothing(@TempDir Path root) throws IOException {
+        assumeTrue(System.getenv(DescribeCommand.OPENAI_KEY_VARIABLE) == null, "the key is set in this environment");
+        Path drafts = draftedCopy(root);
+        String before = Files.readString(drafts);
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+
+        int code = describeExit(root, err, "describe", root.toString(), "--provider", "openai", "--model", "m");
+
+        assertThat(code).isEqualTo(3);
+        assertThat(err.toString(StandardCharsets.UTF_8)).contains(DescribeCommand.OPENAI_KEY_VARIABLE)
+                .doesNotContain(DescribeCommand.KEY_VARIABLE).contains("Nothing was written");
+        assertThat(Files.readString(drafts)).isEqualTo(before);
+    }
+
+    @Test
+    void ds14_openaiWithoutAModelRefusesBeforeAnyCall(@TempDir Path root) throws IOException {
+        Path drafts = draftedCopy(root);
+        String before = Files.readString(drafts);
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+
+        int code = describeExit(root, err, "describe", root.toString(), "--provider", "openai", "--dry-run");
+
+        assertThat(code).isEqualTo(3);
+        assertThat(err.toString(StandardCharsets.UTF_8)).contains("--model is required under --provider openai");
+        assertThat(Files.readString(drafts)).isEqualTo(before);
+    }
+
     @Test
     void ds3_aMissingKeyRefusesAndWritesNothing(@TempDir Path root) throws IOException {
         assumeTrue(System.getenv(DescribeCommand.KEY_VARIABLE) == null, "the key is set in this environment");

@@ -182,6 +182,15 @@ actions, and does not rate-limit or audit. It ensures the tools are honest about
 decide who may call them. That decision is yours, and it is the network and process boundary described
 above.
 
+## What `tibyan describe` sends, and to whom
+
+`tibyan describe` is the only command that makes a network call. It sends the fingerprinted slice of each
+described entry (the method, its imports, the repository declarations it calls, its return type, its parameter
+shapes) to the provider named by `--provider`, Anthropic by default or OpenAI, and to no one else; under OpenAI
+the request carries `store: false`. Each provider's key is read from its own environment variable only.
+`--dry-run` prints exactly what would be sent and sends nothing. No other command, and nothing at runtime,
+calls a model.
+
 ## Reporting a vulnerability
 
 Please report suspected security issues privately to the maintainer at ahmed0elseginy@gmail.com rather

@@ -392,7 +392,7 @@ the Maven plugin never do.
 ### Synopsis
 
 ```
-tibyan describe <path> [--model <id>] [--limit <n>] [--only <name>,...] [--label READ|WRITE|UNKNOWN]
+tibyan describe <path> [--provider anthropic|openai] [--model <id>] [--limit <n>] [--only <name>,...] [--label READ|WRITE|UNKNOWN]
                 [--drafts <drafts.json>] [--dry-run]
 ```
 
@@ -401,14 +401,18 @@ tibyan describe <path> [--model <id>] [--limit <n>] [--only <name>,...] [--label
 | Option | Effect |
 |---|---|
 | `<path>` | The system whose drafts file to describe. |
-| `--model <id>` | The model id, recorded on every entry it touches (default `claude-sonnet-5`). |
+| `--provider anthropic\|openai` | The model provider, named explicitly and never inferred (default `anthropic`). |
+| `--model <id>` | The model id, recorded as `<provider>:<id>` on every entry it touches (default `claude-sonnet-5` under `anthropic`; required under `openai`, which records no default). |
 | `--limit <n>` | At most this many entries per run (default 50). |
 | `--only <name>,...` | Describe only these entry names. |
 | `--label READ\|WRITE\|UNKNOWN` | Describe only entries with this label. |
 | `--drafts <file>` | The drafts file (default `<path>/tibyan/drafts.json`). |
 | `--dry-run` | Print every prompt and write nothing; needs no key. |
 
-The key is read from the environment variable `ANTHROPIC_API_KEY` only, never from a flag or a file.
+The key is read from the environment only, one variable per provider: `ANTHROPIC_API_KEY` under `anthropic`,
+`OPENAI_API_KEY` under `openai`, never from a flag or a file. The command sends the fingerprinted slice of each
+described entry to the selected provider's API and to no one else (under `openai` with `store: false`);
+`--dry-run` prints exactly what would be sent.
 
 ### What is described
 
